@@ -1,0 +1,18 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String   // stored Argon2id hash
+  googleId  String?  @unique // Google OAuth subject (if any)
+  appleId   String?  @unique // Apple SignIn identifier (if any)
+  createdAt DateTime @default(now())
+  // ... other profile fields
+}

@@ -1,13 +1,16 @@
 {
-  "name": "node-social",
+  "name": "api",
   "version": "1.0.0",
+  "description": "",
   "main": "index.js",
   "scripts": {
-    "start": "expo start",
-    "android": "expo start --android",
-    "ios": "expo start --ios",
-    "web": "expo start --web"
+    "dev": "tsx src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
   "dependencies": {
     "@fastify/cors": "^11.1.0",
     "@fastify/jwt": "^10.0.0",
@@ -15,20 +18,14 @@
     "@fastify/redis": "^7.1.0",
     "argon2": "^0.44.0",
     "dotenv": "^17.2.3",
-    "expo": "~54.0.23",
-    "expo-status-bar": "~3.0.8",
     "fastify": "^5.6.2",
     "jsonwebtoken": "^9.0.2",
-    "pino": "^10.1.0",
-    "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-native": "0.81.5",
-    "react-native-web": "^0.21.0"
+    "pino": "^10.1.0"
   },
-  "private": true,
   "devDependencies": {
+    "@prisma/client": "^6.19.0",
     "@types/node": "^24.10.1",
-    "@types/react": "~19.1.10",
+    "prisma": "^6.19.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   }

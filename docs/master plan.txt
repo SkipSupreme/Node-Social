@@ -1,0 +1,1757 @@
+# Node Social Master Plan v3.0 - “Research-Backed Flow”
+
+**Last Updated:** November 10, 2025  
+**Status:** Pre-Launch Strategy Document  
+**Team Meeting:** 5 Days (Target: November 15, 2025)
+
+-----
+
+## Document Purpose
+
+This is the living constitution and actionable roadmap for Node Social. Version 3.0 integrates:
+
+- Our original “Flow” philosophy and core features (v2.2)
+- Research validation from competitive analysis and academic studies
+- Critical infrastructure requirements identified through platform failure analysis
+- Concrete prioritization for team execution
+- Risk mitigation strategies based on real-world platform collapses
+
+**This document serves as:** Single source of truth, team meeting preparation guide, and execution checklist.
+
+-----
+
+## Executive Summary: Market Opportunity & Vision
+
+### The Market Reality (2024-2025)
+
+**The opportunity is unprecedented:**
+
+- 50% of consumers will abandon or limit social media use by 2025 due to quality decay (Gartner)
+- Bluesky: 1M users/day growth in November 2024 (10M → 38M in 5 months)
+- Threads: 400M users but only 3-5 minutes daily engagement vs Twitter’s 34 minutes
+- Reddit: API disaster created permanent trust vacuum with developers
+- 53% of users report quality decay compared to previous years
+- 48% of teens now see social media as mostly negative (up from 32% in 2022)
+
+**Why competitors are failing:**
+
+- Bluesky: Can’t scale moderation (6.48M reports, 100 moderators)
+- Threads: Launched incomplete, lost 82% of daily users in first month
+- Mastodon: Chose ideology over usability, stalled at 4.6M users
+- Cohost: Perfect values, zero revenue model, shut down January 2025
+- Reddit: Broke developer trust, exploits volunteer moderators
+
+**Our thesis:** Users aren’t leaving social media—they’re leaving engagement-over-experience platforms. Every competitor prioritizes viral growth over quality. We do the opposite.
+
+### Our Solution: Active, Optimistic Curation
+
+**Core Philosophy:**
+
+- **Pessimistic Filtering (Old Way):** Users manually block/mute/filter bad content. Stressful, negative, reactive.
+- **Optimistic Curation (Our Way):** System finds and surfaces quality. Community-verified experts (ConnoisseurCred) elevate valuable contributions. Meritocratic by default.
+
+**Why we’ll win:**
+
+1. **Research-backed features:** Every core mechanic validated by academic studies or proven by platform successes
+1. **Learn from their failures:** We’ve studied every competitor’s mistakes and planned around them
+1. **Perfect timing:** Market is actively seeking alternatives during maximum dissatisfaction
+1. **Transparency advantage:** When trust in platforms is lowest, we’re building the most transparent system
+1. **Quality over engagement:** Solving the exact problem causing user exodus
+
+-----
+
+## Part 1: Core Philosophy & Governance
+
+### 1.1 The Zen of Node
+
+Our guiding principles (public-facing manifesto):
+
+```
+The Zen of Node
+
+Optimistic Curation over Pessimistic Filtering.
+Amplify the best; don't just filter the worst.
+Default to meritocracy.
+
+Flowing guidelines over a rigid constitution.
+Reputation is permanent. Governance is active.
+An active expert is better than an inactive one (for a seat).
+
+Actions have consequences.
+Transparency is total.
+Public logs are non-negotiable.
+
+Appeals must have a stake.
+Community Juries over platform fiat.
+Trust the expert. Sort by Cred.
+
+Substance is better than low-context.
+Empower experts to gate the conversation.
+
+Value generated is better than volume subscribed.
+Faucets must be balanced by sinks.
+Hyperinflation is a bug.
+Earning by adoption is better than burning for access.
+
+Learning by doing is better than reading a manual.
+A place for chaos contains it.
+Communities must be earned, not just created.
+```
+
+### 1.2 Leadership Structure
+
+**Platform Level (BDFL):**
+
+- Single Benevolent Dictator for Life during formative stages
+- Ensures focused, singular vision
+- Transition plan: Once platform hits stability (TBD), transition to distributed governance
+
+**Community Level (Council of Node):**
+
+- Each Node governed by its “Council of Node”
+- Dynamic, merit-based moderation team (NOT static/appointed)
+- Automatically rotates based on activity + reputation
+
+### 1.3 The Active Seat Mechanic
+
+**Research validation:** Volunteer moderators experience burnout equivalent to crisis hotline workers (University of Michigan). Inactive moderators squatting on power creates governance staleness. Our solution addresses both.
+
+**How it works:**
+
+- **Reputation is Permanent:** UserNodeCred never decays. We don’t punish healthy breaks.
+- **Governance is Active:** Council seats = top 5-10 highest-cred users active in last 30 days
+- **Flow:** If high-cred expert goes inactive, seat passes to next-highest active expert. When original returns, they immediately regain seat. No penalties.
+
+**Implementation requirements (NEW - from research):**
+
+**Mandatory Moderator Wellness:**
+
+- Psychological support resources (trauma counseling access)
+- Screen break reminders built into mod tools
+- “Tap out” mechanism for disturbing content
+- Team-based moderation (never isolate individuals)
+- Geographic distribution for 24/7 coverage without burning out single time zone
+- Warning signs monitoring (erratic decisions, extended hours, decreased quality)
+
+**Budget reality:** 20-25% of total budget must go to content moderation (industry standard). This includes:
+
+- Professional moderation team salaries
+- AI/ML content detection systems
+- Moderator wellness programs
+- Training and ongoing education
+- Crisis response capacity
+
+-----
+
+## Part 2: Core Features & User Experience
+
+### 2.1 Modular Panel UI
+
+**What it is:** Multi-panel layout like VS Code or professional tools. Users drag, drop, resize, re-dock panels. Pop comment thread into sidebar while scrolling main feed.
+
+**Research validation:** Power users love customizable interfaces. Discord’s success partly due to flexible channel layouts.
+
+**CRITICAL ADDITION - Mobile Strategy:**
+
+- 63.9% of global social media users are mobile-first
+- Desktop power UI ≠ mobile experience
+- **Decision required:** Separate mobile interface OR responsive adaptation
+- **Team meeting priority:** Decide mobile approach BEFORE building desktop features
+- Loading over 3 seconds loses users
+- Test mobile constantly
+
+### 2.2 Vibe Vectors
+
+**What it is:** Multi-dimensional reactions replacing binary upvote/downvote. Customizable by each Node (e.g., [“Insightful”, “Funny”, “Cursed”, “Novel”]).
+
+**Research validation:**
+
+- Twitter research (PNAS Nexus 2025): Engagement-based algorithms amplify divisive content
+- Slashdot’s system (Insightful, Funny, Informative, Troll) worked for 20+ years
+- Stack Overflow’s weighted voting scales to millions of users
+- Multi-dimensional reactions let users differentiate “I laughed” from “this changed my thinking”
+
+**Implementation guidelines (NEW):**
+
+- **Don’t display raw counts prominently:** Research shows visible scores create bias before users read content
+- Use Vibe Vectors primarily for ranking/filtering, counts available on demand
+- Make reactions feel like personal expression, not public voting
+- Patent the radial wheel mechanic if possible (competitive moat)
+
+### 2.3 Radial Wheel Menu
+
+**What it is:** Click-and-hold “React” button, procedural wheel fans out. Drag cursor over multiple vectors (e.g., “70% Funny, 20% Cursed”) in one fluid motion, sets userIntensity.
+
+**Research validation:** Genuinely novel. No major platform has implemented intensity-based reactions. Tactile control missing from simple buttons.
+
+**Patent potential:** This gesture-based multi-dimensional reaction system is unique enough to potentially patent. Investigate before launch.
+
+### 2.4 The Vibe Validator
+
+**What it is:** UI panel (sidebar by default) with sliders for each Vibe Vector. Users control their own feed. Drag “Cursed” slider to 0% → feed instantly updates.
+
+**Research validation:**
+
+- 70% of users believe AI integration will harm their experience
+- Algorithmic manipulation = top complaint across all platforms
+- CHI/CSCW studies: **Adjustability reduces algorithm aversion more than transparency alone**
+- Users who can modify algorithms trust them significantly more
+- Bluesky’s 40,000+ custom feeds prove demand exists
+
+**Competitive advantage:** Not just showing algorithm (most won’t care), giving direct control in understandable interface. Difference between GitHub (developers) and Photoshop (creators).
+
+**Implementation requirements (NEW):**
+
+- **Default balanced settings must work well:** Most users adjust once, not daily
+- Provide both chronological AND algorithmic options (Mastodon’s chronological-only approach failed)
+- “Why am I seeing this?” explainer for each post
+- “More like this” / “Less like this” correction mechanism
+- Make machine learning visible and correctable
+
+### 2.5 First-Time User Experience: “Curation Gauntlet”
+
+**What it is:** All new users land in n/orientation. Feed pre-filled with intentional “spam” and “rage-bait.” Interactive tutorial guides them to drag “Cursed” slider to 0%, instantly cleaning feed.
+
+**Why it exists:** Teaches platform’s killer feature by doing, not reading manual. Users understand control immediately.
+
+**Research validation:** “Learning by doing” onboarding reduces drop-off. 73% of social apps lose 80% of users in first 90 days. Interactive tutorials beat passive instruction.
+
+### 2.6 Node Hierarchy (Hub & Child)
+
+**What it is:** Nodes organize hierarchically (n/canada → n/alberta → n/calgary). Enables intelligent content syndication and Node Court escalation system.
+
+**Research validation:** Wikipedia’s nested governance becomes MORE effective at scale. Hierarchical communities allow both local intimacy and broad reach.
+
+### 2.7 Curation Tools: The Expert Toolkit
+
+#### 2.7.1 Expert Gate Posts
+
+**What it is:** Post creator sets “Comment Gate” (e.g., “Vouched Experts Only” or “High-Cred Only”). Adds [Expert Gate] flair. Restricts top-level comments to specific users. Lower-cred users can read and reply to experts, but can’t derail main conversation.
+
+**Research validation:**
+
+- Quora’s credential system failed (unverified)
+- Wikipedia/Stack Overflow show reputation-based privileges work when fitness criteria are clear
+- Reddit’s r/AskHistorians manually enforces this with heavy moderation; we’re automating it
+- Surgical tool to prevent “normie-flooding” while maintaining accessibility
+
+**Critical concerns (NEW - from research):**
+
+**Early adopter advantage is inevitable:**
+
+- All reputation systems favor those who join first
+- Stack Overflow’s power law concentrates privileges in small group
+- **Mitigation strategies:**
+  - Time-decay reputation for governance (not for total cred)
+  - Seasonal resets for council seats
+  - Multiple paths to earn cred (creation, curation, moderation, expertise demonstration)
+  - New user “fast track” programs in some communities
+
+**The elitism trap killed Quora:**
+
+- Expert gating can create hostile environments for newcomers
+- **Mitigation strategies:**
+  - Let communities choose gatekeeping level (not platform-wide force)
+  - “Novice threads” where experts mentor rather than exclude
+  - Visible pathways to earn expert status
+  - “Welcome Wagon” programs in gated communities
+
+**Gaming is ubiquitous:**
+
+- Users will collude, create sockpuppets, trade votes
+- **Anti-gaming from day one:**
+  - Rate limits on votes
+  - Suspicious pattern detection (same users upvoting each other repeatedly)
+  - Diminishing returns on votes between same users
+  - Random audits of high-cred users
+  - Public voting patterns (who vouched for whom)
+
+#### 2.7.2 Cred Sort
+
+**What it is:** All comment sections have “Sort by: Cred” option. Instantly see what most trusted community members think.
+
+**Research validation:** Stack Overflow’s accepted answers work because expert opinions are surfaced. Users want signal, not noise.
+
+### 2.8 Eras
+
+**What it is:** “Vibey” age brackets (e.g., “Main Character Era,” “Experimental Era”) auto-assigned at signup via birthday. All posts/comments show user’s Era flair.
+
+**Why it exists:** Simplifies onboarding (no complex profile setup), adds context at a glance.
+
+**Research note:** Context collapse is a documented risk. Users from different Eras may misinterpret each other. Mitigate with clear visual indicators and culture of assuming good faith.
+
+-----
+
+## Part 3: Moderation & The Node Court
+
+### 3.1 Foundation: ModActionLog
+
+**What it is:** Unchangeable, public log. ALL moderation actions (removals, approvals, bans) automatically published.
+
+**Why it exists:** Replaces opaque moderation with total transparency. Trust by verifying, not promising.
+
+**Research validation:** Transparency is #1 user demand in platform governance. Public logs create accountability and reduce “bias” accusations.
+
+### 3.2 The Three-Tier System
+
+**Research validation:** Wikipedia’s nested governance becomes MORE effective at scale. Our system mirrors this proven model.
+
+#### Tier 1: The Appeal Stake
+
+**What it is:** User who feels moderation decision is unfair stakes UserNodeCred (e.g., 250 Cred) to appeal.
+
+**Why it exists:** Prevents appeal spam. If frivolous, stake is lost. If successful, returned.
+
+**CRITICAL UPDATE (from research):**
+
+- Use Cred (reputation) staking, NOT money (at least initially)
+- Free appeals exist but take longer
+- Cred-staked appeals get priority review
+- If right: get Cred back PLUS bonus
+- If wrong: lose Cred (burned)
+- Creates economic incentives without excluding low-income users
+- Avoids gambling-law exposure
+
+**Future consideration:** Real money stakes only after 6-12 months of Cred-based testing. Research on economic mechanisms in moderation is promising but unproven at social scale.
+
+#### Tier 2: The Community Jury
+
+**What it is:** Appeal goes to “Jury” of high-cred users (UserNodeCred.cred > 1000) in that Node. They cast initial vote.
+
+**Why it exists:** Power in hands of trusted community members, not siloed mod team.
+
+**How it works:**
+
+- Vote weighted by credWeight
+- 4 options: Uphold, Overturn, Abstain, Question (pauses vote, requires justification)
+- Allows nuanced, democratic review
+
+#### Tier 3: The Hub Court (Escalation)
+
+**What it is:** If appeal receives enough “Overturn” weight from Jury, escalates to Council of Node of parent Hub (e.g., n/calgary appeal → n/alberta Council).
+
+**Why it exists:** “Supreme court” for final, binding verdict from wider, related pool of experts.
+
+### 3.3 The Verdict
+
+**If OVERTURNED:**
+
+- Original post restored
+- “Trending” score reinstated
+- Permanent “Victorious Flair” (public badge of honor)
+- User’s staked Cred returned
+
+**If UPHELD:**
+
+- User loses staked Cred
+- Cred is Burned (removed from economy)
+
+### 3.4 Moderation at Scale: The Existential Threat
+
+**Research reality:**
+
+- Meta removes 21M pieces of harmful content MONTHLY with massive resources
+- Bluesky drowns in 42,000 reports PER DAY with 100 moderators
+- 63% of Trust & Safety professionals cite “staying ahead of emerging threats” as biggest challenge
+- Facebook paid $52M settlement for PTSD among moderators
+- Turnover is brutal, can’t scale economically with humans alone
+
+**The 2024 threat landscape:**
+
+- Cyber attacks on user data (25.5% of T&S professionals’ top concern)
+- Misinformation/disinformation campaigns (2024 was “year of elections”)
+- Deepfakes growing 130% monthly
+- CSAM (Child Sexual Abuse Material)
+- Coordinated harassment campaigns
+- Bot armies
+
+**THE ONLY VIABLE MODEL: Hybrid AI + Human**
+
+**AI handles:**
+
+- Volume (real-time detection)
+- Consistency in rule application
+- Pattern recognition for coordinated attacks
+- Spam filtering
+
+**AI limitations:**
+
+- Can’t understand context, sarcasm, cultural nuances
+- Reinforces training data bias
+- Meta’s Oversight Board documented “over-enforcement that disproportionately interferes with freedom of expression”
+
+**Humans handle:**
+
+- Edge cases
+- Appeals
+- Cultural context
+- Complex judgment calls
+
+**Human limitations:**
+
+- Psychological trauma (PTSD levels)
+- Can’t scale economically to handle all content
+- Burnout destroys quality
+
+### 3.5 Moderation Infrastructure (BUILD FROM DAY ONE)
+
+**System architecture:**
+
+1. AI pre-filters obvious violations and spam
+1. Humans review flagged content, appeals, complex cases
+1. User reports trigger review
+1. Community moderators handle first-level triage
+1. Professional team handles escalations and systemic issues
+
+**Required components:**
+
+**AI Detection System:**
+
+- Partner with existing providers (Hive Moderation, Spectrum Labs) if building in-house too expensive
+- Real-time CSAM detection (legal requirement)
+- Spam/bot detection
+- Harassment pattern recognition
+- Deepfake detection
+
+**Professional Moderation Team:**
+
+- Budget 20-25% of total costs
+- Geographic distribution for 24/7 coverage
+- Multiple language support (plan for growth)
+- Specialized teams (CSAM, harassment, complex appeals)
+
+**Community Guidelines:**
+
+- Clear with specific examples
+- Published publicly
+- Regularly updated based on emerging threats
+- Translated to all supported languages
+
+**Robust Appeals Process:**
+
+- Multi-tier system (as designed)
+- Clear timelines for resolution
+- Public accountability via ModActionLog
+- Escalation paths to senior reviewers
+
+**Moderator Wellness Program:**
+
+- Psychological support access
+- Mandatory breaks
+- Rotation schedules
+- Peer support groups
+- Warning signs monitoring
+- “Tap out” mechanism for traumatic content
+
+**Scale milestones:**
+
+- **Under 10K users:** Small team handles everything
+- **10K-100K:** Dedicated teams + automation required
+- **100K-1M:** Sophisticated AI + large human teams
+- **1M+:** Thousands of moderators, multiple languages, complex systems
+
+**CRITICAL:** Plan architecture for 1M users even if launching with 1,000. Retrofitting is exponentially more expensive.
+
+-----
+
+## Part 4: The Vibe Economy & Community Growth
+
+### 4.1 Vibe Velocity Score
+
+**What it is:** Public socialCredScore ranking communities based on value (Cred) generated, not subscriber count.
+
+**Why it exists:** Measures quality, not just size. Incentivizes communities to foster quality contributions.
+
+**Research validation:** Quality metrics reduce race-to-bottom content. Communities compete on value creation, not virality.
+
+### 4.2 The Chaos Node
+
+**What it is:** Official n/chaos with minimal rules, Vibe Vectors like [“Funny”, “Cursed”].
+
+**Why it exists:** Pressure-release valve. Dedicated home for content that doesn’t fit expert Nodes.
+
+**Research validation:** Discord proves communities need both structured and unstructured spaces. “A place for chaos contains it.”
+
+### 4.3 Theme Marketplace (Earn, Don’t Burn)
+
+**What it is:** Users write customCss for personal themes. Share by creating post in n/themes. Earn UserNodeCred based on Vibe Vector reactions. “Best” themes = highest-voted posts.
+
+**Why it exists:** Pure meritocratic “earn-by-adoption” model. No complex “store” feature needed.
+
+**Research validation:** User-generated content markets thrive when barriers are low and rewards are clear. Cohost’s CSS-per-post feature was beloved despite platform failure.
+
+### 4.4 Node Scarcity & Growth
+
+**Node Charter:**
+
+- New Child Nodes can’t be created instantly
+- Must be proposed via NodeProposal in parent Hub Node
+- Requires community approval
+
+**Dormancy Rule:**
+
+- 0 activity for 90 days → Node becomes “Dormant” (read-only)
+- Revived only by successful NodeProposal
+
+**Why they exist:** Prevent graveyard of spammy, empty, dead communities. Every Node must be earned.
+
+**Research validation:** Apple Ping was “swamped with spam and fake accounts within days, shut down in 2 years.” Quality control prevents platform rot.
+
+### 4.5 Cred Faucets & Sinks
+
+**The balancing act:** Prevent hyperinflation while rewarding quality.
+
+**Cred Faucet (Creation):**
+
+- Reaction Weight Formula (experts upvoting quality content)
+- ONLY way new Cred is created
+
+**Cred Sinks (Destruction):**
+
+- Appeal Stake Burn (appeal upheld)
+- Vouch Stake Burn (vouched for bad-faith actor who’s later demoted)
+- Node Proposal Burn (500 Cred filing fee prevents spam)
+- Username Change Burn (high-cost identity change)
+
+**Why it matters:** Token economies that don’t balance faucets/sinks experience hyperinflation and collapse. “Actions have consequences” requires real economic stakes.
+
+-----
+
+## Part 5: Critical Infrastructure (NEW - Must Build)
+
+Research on platform failures reveals features consistently underestimated until too late. Address from day one:
+
+### 5.1 Search (Non-Negotiable)
+
+**Why:** Social platforms are becoming search engines. Users search Instagram/TikTok/Pinterest over Google for recommendations. Without search, content discovery dies.
+
+**Required capabilities:**
+
+- Keyword search in posts
+- User/community search
+- Tag search
+- Semantic search (not just exact matches)
+- Advanced filters (date range, community, user, Vibe Vector type)
+
+**Technical implementation:**
+
+- Phase 1: Basic PostgreSQL full-text search
+- Phase 2: MeiliSearch integration (already in roadmap)
+- Phase 3: Semantic/AI search
+
+**Warning:** Mastodon’s search limitations are frequent complaint. Don’t launch without functional search.
+
+### 5.2 Mobile-First (Non-Optional)
+
+**Reality:** 63.9% of global population uses social media, mostly on mobile. Loading over 3 seconds loses users.
+
+**Critical questions for team meeting:**
+
+1. Is modular panel UI feasible on mobile?
+1. Do we build separate mobile interface OR responsive adaptation?
+1. Which features MUST have mobile parity at launch?
+1. What’s our loading time budget? (Target: under 2 seconds)
+
+**Decision framework:**
+
+- Test mobile experience BEFORE desktop
+- Make it native, not adapted
+- If panels can’t work on mobile, build separate mobile interface
+- Maintain feature parity where possible
+- Accept some features may be desktop-only (with mobile alternatives)
+
+**Budget:** Mobile development is NOT cheaper than web. Plan equal resources.
+
+### 5.3 Notifications Done Right
+
+**Required functionality:**
+
+- Configurable notifications (responses, moderation actions, community posts, DMs)
+- Granular controls (per community, per type)
+- Multiple channels (push, email, in-app)
+- Intelligent batching (avoid notification fatigue)
+
+**Reference model:** Discord gets this right. Twitter’s chaotic notification system drives users away.
+
+**Anti-pattern:** Notification spam that trains users to disable all notifications.
+
+### 5.4 Direct Messaging
+
+**Why:** Even public-focused platforms need DMs. Private communication reduces public toxicity. Conflict resolution happens privately. Community building happens one-on-one.
+
+**Required features:**
+
+- 1-on-1 messaging
+- Group messages
+- Abuse prevention (rate limits, block lists, report buttons)
+- Media sharing
+- Thread organization
+
+**Don’t overthink:** Start simple. Improve based on usage patterns.
+
+### 5.5 Accessibility (Legally Required)
+
+**Reality:** Often completely forgotten. This is legal requirement in many jurisdictions (ADA, EU accessibility laws).
+
+**Required features:**
+
+- Screen reader support
+- Keyboard navigation (all features accessible without mouse)
+- Color contrast standards (especially for Theme Marketplace)
+- Alt text for images
+- Captions for video
+- Font size controls
+- Reduced motion options
+
+**Budget:** Build in from start. Retrofitting is expensive and may face lawsuits.
+
+**Resources:** WCAG 2.1 AA compliance is baseline.
+
+### 5.6 Spam Prevention (Day One)
+
+**Reality:** Apple Ping was “swamped with spam and fake accounts within days.” Bots arrive on day one.
+
+**Required systems:**
+
+- Rate limiting (post/comment/vote frequency)
+- Bot detection (behavioral analysis)
+- Report systems (user-flagged spam)
+- Automated + human review
+- CAPTCHA for suspicious activity
+- Email verification
+- Phone verification (optional, for high-risk actions)
+- IP monitoring
+
+**Don’t wait:** Bots will test your platform immediately upon launch.
+
+### 5.7 Harassment Tools (Non-Negotiable)
+
+**Required features:**
+
+- Per-user blocking (not just per-community)
+- Muting (hide without blocking)
+- Private profiles/communities
+- Report buttons everywhere
+- Trained safety response teams
+- Block evasion detection
+- Restraining order enforcement (when legally required)
+
+**Critical:** Users need immediate protection tools. Your public mod logs help accountability, but users also need instant self-defense.
+
+### 5.8 Data Export & Portability
+
+**Why:** Users want to own their data. GDPR requires it in EU. Competitive advantage (“bring your network”). Reduces lock-in fear.
+
+**Required exports:**
+
+- All posts/comments (JSON, CSV)
+- Connections/follows
+- Messages
+- Communities (list)
+- Reputation scores
+- Settings/preferences
+
+**Format:** Interoperable with potential competitors. This builds trust.
+
+**Research validation:** Cohost died partly because users were trapped. Account portability reduces commitment fear.
+
+### 5.9 Community Health Dashboard
+
+**Why:** Give moderators tools to track community wellbeing. Prevent communities from degrading before it’s obvious.
+
+**Metrics to track:**
+
+- Toxicity trends (% of reported content)
+- Engagement quality (comment depth, Vibe Vector distribution)
+- New vs returning users
+- Response times (mod actions)
+- Moderator workload (burnout prevention)
+- User retention (cohort analysis)
+- Content velocity (posts/comments per day)
+
+**Integration:** Your ModActionLog should feed into analytics for proactive health monitoring.
+
+**Visual dashboard:** Real-time charts, trend lines, anomaly detection, automated alerts.
+
+-----
+
+## Part 6: Updated Development Roadmap
+
+### Phase 0: Pre-Launch (Next 5-30 Days) - TEAM MEETING PRIORITIES
+
+**Critical decisions required:**
+
+1. **Define Atomic Network (MOST CRITICAL)**
+- Don’t launch broadly. Pick ONE tight-knit community of 5K-50K people.
+- Make Node Social perfect for them FIRST.
+- **Candidates:**
+  - Technical communities (Vibe Validators appeal to developers)
+  - Academic researchers (expert gating solves credibility)
+  - Creative communities (CSS customization)
+  - Governance-focused groups (transparent moderation model)
+- **Target:** Achieve 60% retention after day 1, 30% after day 7, 15% after day 30
+- **Benchmark:** Network density (connections per user) > total user count
+1. **Finalize Monetization Strategy**
+- **Hybrid model required:** Don’t depend on single revenue source
+- **Recommended mix:**
+  - Freemium base (free tier fully functional)
+  - Creator subscriptions (take 10-15% cut, not 45% like YouTube)
+  - Optional premium features (bigger uploads, advanced analytics, custom themes)
+  - Optional ad-supported tier (with user control, never feed manipulation)
+- **Budget:** Need $1-3M minimum runway for 18-24 months
+- **Timeline:** Multiple revenue streams active by month 6, not year 2
+- **Learn from Cohost:** “We’ll figure it out later” = fatal
+1. **Mobile Strategy Finalization**
+- Modular panels on mobile: YES or NO?
+- If NO: What’s the mobile experience?
+- If YES: How do we simplify without losing core features?
+- Loading time budget: < 2 seconds
+- Which features MUST have mobile parity at launch?
+1. **Triple Moderation Budget**
+- 20-25% of total budget goes to moderation
+- AI + human hybrid from day one
+- Partner with existing providers OR build in-house?
+- Moderator wellness program budget
+- Geographic distribution plan
+- 24/7 coverage strategy
+1. **Federation/Portability Decision**
+- ActivityPub compatible? AT Protocol-style? Custom?
+- Data export format (interoperable with competitors?)
+- Account portability mechanism
+- **Why:** Reduces user fear of commitment, builds trust
+
+### Phase 1: MVP - Core Loop (Months 1-3)
+
+**Ship at launch:**
+
+**Authentication & Profiles:**
+
+- Email/password auth
+- Basic profile (username, Era auto-assigned via birthday)
+- Email verification
+- Password reset
+
+**Core Content:**
+
+- Text posts
+- Link posts with preview
+- Comments with threading
+- Basic Node structure
+
+**Vibe System:**
+
+- Vibe Vectors (configurable per Node)
+- Radial Wheel Menu reactions
+- Basic Vibe Validator sliders (with good defaults)
+- Chronological AND algorithmic feed toggle
+
+**Essential Infrastructure:**
+
+- Search (basic PostgreSQL full-text)
+- Mobile experience that actually works
+- Notifications (basic: replies, mentions)
+- DMs (1-on-1 minimum)
+- Blocking
+- Reporting
+- Data export (JSON)
+- Basic accessibility (screen reader, keyboard nav)
+
+**Moderation Foundation:**
+
+- ModActionLog (public, unchangeable)
+- Basic mod tools (remove, approve, ban)
+- Report review interface
+- Clear community guidelines
+- Professional moderation team operational
+
+**Onboarding:**
+
+- Curation Gauntlet (n/orientation with spam, teaches Vibe Validator)
+- Simple Node discovery
+- “Zen of Node” display
+
+**Developer Experience:**
+
+- Docker environment (as designed)
+- Prisma schema (as designed)
+- Fastify API (as designed)
+- Basic API documentation
+
+**Success criteria:**
+
+- 60% retention after day 1
+- 30% retention after day 7
+- 15% retention after day 30
+- Average 5+ connections per user
+- Load time < 2 seconds on mobile
+
+### Phase 2: Community & Curation (Months 3-6)
+
+**Ship after MVP proven:**
+
+**ConnoisseurCred System:**
+
+- Reputation earning via Vibe Vectors
+- Web of Trust (vouching)
+- Anti-gaming detection
+- Public cred displays
+
+**Node Governance:**
+
+- Node Hierarchy (Hub/Child)
+- Active Seat mechanic
+- Council of Node formation
+- Node Charter proposal system
+- Dormancy rules
+
+**Discovery & Growth:**
+
+- Starter Packs equivalent (curated onboarding kits)
+- Node discovery improvements
+- User recommendations
+- Tag system
+- Advanced search (MeiliSearch)
+
+**Chaos Node:**
+
+- n/chaos launch
+- Minimal rules
+- Pressure-release culture
+
+**Developer Tools:**
+
+- Public API (well-documented)
+- Bot support
+- Third-party client guidelines
+- Developer portal
+
+**Success criteria:**
+
+- 20% of users earning ConnoisseurCred
+- 10+ active Nodes with healthy communities
+- Average 10+ connections per user
+- Starter Packs being shared organically
+
+### Phase 3: Expert Tools (Months 6-9)
+
+**Ship after community proven:**
+
+**Node Court System:**
+
+- Appeal Stake (Cred-based, not money)
+- Community Jury system
+- 4-vote mechanism (Uphold, Overturn, Abstain, Question)
+- Hub Court escalation
+- Verdicts with consequences
+
+**Expert Features:**
+
+- Expert Gate Posts (gated commenting)
+- Cred Sort
+- Multiple paths to earn expert status
+- “Novice threads” for mentorship
+- Fast-track programs for quality new users
+
+**Theme Marketplace:**
+
+- n/themes Node
+- Custom CSS creation tools
+- Theme sharing/voting
+- Safety review for malicious CSS
+- Gallery of top themes
+
+**Enhanced Moderation:**
+
+- Community health dashboard
+- Toxicity trend analysis
+- Moderator workload monitoring
+- Advanced AI detection
+- Multiple language support
+
+**Success criteria:**
+
+- Node Court handling 50+ appeals/month
+- 5% of users creating Expert Gate posts
+- 100+ themes in marketplace
+- Moderator burnout rate < 10%
+
+### Phase 4: Scale & Events (Months 9-12)
+
+**Ship after expert tools proven:**
+
+**Events:**
+
+- “Vibe Quilt” (our r/place equivalent)
+- Node-specific events
+- Community celebrations
+
+**Rankings:**
+
+- Vibe Velocity leaderboards
+- Top contributors
+- Rising communities
+- Quality metrics
+
+**Advanced Features:**
+
+- Node Shunting (v1)
+- Cross-community syndication
+- Federation experiments
+- Multiple account support (different contexts)
+
+**Infrastructure:**
+
+- Advanced caching
+- CDN distribution
+- Performance optimization
+- Scaling preparation
+
+**Success criteria:**
+
+- 100K+ monthly active users
+- 1000+ active Nodes
+- Profitable or clear path to profitability
+- 90%+ uptime
+
+### Phase 5: Ecosystem (Months 12+)
+
+**Ship after scale proven:**
+
+**Advanced Curation:**
+
+- Community “Labelers”
+- User/Node label subscriptions
+- Advanced AI-assisted moderation
+- Deepfake detection
+- Coordinated inauthentic behavior detection
+
+**Monetization Expansion:**
+
+- Creator tools expansion
+- Community fundraising
+- Virtual goods/gifts
+- Premium analytical tools
+
+**International:**
+
+- Multiple language support
+- Regional moderation teams
+- Cultural customization
+- Global governance structure
+
+**Success criteria:**
+
+- 1M+ monthly active users
+- Profitability
+- Self-sustaining moderation
+- International presence
+
+-----
+
+## Part 7: Competitive Positioning
+
+### 7.1 Our Unique Value Proposition
+
+**Core message:** “The social platform where quality beats engagement, communities govern themselves transparently, and you control what you see—backed by actual research, not manipulation.”
+
+**What we can’t easily be copied on:**
+
+- Vibe Vectors with intensity (patent radial wheel if possible)
+- Integrated governance system (Node Courts, Active Seats, public logs)
+- User-controlled algorithms as core feature, not afterthought
+- Research-backed approach to community health
+- Transparent, earned reputation (not purchased, not surveilled)
+
+**What competitors can copy:**
+
+- Multi-dimensional reactions (but not our implementation)
+- Custom feeds (Bluesky already has this)
+- Modular UI concepts
+- Public moderation logs
+
+**Our actual moats:**
+
+- Community trust built through consistent transparency
+- Moderator relationships (partners, not exploitable labor)
+- Developer ecosystem (if we build strong APIs early)
+- Network effects within communities
+- Reputation systems that can’t transfer to competitors
+
+### 7.2 Competitive Comparison Matrix
+
+|Feature                    |Node Social        |Bluesky         |Threads|Mastodon           |Reddit         |Discord          |
+|---------------------------|-------------------|----------------|-------|-------------------|---------------|-----------------|
+|Multi-dimensional reactions|✓ (Intensity)      |✗               |✗      |✗                  |✗ (Binary)     |✗ (Emojis)       |
+|User-controlled algorithm  |✓ (Sliders)        |✓ (Custom feeds)|✗      |N/A (Chronological)|✗              |N/A              |
+|Transparent moderation     |✓ (Public logs)    |✓ (Labelers)    |✗      |✓ (Instance)       |~ (Per-sub)    |✗                |
+|Community governance       |✓ (Active Seats)   |~ (Distributed) |✗      |~ (Instance)       |~ (Static mods)|~ (Server owners)|
+|Expert gating              |✓ (Built-in)       |✗               |✗      |✗                  |~ (Manual)     |✓ (Roles)        |
+|Reputation system          |✓ (ConnoisseurCred)|✗               |✗      |✗                  |✓ (Karma)      |✗                |
+|Mobile-first               |✓                  |✓               |✓      |~                  |✓              |✓                |
+|Federation                 |Planned            |✓               |~      |✓                  |✗              |✗                |
+|Data portability           |✓                  |✓               |~      |✓                  |✗              |~                |
+|Monetization clarity       |Hybrid             |Unclear         |Ads    |None               |Ads/Premium    |Nitro            |
+
+**Key differentiators:**
+
+1. Only platform with intensity-based multi-dimensional reactions
+1. Only platform with user-controlled algorithm sliders + transparent governance
+1. Only platform with research-backed approach to every core feature
+1. Only platform treating moderators as partners with wellness support
+
+### 7.3 Market Positioning
+
+**Target early adopters:**
+
+1. **Technical communities** (developers, designers, product managers)
+- Appeal: Transparent algorithms, customization, API-first
+- Size: 5-10M globally
+- Tight networks, high influence
+1. **Academic/Research communities** (scientists, scholars, researchers)
+- Appeal: Expert gating, reputation systems, quality over virality
+- Size: 10-15M globally
+- Credibility-focused, hungry for better platforms
+1. **Creative communities** (artists, writers, musicians)
+- Appeal: CSS customization, theme marketplace, supportive culture
+- Size: 20-30M globally
+- High engagement, network effects
+1. **Governance/Civics enthusiasts** (community organizers, democracy advocates)
+- Appeal: Transparent governance, community juries, public logs
+- Size: 5-10M globally
+- Values-aligned, activist networks
+
+**Expansion strategy:**
+
+- Start with ONE community (likely technical)
+- Achieve 80%+ satisfaction and retention
+- Let them bring adjacent communities
+- Expand to second community type
+- Iterate before broad launch
+
+**Never compete on:**
+
+- Size (we’ll always be smaller initially)
+- Celebrity presence (comes later, if at all)
+- Viral growth (antithetical to our model)
+- Lowest common denominator content
+
+**Always compete on:**
+
+- Quality of discussion
+- Transparency of operations
+- User control over experience
+- Community governance
+- Moderator wellness
+- Research-backed features
+
+-----
+
+## Part 8: Risk Mitigation & Scenario Planning
+
+### 8.1 Scenario: Viral Growth Overwhelms Infrastructure
+
+**What happens:** Threads gained 100M users in 5 days and couldn’t retain them. Bluesky’s growth spikes crashed systems. If we go viral before ready.
+
+**Immediate actions:**
+
+- Rate limit signups temporarily (waitlist system)
+- Prioritize stability over new features
+- Bring in emergency moderation contractors
+- Communicate transparently about scaling challenges
+- Temporarily disable features that don’t scale (if necessary)
+
+**Prevention:**
+
+- Launch microscopically to one community
+- Confirm retention before expanding
+- Load test for 10x current capacity
+- Auto-scaling infrastructure (cloud-native)
+- Maintain 6-month cash runway
+- Have emergency scaling playbook ready
+
+### 8.2 Scenario: Moderation Crisis Erodes Trust
+
+**What happens:** One bad moderation decision goes viral. Accusations of bias or censorship. Moderator burnout creates coverage gaps. Coordinated harassment campaign targets platform.
+
+**Immediate actions:**
+
+- Public transparency report (within 24 hours)
+- Acknowledge mistakes clearly (if applicable)
+- Show evidence if accusations are false
+- Implement recommended changes quickly
+- Additional moderator training
+- Temporary increase in professional moderation support
+
+**Prevention:**
+
+- Public ModActionLog with appeals process
+- Diverse moderation team (geographic, demographic)
+- Clear guidelines with specific examples
+- Regular community feedback sessions
+- Moderator wellness monitoring
+- Crisis communication plan ready
+
+### 8.3 Scenario: Competitor Copies Best Features
+
+**What happens:** Twitter adds Vibe Vectors. Bluesky implements similar governance. Discord builds Expert Gate equivalent. Meta clones entire model with infinite resources.
+
+**Response:**
+
+- Emphasize execution over features
+- Lean into community relationships
+- Iterate faster than them
+- Build network effects within communities
+- Strengthen moats (developer ecosystem, earned reputation, transparent governance)
+- Remember: Features are copiable. Culture, trust, and community are not.
+
+**Mindset:** Our advantage is treating users as partners, not products. Competitors can copy features but not our relationship with communities.
+
+### 8.4 Scenario: Monetization Fails to Cover Costs
+
+**What happens:** Subscriptions don’t convert. Ads alienate users. Creator tools don’t attract creators. Infrastructure costs spike faster than revenue.
+
+**Immediate actions:**
+
+- Cut non-essential features (focus on core)
+- Find strategic partner/investor
+- Implement additional revenue streams carefully
+- Be transparent with community about challenges
+- Consider paid tier for advanced features
+- Reduce infrastructure costs where possible
+
+**Prevention:**
+
+- Multiple revenue streams from start
+- Conservative cost projections
+- 18-24 month runway
+- Test monetization early (before launch if possible)
+- Build with cost-efficient infrastructure
+- Regular financial reviews
+
+### 8.5 Scenario: Legal/Regulatory Pressure
+
+**What happens:** Section 230 changes dramatically. DSA enforcement targets us. CSAM or harassment lawsuit. Government requests for user data. Copyright claims overwhelm resources.
+
+**Immediate actions:**
+
+- Hire legal counsel immediately
+- Implement stricter moderation temporarily
+- Cooperate fully with legitimate law enforcement
+- Communicate transparently about situation (within legal constraints)
+- Emergency policy updates
+- Suspend features if legally required
+
+**Prevention:**
+
+- Build DSA-compliant from start
+- Maintain legal reserve fund
+- Have crisis communication plan
+- Strong CSAM detection from day one
+- Regular legal audits
+- Clear Terms of Service
+- Government request policies documented
+
+### 8.6 Scenario: Context Collapse Affects Expert Communities
+
+**What happens:** Expert discussions in gated posts leak via screenshots. Nuanced technical discussions misinterpreted by broader audiences. Experts self-censor to avoid controversy. Mixed audiences force “lowest common denominator” communication.
+
+**Immediate actions:**
+
+- Clear visual indicators of post visibility
+- Watermarks on gated content
+- “Intended audience” context banners
+- Community support for affected experts
+- Review gating policies
+
+**Prevention:**
+
+- Context-aware privacy defaults
+- Multiple account support (professional vs casual)
+- Ephemeral content options for sensitive discussions
+- Export controls on gated content where possible
+- Education about context collapse in onboarding
+- “Close friends” features for expert communities
+
+-----
+
+## Part 9: Team Meeting Agenda (5 Days)
+
+### Pre-Meeting Preparation (Everyone reads this document)
+
+**Required reading:**
+
+- This entire document (v3.0)
+- Competitive analysis section thoroughly
+- Risk mitigation scenarios
+
+**Come prepared to discuss:**
+
+1. Atomic network selection (which community first?)
+1. Mobile strategy decision (separate vs responsive)
+1. Monetization model finalization
+1. Role assignments and team structure
+1. Timeline commitments
+
+### Meeting Structure (3-4 hours)
+
+**Part 1: Alignment (30 min)**
+
+- Review vision and philosophy
+- Confirm everyone understands “Active, Optimistic Curation”
+- Discuss market opportunity
+- Q&A on master plan
+
+**Part 2: Critical Decisions (90 min)**
+
+**Decision 1: Atomic Network (30 min)**
+
+- Which community do we launch to FIRST?
+- Criteria:
+  - 5K-50K members
+  - Underserved by existing platforms
+  - Natural opinion leaders
+  - Specific problems our features solve
+  - Will actively invite others
+- Vote and commit
+
+**Decision 2: Mobile Strategy (20 min)**
+
+- Modular panels on mobile: YES or NO?
+- If NO: What’s the mobile alternative?
+- Loading time budget
+- Feature parity requirements
+- Timeline implications
+
+**Decision 3: Monetization (20 min)**
+
+- Confirm hybrid model
+- Revenue stream priorities
+- Pricing tiers (if applicable)
+- Creator cut percentage
+- Timeline for activation
+
+**Decision 4: Moderation Approach (20 min)**
+
+- Partner with existing provider OR build in-house?
+- Budget allocation (confirm 20-25%)
+- Geographic distribution plan
+- Moderator wellness program details
+- Hiring timeline
+
+**Part 3: Team Structure & Roles (45 min)**
+
+**Engineering:**
+
+- Frontend lead
+- Backend lead
+- Mobile lead (if separate)
+- DevOps/Infrastructure
+- AI/ML (moderation systems)
+
+**Product:**
+
+- Product lead
+- UX/UI designer
+- User researcher
+- Onboarding specialist
+
+**Operations:**
+
+- Trust & Safety lead
+- Community manager
+- Moderator wellness coordinator
+- Legal/Compliance
+
+**Growth:**
+
+- Marketing lead
+- Community outreach
+- Developer relations (for API)
+- Data analyst
+
+**Part 4: Timeline & Milestones (30 min)**
+
+**Month 1 goals:**
+
+- Core features (auth, posts, comments, Vibe Vectors)
+- Basic mobile experience
+- Moderation infrastructure
+- Docker environment operational
+- Database schema finalized
+
+**Month 2 goals:**
+
+- Vibe Validator functional
+- Search implemented
+- Notifications working
+- DMs operational
+- Curation Gauntlet complete
+
+**Month 3 goals:**
+
+- Atomic network alpha launch
+- Professional moderation team hired
+- API documentation published
+- First 100 users onboarded
+- Retention metrics tracking
+
+**Part 5: Risks & Mitigation (15 min)**
+
+- Review top 3 risks
+- Assign ownership
+- Confirm contingency plans
+
+**Part 6: Action Items & Next Steps (10 min)**
+
+- Document decisions
+- Assign immediate tasks
+- Schedule follow-ups
+- Commit to deadlines
+
+### Post-Meeting Deliverables
+
+**Within 24 hours:**
+
+- Meeting notes published to team
+- Decision log updated
+- Action items assigned with deadlines
+- Timeline confirmed
+
+**Within 1 week:**
+
+- Atomic network outreach begun
+- Technical architecture finalized
+- Team roles confirmed
+- First sprint planned
+
+-----
+
+## Part 10: Success Metrics & KPIs
+
+### Platform Health Metrics
+
+**User Engagement:**
+
+- Daily Active Users (DAU)
+- Monthly Active Users (MAU)
+- DAU/MAU ratio (stickiness) - Target: >20%
+- Average session duration - Target: >10 minutes
+- Posts per active user - Target: >3/week
+- Comments per active user - Target: >10/week
+- Vibe Vector usage rate - Target: >80% of active users
+
+**Retention:**
+
+- Day 1 retention - Target: >60%
+- Day 7 retention - Target: >30%
+- Day 30 retention - Target: >15%
+- Day 90 retention - Target: >10%
+
+**Network Density:**
+
+- Average connections per user - Target: >10
+- Active communities per user - Target: >3
+- Cross-community engagement - Target: >30% of users
+
+**Quality Metrics:**
+
+- Average Vibe Vector diversity (not just binary)
+- Expert Gate post usage
+- Cred Sort usage frequency
+- Appeal success rate - Target: 15-25% (not too high, not too low)
+- Report resolution time - Target: <24 hours for 90% of reports
+
+### Community Health Metrics
+
+**Per-Node Tracking:**
+
+- Vibe Velocity score (total Cred generated)
+- New user growth rate
+- User retention rate
+- Post frequency
+- Comment depth (replies per post)
+- Expert participation rate
+- Moderation action frequency
+- Appeal frequency
+- Toxicity reports per 1000 posts
+
+**Warning Signs:**
+
+- Sudden spike in reports
+- Moderator burnout indicators
+- Declining expert participation
+- Increasing appeal rates
+- Negative sentiment trends
+
+### Business Metrics
+
+**Financial:**
+
+- Monthly Recurring Revenue (MRR)
+- Customer Acquisition Cost (CAC)
+- Lifetime Value (LTV)
+- LTV:CAC ratio - Target: >3:1
+- Burn rate
+- Runway remaining
+- Revenue per user
+
+**Operational:**
+
+- Infrastructure costs per user
+- Moderation costs per 1000 posts
+- Support ticket volume
+- Average resolution time
+- Team productivity metrics
+
+### Competitive Benchmarks
+
+**Against Bluesky:**
+
+- Moderation resolution time (we should be faster)
+- User retention (we should be higher)
+- Report volume per user (we should be lower due to better tools)
+
+**Against Reddit:**
+
+- Moderator satisfaction (we should be much higher)
+- Community governance speed (we should be faster)
+- Transparency score (we should be absolute leader)
+
+**Against Discord:**
+
+- Content discoverability (we should be better)
+- Knowledge persistence (we should be better)
+- Public content reach (we should be better)
+
+-----
+
+## Part 11: Long-Term Vision (2-5 Years)
+
+### Year 1: Prove the Model
+
+- 100K monthly active users
+- 1000+ healthy communities
+- Profitable or clear path to profitability
+- Research paper published on our governance model
+- Developer ecosystem thriving
+
+### Year 2: Scale Sustainably
+
+- 1M monthly active users
+- International expansion (5+ countries)
+- Multiple language support
+- Federation with other platforms
+- Mobile apps (iOS, Android native)
+
+### Year 3: Industry Leadership
+
+- 10M monthly active users
+- Recognized leader in transparent governance
+- Academic research institution partnerships
+- “Node Court” model adopted by other platforms
+- Profitable with sustainable growth
+
+### Year 5: Vision Realized
+
+- 50M+ monthly active users
+- Global presence
+- “Active, Optimistic Curation” becomes industry standard
+- Communities governing themselves transparently
+- Users control their experience by default
+- Quality beats engagement across social media
+
+### The Ultimate Goal
+
+**Not to be the biggest platform, but the best.**
+
+We’re not trying to get 1 billion users. We’re trying to prove that quality-first, transparency-first, user-control-first social media can thrive.
+
+If we succeed:
+
+- Other platforms will copy our governance models
+- Transparent moderation becomes expected
+- Users demand control over their algorithms
+- Communities govern themselves
+- Quality content gets rewarded
+- Moderators are treated as essential partners
+- Social media makes people feel better, not worse
+
+**That’s winning.**
+
+-----
+
+## Appendix A: Technical Architecture
+
+### System Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Client Layer                         │
+├─────────────────────────────────────────────────────────────┤
+│  Web (Next.js)  │  iOS Native  │  Android Native  │  API    │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      API Gateway Layer                       │
+├─────────────────────────────────────────────────────────────┤
+│           Fastify API Server (Node.js)                       │
+│           - Authentication & Authorization                   │
+│           - Rate Limiting & DDoS Protection                  │
+│           - Request Validation                               │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                ┌─────────────┴─────────────┐
+                ▼                           ▼
+┌──────────────────────────┐  ┌──────────────────────────┐
+│   Business Logic Layer    │  │   Real-Time Layer        │
+├──────────────────────────┤  ├──────────────────────────┤
+│  - User Management       │  │  Socket.io               │
+│  - Content Management    │  │  - Live Notifications    │
+│  - Vibe System           │  │  - Real-Time Feed        │
+│  - Moderation System     │  │  - Collaborative Events  │
+│  - Cred Calculation      │  │                          │
+└──────────────────────────┘  └──────────────────────────┘
+                │                           │
+                └─────────────┬─────────────┘
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                       Data Layer                             │
+├─────────────────────────────────────────────────────────────┤
+│  PostgreSQL (Primary)  │  Redis (Cache)  │  MeiliSearch     │
+│  - User data           │  - Sessions      │  - Full-text     │
+│  - Content             │  - Feed cache    │  - Semantic      │
+│  - Relationships       │  - Rate limits   │                  │
+│  - Reputation          │  - Pub/Sub       │                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    External Services Layer                   │
+├─────────────────────────────────────────────────────────────┤
+│  Content Moderation  │  Email Service  │  Analytics         │
+│  - AI Detection      │  - SendGrid     │  - Mixpanel        │
+│  - Human Review      │  - Transactional│  - Custom          │
+│  - Hive/Spectrum     │  - Notifications│  - Dashboards      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Database Schema Key Relationships
+
+```
+User ──┬──< Post ──< Comment
+       │       │
+       │       └──< VibeReaction
+       │
+       ├──< UserNodeCred (per Node)
+       │
+       ├──< Vouch (sent/received)
+       │
+       └──< ModActionLog (moderator actions)
+
+Node ──┬──< Post
+       │
+       ├──< UserNodeCred (reputation per Node)
+       │
+       └──< NodeProposal (community creation)
+```
+
+### API Endpoint Structure (High-Level)
+
+```
+/api/v1/
+  /auth/
+    POST /register
+    POST /login
+    POST /refresh
+    POST /logout
+  
+  /users/
+    GET /:id
+    GET /:id/posts
+    GET /:id/cred
+    PATCH /:id
+    
+  /nodes/
+    GET /
+    GET /:id
+    POST /
+    PATCH /:id
+    GET /:id/posts
+    POST /:id/proposals
+    
+  /posts/
+    GET /
+    GET /:id
+    POST /
+    PATCH /:id
+    DELETE /:id
+    POST /:id/reactions
+    
+  /comments/
+    GET /
+    GET /:id
+    POST /
+    PATCH /:id
+    DELETE /:id
+    
+  /moderation/
+    GET /log
+    POST /actions
+    GET /reports
+    POST /appeals
+    
+  /search/
+    GET /posts
+    GET /users
+    GET /nodes
+```
+
+-----
+
+## Appendix B: Research Sources & Further Reading
+
+### Academic Research
+
+**Social Media Platform Design:**
+
+- “Understanding Algorithm Aversion in User-Generated Content Moderation” (CHI 2023)
+- “The Twitter Algorithm Under the Microscope: Implications for News Quality” (PNAS Nexus 2025)
+- “Content Moderation as Trauma: The Psychological Effects on Commercial Content Moderators” (University of Michigan 2024)
+
+**Reputation Systems:**
+
+- “Designing Incentive Systems for Online Communities” (Stack Overflow Analysis)
+- “The Dynamics of Crowdsourced Reputation Systems” (IEEE 2023)
+- “Power Laws and Reputation Concentration in Online Platforms” (2024)
+
+**Platform Governance:**
+
+- “Distributed Governance in Online Communities: Wikipedia Case Study” (2023)
+- “The Limits of Algorithmic Content Moderation” (Yale Law Journal 2024)
+- “Community-Based Moderation at Scale” (Facebook Oversight Board Reports)
+
+### Industry Reports
+
+- Gartner: “Social Media Trends 2024-2025”
+- Pew Research: “Social Media Use in 2024”
+- Sensor Tower: “Social Media App Growth Analysis”
+- Backlinko: “Social Media Usage Statistics 2024”
+
+### Platform-Specific Analysis
+
+**Bluesky:**
+
+- Trust & Safety Report 2024
+- AT Protocol Documentation
+- Growth analysis (November 2024 surge)
+
+**Threads:**
+
+- Launch and retention analysis
+- Meta’s Q4 2024 earnings call
+- User engagement studies
+
+**Mastodon:**
+
+- Instance demographics and distribution
+- ActivityPub adoption study
+- User survey results 2024
+
+**Cohost:**
+
+- Post-mortem analysis
+- Economic sustainability case study
+- Community reactions to shutdown
+
+**Reddit:**
+
+- API pricing controversy timeline
+- Moderator exodus analysis
+- Community blackout data
+
+### Regulatory & Legal
+
+- EU Digital Services Act (Full Text)
+- Section 230 Reform Proposals 2024
+- Anderson v. TikTok (2024) - Legal implications
+- GDPR Compliance Guidelines for Social Platforms
+
+-----
+
+## Appendix C: Glossary
+
+**Active Seat:** Temporary governance position requiring recent activity (last 30 days) to maintain, ensuring councils stay engaged
+
+**Atomic Network:** Small, densely-connected community used for initial platform launch (5K-50K users)
+
+**ConnoisseurCred:** Reputation score earned through quality contributions, validated by community via Vibe Vectors
+
+**Context Collapse:** When different audiences occupy same space and information intended for one reaches another with uncharitable reactions
+
+**Council of Node:** Dynamic moderation team for each community (Node), composed of highest-cred active users
+
+**Cred Sink:** Mechanism that removes Cred from economy (burning) to prevent inflation
+
+**Cred Faucet:** Mechanism that creates new Cred (via quality contributions receiving reactions)
+
+**Curation Gauntlet:** Interactive onboarding tutorial teaching Vibe Validator by having users clean intentionally spammy feed
+
+**Era:** Age-based “vibe” bracket (e.g., “Main Character Era”) assigned at signup for cultural context
+
+**Expert Gate:** Post setting restricting top-level comments to high-cred users while allowing others to reply
+
+**Hub Node:** Parent community in hierarchical structure (e.g., n/canada is Hub for n/alberta)
+
+**ModActionLog:** Unchangeable, public log of all moderation actions for transparency
+
+**Node:** A community (analogous to subreddit) with its own governance, Vibe Vectors, and culture
+
+**Node Court:** Three-tier appeal system (Community Jury → Council → Hub Court) for moderation decisions
+
+**Optimistic Curation:** Philosophy of amplifying quality content rather than just filtering bad content
+
+**Vibe Validator:** User-controlled algorithm panel with sliders for each Vibe Vector to customize feed
+
+**Vibe Vectors:** Multi-dimensional reactions (Insightful, Funny, Cursed, Novel, etc.) replacing binary voting
+
+**Vibe Velocity:** Score ranking communities based on Cred generation (quality) rather than subscriber count
+
+**Web of Trust:** Network of vouches between users establishing reputation and expertise
+
+-----
+
+## Conclusion: The Path Forward
+
+We’re building Node Social at a unique moment in social media history. Users are actively seeking alternatives. Major platforms are failing their communities. Trust is at an all-time low. Quality is in freefall.
+
+**Our advantage isn’t just our features—it’s our philosophy.**
+
+Active, Optimistic Curation is the answer to engagement-based manipulation. Transparent governance is the answer to opaque moderation. User control is the answer to algorithmic manipulation. Research-backed design is the answer to “move fast and break things.”
+
+**The next 5 days determine our trajectory.**
+
+Our team meeting will make the critical decisions that enable execution. Choose our atomic network. Finalize our mobile strategy. Confirm our monetization approach. Structure our team. Commit to the timeline.
+
+**The next 3 months determine our viability.**
+
+Ship a complete MVP to our chosen community. Prove that Active, Optimistic Curation works in practice, not just theory. Achieve retention benchmarks. Build trust through transparency. Treat moderators as partners. Make users feel better, not worse.
+
+**The next 12 months determine our future.**
+
+Scale sustainably. Expand carefully to adjacent communities. Build network effects within quality-focused users. Become profitable or show clear path. Prove this model can compete with billion-dollar platforms.
+
+**We’re not trying to be the next Facebook, Twitter, or Reddit.**
+
+We’re trying to be the first Node Social—a platform where quality beats engagement, communities govern themselves transparently, and users control their experience by default.
+
+The research validates our vision. The market demands our solution. The timing is perfect.
+
+Now we execute.
+
+-----
+
+**Master Plan v3.0 - Complete**  
+**Next Update:** Post-Team Meeting (November 15, 2025)  
+**Document Owner:** Platform BDFL  
+**Last Reviewed:** November 10, 2025
