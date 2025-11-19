@@ -8,11 +8,96 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 model User {
-  id        String   @id @default(uuid())
-  email     String   @unique
-  password  String   // stored Argon2id hash
-  googleId  String?  @unique // Google OAuth subject (if any)
-  appleId   String?  @unique // Apple SignIn identifier (if any)
-  createdAt DateTime @default(now())
-  // ... other profile fields
+  id                         String   @id @default(uuid())
+  email                      String   @unique
+  password                   String   // stored Argon2id hash
+  emailVerified              Boolean  @default(false)
+  emailVerificationToken     String?  // Email verification token
+  emailVerificationExpires   DateTime? // When verification token expires
+  googleId                   String?  @unique // Google OAuth subject (if any)
+  appleId                    String?  @unique // Apple SignIn identifier (if any)
+  resetToken                 String?  // Password reset token
+  resetTokenExpires          DateTime? // When reset token expires
+  createdAt                  DateTime @default(now())
+  
+  // Relations
+  posts                      Post[]
+  comments                   Comment[]
+  managedNodes               Node[]
+}
+
+model Node {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  
+  // Relations
+  posts       Post[]
+  creatorId   String?
+  creator     User?    @relation(fields: [creatorId], references: [id])
+
+  @@map("nodes")
+}
+
+model Post {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  nodeId      String?
+  node        Node?    @relation(fields: [nodeId], references: [id])
+  title       String?
+  content     String
+  postType    String   @default("text") // text, image, link
+  visibility  String   @default("public")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  // Relations
+  comments    Comment[]
+  metrics     PostMetric?
+
+  // Indexes for feed performance
+  @@index([authorId, createdAt(sort: Desc)])
+  @@index([nodeId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("posts")
+}
+
+model Comment {
+  id          String   @id @default(uuid())
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId      String
+  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId    String?
+  parent      Comment? @relation("CommentReplies", fields: [parentId], references: [id])
+  replies     Comment[] @relation("CommentReplies")
+  content     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  deletedAt   DateTime?
+
+  @@index([postId, createdAt(sort: Desc)])
+  @@index([parentId, createdAt(sort: Desc)])
+  @@map("comments")
+}
+
+model PostMetric {
+  postId          String   @id
+  post            Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  likeCount       Int      @default(0)
+  commentCount    Int      @default(0)
+  shareCount      Int      @default(0)
+  saveCount       Int      @default(0)
+  viewCount       Int      @default(0)
+  engagementScore Float    @default(0)
+  qualityScore    Float    @default(50.0)
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  @@index([engagementScore(sort: Desc)])
+  @@index([qualityScore(sort: Desc)])
+  @@map("post_metrics")
 }
