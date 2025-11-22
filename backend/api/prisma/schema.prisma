@@ -7,23 +7,26 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
 model User {
-  id                         String   @id @default(uuid())
-  email                      String   @unique
-  password                   String   // stored Argon2id hash
-  emailVerified              Boolean  @default(false)
-  emailVerificationToken     String?  // Email verification token
-  emailVerificationExpires   DateTime? // When verification token expires
-  googleId                   String?  @unique // Google OAuth subject (if any)
-  appleId                    String?  @unique // Apple SignIn identifier (if any)
-  resetToken                 String?  // Password reset token
-  resetTokenExpires          DateTime? // When reset token expires
-  createdAt                  DateTime @default(now())
-  
+  id                       String    @id @default(uuid())
+  email                    String    @unique
+  password                 String // stored Argon2id hash
+  emailVerified            Boolean   @default(false)
+  emailVerificationToken   String? // Email verification token
+  emailVerificationExpires DateTime? // When verification token expires
+  resetToken               String? // Password reset token
+  resetTokenExpires        DateTime? // When reset token expires
+  createdAt                DateTime  @default(now())
+
   // Relations
-  posts                      Post[]
-  comments                   Comment[]
-  managedNodes               Node[]
+  posts               Post[]
+  comments            Comment[]
+  managedNodes        Node[]
+  refreshTokens       RefreshToken[]
+  federatedIdentities FederatedIdentity[] // OAuth provider identities
+  feedPreference      UserFeedPreference?
+  reactions           VibeReaction[] // User's Vibe Vector reactions
 }
 
 model Node {
@@ -32,32 +35,35 @@ model Node {
   name        String
   description String?
   createdAt   DateTime @default(now())
-  
+
   // Relations
   posts       Post[]
   creatorId   String?
-  creator     User?    @relation(fields: [creatorId], references: [id])
+  creator     User?     @relation(fields: [creatorId], references: [id])
+  vibeWeights NodeVibeWeight[] // Per-node vector weightings
+  reactions   VibeReaction[]   // Reactions in this Node's context
 
   @@map("nodes")
 }
 
 model Post {
-  id          String   @id @default(uuid())
-  authorId    String
-  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  nodeId      String?
-  node        Node?    @relation(fields: [nodeId], references: [id])
-  title       String?
-  content     String
-  postType    String   @default("text") // text, image, link
-  visibility  String   @default("public")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  id         String    @id @default(uuid())
+  authorId   String
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  nodeId     String?
+  node       Node?     @relation(fields: [nodeId], references: [id])
+  title      String?
+  content    String
+  postType   String    @default("text") // text, image, link
+  visibility String    @default("public")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  deletedAt  DateTime?
 
   // Relations
-  comments    Comment[]
-  metrics     PostMetric?
+  comments Comment[]
+  metrics  PostMetric?
+  reactions VibeReaction[] // Vibe Vector reactions on this post
 
   // Indexes for feed performance
   @@index([authorId, createdAt(sort: Desc)])
@@ -67,18 +73,19 @@ model Post {
 }
 
 model Comment {
-  id          String   @id @default(uuid())
-  authorId    String
-  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  postId      String
-  post        Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  parentId    String?
-  parent      Comment? @relation("CommentReplies", fields: [parentId], references: [id])
-  replies     Comment[] @relation("CommentReplies")
-  content     String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  deletedAt   DateTime?
+  id        String    @id @default(uuid())
+  authorId  String
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post      @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parentId  String?
+  parent    Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies   Comment[] @relation("CommentReplies")
+  reactions VibeReaction[] // Vibe Vector reactions on this comment
+  content   String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([postId, createdAt(sort: Desc)])
   @@index([parentId, createdAt(sort: Desc)])
@@ -100,4 +107,180 @@ model PostMetric {
   @@index([engagementScore(sort: Desc)])
   @@index([qualityScore(sort: Desc)])
   @@map("post_metrics")
+}
+
+enum EmailTemplate {
+  VERIFICATION
+  PASSWORD_RESET
+}
+
+enum EmailJobStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+}
+
+model EmailJob {
+  id            String         @id @default(uuid())
+  to            String
+  template      EmailTemplate
+  payload       Json
+  status        EmailJobStatus @default(PENDING)
+  attempts      Int            @default(0)
+  maxAttempts   Int            @default(5)
+  lastError     String?
+  nextAttemptAt DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@index([status, nextAttemptAt])
+}
+
+// CRITICAL: Refresh Token Rotation with Reuse Detection (Token Families)
+// Per document Section 3.2 - "The most critical component"
+model RefreshToken {
+  id            String         @id @default(uuid())
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash     String // Store hash, not raw token, for security
+  familyId      String // The identifier for the rotation chain
+  parentTokenId String? // Lineage tracking - references another RefreshToken
+  parentToken   RefreshToken?  @relation("TokenFamily", fields: [parentTokenId], references: [id])
+  childTokens   RefreshToken[] @relation("TokenFamily")
+  expiresAt     DateTime
+  revoked       Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+
+  @@index([tokenHash])
+  @@index([familyId])
+  @@index([userId, revoked])
+  @@map("refresh_tokens")
+}
+
+// Federated Identity: Links OAuth provider IDs to internal User IDs
+// Per document Section 3.1.2 - Enables many-to-one relationship (multiple providers per user)
+model FederatedIdentity {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider          String // 'google' or 'apple'
+  providerSubjectId String // The OIDC 'sub' claim from the provider
+  providerEmail     String? // Snapshot of email from provider (may differ from user.email)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Enforce uniqueness: One provider_subject_id per provider
+  // This prevents duplicate linking and enables fast lookups
+  @@unique([provider, providerSubjectId])
+  @@index([provider, providerSubjectId]) // Fast lookup during login
+  @@index([userId]) // Fast lookup of all providers for a user
+  @@map("federated_identities")
+}
+
+// Moderation Action Log: Public immutable log of moderation actions
+// Per FINAL_PLAN.md Section 5.2 - Foundation for Node Court and transparency
+model ModActionLog {
+  id            String   @id @default(uuid())
+  moderatorId   String?  // null if automated or self-delete
+  targetType    String   // 'post', 'comment', 'user'
+  targetId      String
+  action        String   // 'delete', 'hide', 'warn', 'ban'
+  reason        String?
+  metadata      Json?    // Additional context (e.g., appeal info, Node Court verdict)
+  createdAt     DateTime @default(now())
+  
+  @@index([targetType, targetId])
+  @@index([moderatorId])
+  @@index([createdAt(sort: Desc)])
+  @@map("mod_action_logs")
+}
+
+// User Feed Preferences: Vibe Validator settings
+// Per weighted_parameters_starter.md - Controls feed algorithm weights
+model UserFeedPreference {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Main weights (must sum to 100)
+  qualityWeight         Float @default(35.0)
+  recencyWeight         Float @default(30.0)
+  engagementWeight      Float @default(20.0)
+  personalizationWeight Float @default(15.0)
+
+  // Preset mode
+  presetMode String? // 'latest', 'balanced', 'popular', 'expert', 'personal', 'custom'
+
+  // Recency settings
+  recencyHalfLife String @default("12h") // 1h, 6h, 12h, 24h, 7d
+
+  // Advanced settings (optional, defaults used if null)
+  followingOnly      Boolean @default(false)
+  minConnoisseurCred Float? // Optional threshold
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("user_feed_preferences")
+}
+
+// Platform-wide Vibe Vector definitions (config table)
+// Phase 0.1 - Core feature: Vibe Vectors system
+model VibeVector {
+  id          String   @id @default(uuid())
+  slug        String   @unique // "funny", "insightful", "angry", "novel", "cursed"
+  name        String   // Display name: "Funny", "Insightful", etc.
+  emoji       String?  // Optional emoji icon
+  description String?  // Tooltip/help text
+  order       Int      // Display order in radial wheel
+  enabled     Boolean  @default(true) // Can disable platform-wide
+  
+  // Relations
+  nodeWeights NodeVibeWeight[] // Which nodes weight this vector how much
+  
+  @@map("vibe_vectors")
+}
+
+// Per-Node weighting of vectors (how much each vector matters in that Node)
+// Phase 0.1 - Node-specific vector weighting affects feed ranking
+model NodeVibeWeight {
+  id          String   @id @default(uuid())
+  nodeId      String
+  node        Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  vectorId    String
+  vector      VibeVector @relation(fields: [vectorId], references: [id])
+  weight      Float    @default(1.0) // 0.0-2.0+, how much this vector affects ranking in this Node
+  
+  @@unique([nodeId, vectorId])
+  @@index([nodeId])
+  @@map("node_vibe_weights")
+}
+
+// User reactions to posts/comments with intensity-based Vibe Vectors
+// Phase 0.1 - Core feature: Multi-vector intensity reactions
+model VibeReaction {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId      String?
+  post        Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  commentId   String?
+  comment     Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  nodeId      String   // Which Node's context (affects weighting calculation)
+  node        Node     @relation(fields: [nodeId], references: [id])
+  
+  // Intensity-based reactions (0.0-1.0 for each vector)
+  intensities Json     // {"funny": 0.8, "insightful": 0.2, "angry": 0.0, "novel": 0.0}
+  totalIntensity Float @default(0.0) // Sum of all intensities
+  
+  createdAt   DateTime @default(now())
+  
+  // Note: Unique constraint handled at application level since Prisma doesn't support conditional uniques
+  // One reaction per user per post per node OR one reaction per user per comment per node
+  @@index([postId, nodeId])
+  @@index([commentId, nodeId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, postId, nodeId])
+  @@index([userId, commentId, nodeId])
+  @@map("vibe_reactions")
 }

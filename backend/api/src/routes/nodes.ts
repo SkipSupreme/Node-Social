@@ -39,7 +39,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
         data: {
           name,
           slug,
-          description,
+          description: description ?? null,
           creatorId: userId,
         },
       });

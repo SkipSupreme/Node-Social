@@ -1,11 +1,11 @@
 // src/plugins/redis.ts
 import fp from 'fastify-plugin';
 import fastifyRedis from '@fastify/redis';
-import type { Redis } from 'ioredis';
+import type { FastifyRedis } from '@fastify/redis';
 
 declare module 'fastify' {
   interface FastifyInstance {
-    redis: Redis;
+    redis: FastifyRedis;
   }
 }
 

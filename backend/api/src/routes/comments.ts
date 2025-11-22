@@ -1,5 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { updatePostMetrics } from '../lib/metrics.js';
+import { logModAction } from '../lib/moderation.js';
 
 const commentRoutes: FastifyPluginAsync = async (fastify) => {
   // Create a new comment
@@ -52,7 +54,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           content,
           postId,
           authorId: userId,
-          parentId,
+          parentId: parentId ?? null,
         },
         include: {
           author: {
@@ -62,6 +64,11 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
             },
           },
         },
+      });
+
+      // Update PostMetric (fire-and-forget, don't block response)
+      updatePostMetrics(fastify, postId).catch((err) => {
+        fastify.log.error({ err, postId }, 'Failed to update metrics after comment create');
       });
 
       return reply.status(201).send(comment);
@@ -144,6 +151,19 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
       await fastify.prisma.comment.update({
         where: { id },
         data: { deletedAt: new Date() },
+      });
+
+      // Update PostMetric after deletion
+      updatePostMetrics(fastify, comment.postId).catch((err) => {
+        fastify.log.error({ err, postId: comment.postId }, 'Failed to update metrics after comment delete');
+      });
+
+      // Log moderation action (self-delete by author)
+      logModAction(fastify, 'delete', 'comment', id, {
+        moderatorId: null, // null = self-delete
+        reason: 'Author deleted own comment',
+      }).catch((err) => {
+        fastify.log.error({ err, commentId: id }, 'Failed to log moderation action');
       });
 
       return reply.send({ message: 'Comment deleted successfully' });

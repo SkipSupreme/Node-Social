@@ -6,10 +6,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { forgotPassword } from "../lib/api";
 
 export const ForgotPasswordScreen: React.FC<{

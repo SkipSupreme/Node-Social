@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "lint": "tsc --noEmit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "prisma": {
@@ -22,7 +23,10 @@
     "argon2": "^0.44.0",
     "dotenv": "^17.2.3",
     "fastify": "^5.6.2",
+    "google-auth-library": "^10.5.0",
+    "jose": "^6.1.2",
     "jsonwebtoken": "^9.0.2",
+    "meilisearch": "^0.46.0",
     "pino": "^10.1.0",
     "resend": "^6.4.2"
   },

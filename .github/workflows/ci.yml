@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-typecheck:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: nodesocial
+          POSTGRES_PASSWORD: nodesocialpwd
+          POSTGRES_DB: nodesocial_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.11.0'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/api/package-lock.json
+            app/package-lock.json
+      
+      - name: Install backend dependencies
+        run: |
+          cd backend/api
+          npm ci
+      
+      - name: Install app dependencies
+        run: |
+          cd app
+          npm ci
+      
+      - name: Type check backend
+        run: |
+          cd backend/api
+          npx tsc --noEmit
+      
+      - name: Type check app
+        run: |
+          cd app
+          npx tsc --noEmit
+      
+      - name: Format Prisma schema
+        run: |
+          cd backend/api
+          npx prisma format --schema=prisma/schema.prisma
+      
+      - name: Validate Prisma schema
+        run: |
+          cd backend/api
+          npx prisma validate
+        env:
+          DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
+      
+      - name: Test Docker health
+        run: |
+          # Start services (already running via services, but verify)
+          docker ps || true
+          # Test API health endpoint would require starting the server
+          # For now, just verify services are accessible
+          pg_isready -h localhost -p 5432 || exit 1
+          redis-cli -h localhost -p 6379 ping || exit 1
+

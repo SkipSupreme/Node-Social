@@ -6,6 +6,7 @@ export type AuthResponse = {
   user: {
     id: string;
     email: string;
+    emailVerified: boolean;
     createdAt: string;
   };
   token: string;
@@ -27,12 +28,16 @@ export type Node = {
 export type Post = {
   id: string;
   content: string;
+  title?: string | null;
   author: {
     id: string;
     email: string;
   };
+  nodeId?: string | null;
+  node?: Node | null; // Node information if post is in a node
   commentCount: number;
   createdAt: string;
+  updatedAt?: string;
 };
 
 export type Comment = {
@@ -42,6 +47,7 @@ export type Comment = {
     id: string;
     email: string;
   };
+  parentId?: string | null;
   replyCount: number;
   createdAt: string;
 };
@@ -62,11 +68,42 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+// CRITICAL: Request Queue System for Thundering Herd Problem
+// Per document Section 8.2 - Prevents multiple simultaneous refresh calls
+let isRefreshing = false;
+let refreshSubscribers: Array<(token: string) => void> = [];
+
+// Add callback to the queue
+const subscribeTokenRefresh = (cb: (token: string) => void) => {
+  refreshSubscribers.push(cb);
+};
+
+// Execute queue with new token
+const onRefreshed = (token: string) => {
+  refreshSubscribers.forEach((cb) => cb(token));
+  refreshSubscribers = [];
+};
+
 // Refresh the access token
 async function refreshAccessToken(): Promise<string | null> {
+  // If refresh is already in progress, queue this request
+  if (isRefreshing) {
+    return new Promise((resolve) => {
+      subscribeTokenRefresh((token) => {
+        resolve(token);
+      });
+    });
+  }
+
+  isRefreshing = true;
+
   try {
     const refreshToken = await storage.getItem("refreshToken");
-    if (!refreshToken) return null;
+    if (!refreshToken) {
+      isRefreshing = false;
+      onRefreshed(""); // Resolve queue with empty (will fail)
+      return null;
+    }
 
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
@@ -78,14 +115,22 @@ async function refreshAccessToken(): Promise<string | null> {
       // Refresh failed, clear tokens
       await storage.removeItem("token");
       await storage.removeItem("refreshToken");
+      isRefreshing = false;
+      onRefreshed(""); // Resolve queue with empty (will fail)
       return null;
     }
 
     const data: RefreshResponse = await res.json();
     await storage.setItem("token", data.token);
     await storage.setItem("refreshToken", data.refreshToken);
+    
+    isRefreshing = false;
+    onRefreshed(data.token); // Process queue with new token
+    
     return data.token;
-  } catch {
+  } catch (error) {
+    isRefreshing = false;
+    onRefreshed(""); // Resolve queue with empty (will fail)
     return null;
   }
 }
@@ -117,12 +162,16 @@ async function request<T>(
     headers,
   });
 
-  // If 401 and we haven't retried, try refreshing token once
+  // If 401 and we haven't retried, try refreshing token
+  // The queue system handles concurrent requests properly
   if (res.status === 401 && retry && token) {
     const newToken = await refreshAccessToken();
     if (newToken) {
       // Retry the request with new token
       return request<T>(path, options, false);
+    } else {
+      // Refresh failed - tokens invalid, user needs to re-login
+      throw new Error("Session expired. Please sign in again.");
     }
   }
 
@@ -185,6 +234,52 @@ export function resetPassword(token: string, password: string) {
   });
 }
 
+export function loginWithGoogle(idToken: string) {
+  return request<AuthResponse>("/auth/google", {
+    method: "POST",
+    body: JSON.stringify({ idToken }),
+  });
+}
+
+export function loginWithApple(
+  idToken: string,
+  email?: string | null,
+  fullName?: { givenName?: string | null; familyName?: string | null } | null,
+  nonce?: string | null
+) {
+  return request<AuthResponse>("/auth/apple", {
+    method: "POST",
+    body: JSON.stringify({
+      idToken,
+      // CRITICAL: Apple only provides email/fullName on FIRST login
+      // Send them if available so backend can store them
+      email: email || undefined,
+      fullName: fullName
+        ? {
+            givenName: fullName.givenName || undefined,
+            familyName: fullName.familyName || undefined,
+          }
+        : undefined,
+      // Nonce for replay protection (per document Section 6.2)
+      nonce: nonce || undefined,
+    }),
+  });
+}
+
+export function verifyEmail(token: string) {
+  return request<{ message: string; user?: AuthResponse["user"] }>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function resendVerificationEmail(email: string) {
+  return request<{ message: string }>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
 // --- Node Endpoints ---
 
 export function getNodes() {
@@ -215,11 +310,21 @@ export function createPost(data: { content: string; nodeId?: string }) {
   });
 }
 
-export function getFeed(params: { cursor?: string; limit?: number; nodeId?: string } = {}) {
+export function getFeed(params: { 
+  cursor?: string; 
+  limit?: number; 
+  nodeId?: string;
+  postType?: string; // Single post type filter
+  postTypes?: string[]; // Multiple post type filter
+} = {}) {
   const searchParams = new URLSearchParams();
   if (params.cursor) searchParams.append("cursor", params.cursor);
   if (params.limit) searchParams.append("limit", params.limit.toString());
   if (params.nodeId) searchParams.append("nodeId", params.nodeId);
+  if (params.postType) searchParams.append("postType", params.postType);
+  if (params.postTypes && params.postTypes.length > 0) {
+    searchParams.append("postTypes", params.postTypes.join(","));
+  }
 
   return request<{ posts: Post[]; nextCursor?: string; hasMore: boolean }>(
     `/posts?${searchParams.toString()}`,
@@ -251,5 +356,157 @@ export function getComments(postId: string, params: { parentId?: string; limit?:
 
   return request<Comment[]>(`/posts/${postId}/comments?${searchParams.toString()}`, {
     method: "GET",
+  });
+}
+
+// --- Feed Preferences Endpoints ---
+
+export type FeedPreference = {
+  userId: string;
+  qualityWeight: number;
+  recencyWeight: number;
+  engagementWeight: number;
+  personalizationWeight: number;
+  presetMode: string | null;
+  recencyHalfLife: string;
+  followingOnly: boolean;
+  minConnoisseurCred: number | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FeedPreferenceUpdate = {
+  preset?: "latest" | "balanced" | "popular" | "expert" | "personal" | "custom";
+  qualityWeight?: number;
+  recencyWeight?: number;
+  engagementWeight?: number;
+  personalizationWeight?: number;
+  recencyHalfLife?: "1h" | "6h" | "12h" | "24h" | "7d";
+  followingOnly?: boolean;
+  minConnoisseurCred?: number | null;
+};
+
+export function getFeedPreferences() {
+  return request<FeedPreference>("/feed-preferences", {
+    method: "GET",
+  });
+}
+
+export function updateFeedPreferences(data: FeedPreferenceUpdate) {
+  return request<FeedPreference>("/feed-preferences", {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+}
+
+// --- Vibe Vector Endpoints ---
+// Phase 0.1 - Core feature: Vibe Vector reactions
+
+export type VibeVector = {
+  id: string;
+  slug: string;
+  name: string;
+  emoji: string | null;
+  description: string | null;
+  order: number;
+  enabled: boolean;
+};
+
+export type VibeIntensities = {
+  [vectorSlug: string]: number; // 0.0-1.0
+};
+
+export type VibeReaction = {
+  id: string;
+  userId: string;
+  postId: string | null;
+  commentId: string | null;
+  nodeId: string;
+  intensities: VibeIntensities;
+  totalIntensity: number;
+  createdAt: string;
+  user: {
+    id: string;
+    email: string;
+  };
+  node: {
+    id: string;
+    slug: string;
+    name: string;
+  };
+};
+
+export type AggregatedVibeReaction = {
+  slug: string;
+  name: string;
+  emoji: string | null;
+  totalIntensity: number;
+  reactionCount: number;
+};
+
+export function getVibeVectors() {
+  return request<{ vectors: VibeVector[] }>("/reactions/vectors", {
+    method: "GET",
+  });
+}
+
+// Get Vibe Vectors for a specific Node (with node-specific weights)
+export function getVibeVectorsForNode(nodeId: string) {
+  return request<VibeVector[]>(`/nodes/${nodeId}/vibe-vectors`, {
+    method: "GET",
+  });
+}
+
+export function createPostReaction(
+  postId: string,
+  data: { nodeId: string; intensities: VibeIntensities }
+) {
+  return request<VibeReaction>(`/reactions/posts/${postId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function createCommentReaction(
+  commentId: string,
+  data: { nodeId: string; intensities: VibeIntensities }
+) {
+  return request<VibeReaction>(`/reactions/comments/${commentId}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getPostReactions(postId: string) {
+  return request<{
+    reactions: VibeReaction[];
+    aggregated: AggregatedVibeReaction[];
+  }>(`/reactions/posts/${postId}`, {
+    method: "GET",
+  });
+}
+
+export function getCommentReactions(commentId: string) {
+  return request<{
+    reactions: VibeReaction[];
+    aggregated: AggregatedVibeReaction[];
+  }>(`/reactions/comments/${commentId}`, {
+    method: "GET",
+  });
+}
+
+export function deletePostReaction(postId: string, nodeId?: string) {
+  const searchParams = new URLSearchParams();
+  if (nodeId) searchParams.append("nodeId", nodeId);
+  return request<{ message: string }>(`/reactions/posts/${postId}?${searchParams.toString()}`, {
+    method: "DELETE",
+  });
+}
+
+export function deleteCommentReaction(commentId: string, nodeId?: string) {
+  const searchParams = new URLSearchParams();
+  if (nodeId) searchParams.append("nodeId", nodeId);
+  return request<{ message: string }>(`/reactions/comments/${commentId}?${searchParams.toString()}`, {
+    method: "DELETE",
   });
 }

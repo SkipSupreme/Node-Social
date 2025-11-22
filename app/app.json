@@ -16,6 +16,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.nodesocial.app",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
@@ -27,17 +28,32 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "nodesocial"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {
-        "projectId": "31ed3719-d85d-49d6-9428-ea3638fd1369"
+        "projectId": "31ed3719-d85d-49d6-9428-ea3638fd1369",
+        "googleAndroidClientId": "210296746860-7t7c3tgfuvunqaheb461u5t5uqlt2lgl.apps.googleusercontent.com",
+        "googleIosClientId": "com.googleusercontent.apps.210296746860-34m462gb9t449j38th2ahtg0d9a0047i:/",
+        "googleWebClientId": "210296746860-un9cjkkutporg4hf1306mjv46ora003b.apps.googleusercontent.com"
       }
     }
   }

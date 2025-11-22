@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Dimensions } from "react-native";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 import { useAuthStore } from "./src/store/auth";
 import { LoginScreen } from "./src/screens/LoginScreen";
 import { RegisterScreen } from "./src/screens/RegisterScreen";
@@ -10,8 +11,18 @@ import { FeedScreen } from "./src/screens/FeedScreen";
 import { CreatePostScreen } from "./src/screens/CreatePostScreen";
 import { PostDetailScreen } from "./src/screens/PostDetailScreen";
 import { Post } from "./src/lib/api";
+import { setupLoggingFilters } from "./src/lib/logging";
+import { VerifyEmailScreen } from "./src/screens/VerifyEmailScreen";
+
+// Phase 0-6 - Web Interface Components
+import { WebLayout } from "./src/web/components/WebLayout";
+import { useResponsive } from "./src/web/hooks/useResponsive";
+import { RadialWheelProvider } from "./src/web/components/VibeVectors/RadialWheelProvider";
 
 import * as Linking from "expo-linking";
+
+// Setup logging filters to suppress harmless iOS Simulator warnings
+setupLoggingFilters();
 
 // Navigation state types
 type Screen = 
@@ -20,14 +31,17 @@ type Screen =
   | "postDetail"
   | "profile"; // Placeholder for future
 
-export default function App() {
-  const { user, loading, loadFromStorage, logout } = useAuthStore();
+// Main App Component - wrapped with RadialWheelProvider at root level for both web and mobile
+function AppContent() {
+  const { user, loading, loadFromStorage, logout, markEmailVerified } = useAuthStore();
+  const { isMobile, isDesktop } = useResponsive();
   
   // Auth flow state
   const [showRegister, setShowRegister] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showEnterToken, setShowEnterToken] = useState(false);
   const [resetToken, setResetToken] = useState<string | null>(null);
+  const [verificationToken, setVerificationToken] = useState<string | null>(null);
 
   // App flow state
   const [currentScreen, setCurrentScreen] = useState<Screen>("feed");
@@ -45,6 +59,8 @@ export default function App() {
           const token = parsed.queryParams?.token;
           if (path === "reset-password" && token) {
             setResetToken(token as string);
+          } else if (path === "verify-email" && token) {
+            setVerificationToken(token as string);
           }
         } catch (error) {
           console.error("Error parsing deep link:", error);
@@ -60,6 +76,8 @@ export default function App() {
               const token = parsed.queryParams?.token;
               if (path === "reset-password" && token) {
                 setResetToken(token as string);
+              } else if (path === "verify-email" && token) {
+                setVerificationToken(token as string);
               }
             } catch (error) {
               console.error("Error parsing initial URL:", error);
@@ -80,12 +98,14 @@ export default function App() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#2563EB" />
-          <Text style={styles.loadingText}>Loading...</Text>
-        </View>
-      </SafeAreaView>
+      <SafeAreaProvider>
+        <SafeAreaView style={styles.container}>
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color="#2563EB" />
+            <Text style={styles.loadingText}>Loading...</Text>
+          </View>
+        </SafeAreaView>
+      </SafeAreaProvider>
     );
   }
 
@@ -93,95 +113,164 @@ export default function App() {
   if (!user) {
     if (resetToken) {
       return (
-        <ResetPasswordScreen
-          token={resetToken}
-          onSuccess={() => {
-            setResetToken(null);
-            setShowForgotPassword(false);
-          }}
-        />
+        <SafeAreaProvider>
+          <ResetPasswordScreen
+            token={resetToken}
+            onSuccess={() => {
+              setResetToken(null);
+              setShowForgotPassword(false);
+            }}
+          />
+        </SafeAreaProvider>
       );
     }
 
     if (showForgotPassword) {
       return (
-        <ForgotPasswordScreen
-          goToLogin={() => setShowForgotPassword(false)}
-          onEnterTokenManually={() => {
-            setShowForgotPassword(false);
-            setShowEnterToken(true);
-          }}
-        />
+        <SafeAreaProvider>
+          <ForgotPasswordScreen
+            goToLogin={() => setShowForgotPassword(false)}
+            onEnterTokenManually={() => {
+              setShowForgotPassword(false);
+              setShowEnterToken(true);
+            }}
+          />
+        </SafeAreaProvider>
       );
     }
 
     if (showEnterToken) {
       return (
-        <EnterResetTokenScreen
-          onTokenEntered={(token) => {
-            setResetToken(token);
-            setShowEnterToken(false);
-          }}
-          goBack={() => setShowEnterToken(false)}
-        />
+        <SafeAreaProvider>
+          <EnterResetTokenScreen
+            onTokenEntered={(token) => {
+              setResetToken(token);
+              setShowEnterToken(false);
+            }}
+            goBack={() => setShowEnterToken(false)}
+          />
+        </SafeAreaProvider>
       );
     }
 
     if (showRegister) {
       return (
-        <RegisterScreen
-          onSuccessLogin={() => {
-            setShowRegister(false);
-          }}
-          goToLogin={() => setShowRegister(false)}
-        />
+        <SafeAreaProvider>
+          <RegisterScreen
+            onSuccessLogin={() => {
+              setShowRegister(false);
+            }}
+            goToLogin={() => setShowRegister(false)}
+          />
+        </SafeAreaProvider>
       );
     }
 
     return (
-      <LoginScreen
-        onSuccessLogin={() => {}}
-        goToRegister={() => setShowRegister(true)}
-        goToForgotPassword={() => setShowForgotPassword(true)}
-      />
+      <SafeAreaProvider>
+        <LoginScreen
+          onSuccessLogin={() => {}}
+          goToRegister={() => setShowRegister(true)}
+          goToForgotPassword={() => setShowForgotPassword(true)}
+        />
+      </SafeAreaProvider>
     );
   }
+
+  if (user && !user.emailVerified) {
+    return (
+      <SafeAreaProvider>
+        <VerifyEmailScreen
+          email={user.email}
+          pendingToken={verificationToken}
+          onTokenConsumed={() => setVerificationToken(null)}
+          onVerified={async () => {
+            await markEmailVerified();
+            setVerificationToken(null);
+          }}
+          onLogout={async () => {
+            await logout();
+            setVerificationToken(null);
+          }}
+        />
+      </SafeAreaProvider>
+    );
+  }
+
+  // Phase 8 - Responsive: Switch between web/mobile layouts based on screen size
+  // On web platform, use responsive hook; on native, always mobile
+  const isWeb = Platform.OS === "web";
+  const shouldUseWebLayout = isWeb && isDesktop; // Desktop web = web layout, mobile/native = mobile layout
 
   // Main App Stack
   if (currentScreen === "createPost") {
     return (
-      <CreatePostScreen
-        onSuccess={() => setCurrentScreen("feed")}
-        onCancel={() => setCurrentScreen("feed")}
-      />
+      <SafeAreaProvider>
+        <CreatePostScreen
+          onSuccess={() => setCurrentScreen("feed")}
+          onCancel={() => setCurrentScreen("feed")}
+        />
+      </SafeAreaProvider>
     );
   }
 
   if (currentScreen === "postDetail" && selectedPostId) {
     return (
-      <PostDetailScreen
-        postId={selectedPostId}
-        onBack={() => {
-          setSelectedPostId(null);
-          setCurrentScreen("feed");
-        }}
-      />
+      <SafeAreaProvider>
+        <PostDetailScreen
+          postId={selectedPostId}
+          onBack={() => {
+            setSelectedPostId(null);
+            setCurrentScreen("feed");
+          }}
+        />
+      </SafeAreaProvider>
     );
   }
 
+  // Render web layout on desktop web, mobile layout on small screens or native platforms
+  if (shouldUseWebLayout) {
+    return (
+      <SafeAreaProvider>
+        <View style={styles.webContainer}>
+          {/* Web Header Bar */}
+          <View style={styles.webHeader}>
+            <Text style={styles.webHeaderTitle}>Node Social</Text>
+            <View style={styles.webHeaderRight}>
+              {user && (
+                <>
+                  <Text style={styles.webHeaderUser}>{user.email.split("@")[0]}</Text>
+                  <TouchableOpacity style={styles.webHeaderButton} onPress={logout}>
+                    <Text style={styles.webHeaderButtonText}>Sign Out</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </View>
+
+          {/* Main Web Layout */}
+          <WebLayout />
+        </View>
+      </SafeAreaProvider>
+    );
+  }
+
+  // Mobile: Render existing mobile screens
   return (
-    <SafeAreaView style={styles.container}>
-      <FeedScreen
-        onCreatePost={() => setCurrentScreen("createPost")}
-        onPostPress={(post: Post) => {
-          setSelectedPostId(post.id);
-          setCurrentScreen("postDetail");
-        }}
-      />
-      <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Sign Out</Text>
-      </TouchableOpacity>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <SafeAreaView style={styles.container}>
+        <FeedScreen
+          onCreatePost={() => setCurrentScreen("createPost")}
+          onPostPress={(post: Post) => {
+            setSelectedPostId(post.id);
+            setCurrentScreen("postDetail");
+          }}
+        />
+        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
+          <Text style={styles.logoutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 
@@ -212,4 +301,57 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
+  // Phase 0-6 - Web Interface Styles
+  webContainer: {
+    width: "100%",
+    height: "100vh",
+    backgroundColor: "#F8FAFC",
+    overflow: "hidden",
+  },
+  webHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    height: 56,
+  },
+  webHeaderTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#1E293B",
+  },
+  webHeaderRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  webHeaderUser: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+  },
+  webHeaderButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: "#F1F5F9",
+  },
+  webHeaderButtonText: {
+    fontSize: 14,
+    color: "#DC2626",
+    fontWeight: "600",
+  },
 });
+
+// Root App Component - wraps everything with RadialWheelProvider
+export default function App() {
+  return (
+    <RadialWheelProvider>
+      <AppContent />
+    </RadialWheelProvider>
+  );
+}

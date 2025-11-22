@@ -6,10 +6,10 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 export const EnterResetTokenScreen: React.FC<{
   onTokenEntered: (token: string) => void;

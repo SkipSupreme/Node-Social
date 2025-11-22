@@ -1,6 +1,8 @@
-import React from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Post } from "../lib/api";
+import React, { useEffect, useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
+import { Post, getVibeVectors, createPostReaction, type VibeVector, type VibeIntensities } from "../lib/api";
+import { useAuthStore } from "../store/auth";
+import { PostVibeReactions } from "../web/components/VibeVectors/PostVibeReactions";
 
 // Helper to format relative time (e.g., "2h ago")
 const formatTimeAgo = (dateString: string) => {
@@ -25,6 +27,41 @@ type PostCardProps = {
 };
 
 export const PostCard = ({ post, onPress }: PostCardProps) => {
+  const { user } = useAuthStore();
+  const [vectors, setVectors] = useState<VibeVector[]>([]);
+  const [loadingVectors, setLoadingVectors] = useState(true);
+  const [userReaction, setUserReaction] = useState<VibeIntensities | null>(null);
+
+  // Load Vibe Vectors for reactions (mobile + web)
+  useEffect(() => {
+    getVibeVectors()
+      .then((data) => {
+        setVectors(data.vectors);
+        setLoadingVectors(false);
+      })
+      .catch((error) => {
+        console.error('Failed to load Vibe Vectors:', error);
+        setLoadingVectors(false);
+      });
+  }, []);
+
+  const handleReact = async (intensities: VibeIntensities) => {
+    if (!user) return;
+    
+    // Use node ID from post, or 'global' if no node
+    const nodeId = post.nodeId || 'global';
+
+    try {
+      await createPostReaction(post.id, {
+        nodeId,
+        intensities,
+      });
+      setUserReaction(intensities);
+    } catch (error) {
+      console.error('Failed to react:', error);
+    }
+  };
+
   return (
     <TouchableOpacity 
       style={styles.card} 
@@ -41,9 +78,24 @@ export const PostCard = ({ post, onPress }: PostCardProps) => {
       </Text>
       
       <View style={styles.footer}>
-        <Text style={styles.stats}>
-          💬 {post.commentCount} comments
-        </Text>
+        <View style={styles.footerLeft}>
+          {/* Vibe Vector Reaction Button - Same on mobile and web */}
+          {!loadingVectors && vectors.length > 0 && (
+            <PostVibeReactions
+              vectors={vectors}
+              postId={post.id}
+              node={post.node || { id: post.nodeId || 'global', slug: 'global', name: 'Global' }}
+              existingReaction={userReaction}
+              onReact={handleReact}
+              showCounts={false}
+            />
+          )}
+        </View>
+        <View style={styles.footerRight}>
+          <Text style={styles.stats}>
+            💬 {post.commentCount} comments
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -78,6 +130,18 @@ const styles = StyleSheet.create({
   },
   footer: {
     flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 12,
+  },
+  footerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  footerRight: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   stats: {
     fontSize: 14,

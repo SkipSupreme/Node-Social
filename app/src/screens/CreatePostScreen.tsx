@@ -1,17 +1,18 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Alert,
+  ScrollView,
 } from "react-native";
-import { createPost } from "../lib/api";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { createPost, getNodes, type Node } from "../lib/api";
 
 type CreatePostScreenProps = {
   onSuccess: () => void;
@@ -19,9 +20,28 @@ type CreatePostScreenProps = {
   nodeId?: string; // Optional: post to specific node
 };
 
-export const CreatePostScreen = ({ onSuccess, onCancel, nodeId }: CreatePostScreenProps) => {
+export const CreatePostScreen = ({ onSuccess, onCancel, nodeId: initialNodeId }: CreatePostScreenProps) => {
   const [content, setContent] = useState("");
   const [loading, setLoading] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(initialNodeId);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [loadingNodes, setLoadingNodes] = useState(true);
+  const [showNodeSelector, setShowNodeSelector] = useState(false);
+
+  // Load nodes for selection
+  useEffect(() => {
+    const loadNodes = async () => {
+      try {
+        const nodeList = await getNodes();
+        setNodes(nodeList);
+      } catch (error) {
+        console.error('Failed to load nodes:', error);
+      } finally {
+        setLoadingNodes(false);
+      }
+    };
+    loadNodes();
+  }, []);
 
   const handleSubmit = async () => {
     if (!content.trim()) return;
@@ -30,7 +50,7 @@ export const CreatePostScreen = ({ onSuccess, onCancel, nodeId }: CreatePostScre
     try {
       await createPost({
         content: content.trim(),
-        nodeId,
+        nodeId: selectedNodeId,
       });
       onSuccess();
     } catch (error) {
@@ -38,6 +58,8 @@ export const CreatePostScreen = ({ onSuccess, onCancel, nodeId }: CreatePostScre
       setLoading(false);
     }
   };
+
+  const selectedNode = nodes.find(n => n.id === selectedNodeId);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -64,6 +86,50 @@ export const CreatePostScreen = ({ onSuccess, onCancel, nodeId }: CreatePostScre
               <Text style={styles.postButtonText}>Post</Text>
             )}
           </TouchableOpacity>
+        </View>
+
+        {/* Node Selector */}
+        <View style={styles.nodeSelectorContainer}>
+          <TouchableOpacity
+            style={styles.nodeSelectorButton}
+            onPress={() => setShowNodeSelector(!showNodeSelector)}
+            disabled={loadingNodes}
+          >
+            <Text style={styles.nodeSelectorText}>
+              {selectedNode ? `n/${selectedNode.slug}` : 'Select Community'}
+            </Text>
+            <Text style={styles.nodeSelectorArrow}>{showNodeSelector ? '▲' : '▼'}</Text>
+          </TouchableOpacity>
+          
+          {showNodeSelector && !loadingNodes && (
+            <ScrollView style={styles.nodeSelectorDropdown} nestedScrollEnabled>
+              <TouchableOpacity
+                style={[styles.nodeOption, !selectedNodeId && styles.nodeOptionSelected]}
+                onPress={() => {
+                  setSelectedNodeId(undefined);
+                  setShowNodeSelector(false);
+                }}
+              >
+                <Text style={[styles.nodeOptionText, !selectedNodeId && styles.nodeOptionTextSelected]}>
+                  All Communities (Global)
+                </Text>
+              </TouchableOpacity>
+              {nodes.map((node) => (
+                <TouchableOpacity
+                  key={node.id}
+                  style={[styles.nodeOption, selectedNodeId === node.id && styles.nodeOptionSelected]}
+                  onPress={() => {
+                    setSelectedNodeId(node.id);
+                    setShowNodeSelector(false);
+                  }}
+                >
+                  <Text style={[styles.nodeOptionText, selectedNodeId === node.id && styles.nodeOptionTextSelected]}>
+                    n/{node.slug} {node.name && `- ${node.name}`}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
         </View>
 
         <View style={styles.inputContainer}>
@@ -122,6 +188,68 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontWeight: "600",
     fontSize: 14,
+  },
+  nodeSelectorContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    position: "relative",
+    zIndex: 10,
+  },
+  nodeSelectorButton: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  nodeSelectorText: {
+    fontSize: 14,
+    color: "#1E293B",
+    fontWeight: "500",
+  },
+  nodeSelectorArrow: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  nodeSelectorDropdown: {
+    position: "absolute",
+    top: "100%",
+    left: 16,
+    right: 16,
+    maxHeight: 200,
+    backgroundColor: "#FFFFFF",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    marginTop: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  nodeOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  nodeOptionSelected: {
+    backgroundColor: "#EFF6FF",
+  },
+  nodeOptionText: {
+    fontSize: 14,
+    color: "#1E293B",
+  },
+  nodeOptionTextSelected: {
+    color: "#2563EB",
+    fontWeight: "600",
   },
   inputContainer: {
     flex: 1,

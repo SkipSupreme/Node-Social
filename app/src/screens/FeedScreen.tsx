@@ -5,11 +5,11 @@ import {
   FlatList,
   StyleSheet,
   ActivityIndicator,
-  SafeAreaView,
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
-import { getFeed, Post } from "../lib/api";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { getFeed, getNodes, Post, Node } from "../lib/api";
 import { PostCard } from "../components/PostCard";
 
 type FeedScreenProps = {
@@ -20,14 +20,28 @@ type FeedScreenProps = {
 export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [cursor, setCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
+  const [showNodePicker, setShowNodePicker] = useState(false);
+
+  const loadNodes = async () => {
+    try {
+      const nodeList = await getNodes();
+      setNodes(nodeList);
+    } catch (error) {
+      console.error("Failed to load nodes:", error);
+    }
+  };
 
   const loadPosts = async (refresh = false) => {
     if (refresh) {
       setRefreshing(true);
+      setError(null);
     } else {
       if (!hasMore || loadingMore) return;
       setLoadingMore(true);
@@ -35,7 +49,7 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
 
     try {
       const currentCursor = refresh ? undefined : cursor;
-      const data = await getFeed({ cursor: currentCursor, limit: 20 });
+      const data = await getFeed({ cursor: currentCursor, limit: 20, nodeId: selectedNodeId });
 
       if (refresh) {
         setPosts(data.posts);
@@ -50,8 +64,10 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
 
       setCursor(data.nextCursor);
       setHasMore(data.hasMore);
-    } catch (error) {
-      console.error("Failed to load feed:", error);
+      setError(null);
+    } catch (err) {
+      console.error("Failed to load feed:", err);
+      setError("Failed to load feed. Pull down to retry.");
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -60,8 +76,16 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
   };
 
   useEffect(() => {
+    loadNodes();
     loadPosts(true);
   }, []);
+
+  useEffect(() => {
+    // Reload feed when node filter changes
+    if (!loading) {
+      loadPosts(true);
+    }
+  }, [selectedNodeId]);
 
   const renderFooter = () => {
     if (!loadingMore) return null;
@@ -92,11 +116,63 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
     );
   }
 
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId);
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Feed</Text>
+        <TouchableOpacity
+          style={styles.nodeFilterButton}
+          onPress={() => setShowNodePicker(!showNodePicker)}
+        >
+          <Text style={styles.nodeFilterText}>
+            {selectedNode ? selectedNode.name : "All Nodes"}
+          </Text>
+          <Text style={styles.nodeFilterArrow}>▼</Text>
+        </TouchableOpacity>
       </View>
+
+      {showNodePicker && (
+        <View style={styles.nodePicker}>
+          <TouchableOpacity
+            style={[styles.nodeOption, !selectedNodeId && styles.nodeOptionSelected]}
+            onPress={() => {
+              setSelectedNodeId(undefined);
+              setShowNodePicker(false);
+            }}
+          >
+            <Text style={[styles.nodeOptionText, !selectedNodeId && styles.nodeOptionTextSelected]}>
+              All Nodes
+            </Text>
+          </TouchableOpacity>
+          {nodes.map((node) => (
+            <TouchableOpacity
+              key={node.id}
+              style={[styles.nodeOption, selectedNodeId === node.id && styles.nodeOptionSelected]}
+              onPress={() => {
+                setSelectedNodeId(node.id);
+                setShowNodePicker(false);
+              }}
+            >
+              <Text
+                style={[
+                  styles.nodeOptionText,
+                  selectedNodeId === node.id && styles.nodeOptionTextSelected,
+                ]}
+              >
+                {node.name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+
+      {error && !refreshing && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorBannerText}>{error}</Text>
+        </View>
+      )}
 
       <FlatList
         data={posts}
@@ -132,11 +208,67 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: "#1E293B",
+  },
+  nodeFilterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 16,
+  },
+  nodeFilterText: {
+    fontSize: 14,
+    color: "#334155",
+    marginRight: 4,
+  },
+  nodeFilterArrow: {
+    fontSize: 10,
+    color: "#64748B",
+  },
+  nodePicker: {
+    backgroundColor: "#FFFFFF",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    maxHeight: 200,
+  },
+  nodeOption: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  nodeOptionSelected: {
+    backgroundColor: "#EFF6FF",
+  },
+  nodeOptionText: {
+    fontSize: 14,
+    color: "#334155",
+  },
+  nodeOptionTextSelected: {
+    color: "#2563EB",
+    fontWeight: "600",
+  },
+  errorBanner: {
+    backgroundColor: "#FEF2F2",
+    borderLeftWidth: 4,
+    borderLeftColor: "#EF4444",
+    padding: 12,
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 4,
+  },
+  errorBannerText: {
+    color: "#991B1B",
+    fontSize: 14,
   },
   centerLoader: {
     flex: 1,

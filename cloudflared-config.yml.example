@@ -1,0 +1,18 @@
+# Cloudflare Tunnel Configuration Example
+# Copy this to ~/.cloudflared/config.yml and replace YOUR_TUNNEL_ID with your actual tunnel ID
+
+tunnel: YOUR_TUNNEL_ID
+credentials-file: /Users/joshhd/.cloudflared/YOUR_TUNNEL_ID.json
+
+ingress:
+  # Route API traffic to your backend (port 3000)
+  - hostname: api.node-social.com
+    service: http://localhost:3000
+  
+  # Route web app traffic (if you build web version, port 8081 for Expo web)
+  - hostname: node-social.com
+    service: http://localhost:8081
+  
+  # Catch-all (must be last)
+  - service: http_status:404
+
