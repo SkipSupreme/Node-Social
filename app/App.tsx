@@ -16,8 +16,11 @@ import { COLORS, SCOPE_COLORS } from './src/constants/theme';
 // New UI Components
 import { Sidebar } from './src/components/ui/Sidebar';
 import { Feed } from './src/components/ui/Feed';
+import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VibeValidator } from './src/components/ui/VibeValidator';
 import { getFeed, getNodes, Post, searchPosts } from './src/lib/api';
+import { CreatePostModal } from './src/components/ui/CreatePostModal';
+import { Plus } from 'lucide-react-native';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
@@ -27,8 +30,10 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
+  const [currentView, setCurrentView] = useState<'feed' | 'profile'>('feed');
   const [posts, setPosts] = useState<any[]>([]); // Use any for now to match Feed props
   const [loading, setLoading] = useState(true);
+  const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
 
   const [algoSettings, setAlgoSettings] = useState({
     preset: 'balanced',
@@ -57,9 +62,12 @@ const MainApp = () => {
     }
   };
 
-  const fetchFeed = async () => {
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
+  const fetchFeed = async (nodeId?: string | null) => {
+    setLoading(true);
     try {
-      const data = await getFeed();
+      const data = await getFeed({ nodeId: nodeId || undefined });
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
         node: { name: p.node?.name || 'Global', color: '#6366f1' },
@@ -74,6 +82,7 @@ const MainApp = () => {
         commentCount: p.commentCount,
         expertGated: false,
         vibes: [],
+        linkMeta: p.linkMeta, // Pass link metadata
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -96,11 +105,17 @@ const MainApp = () => {
     }
   };
 
+  const handleNodeSelect = (nodeId: string | null) => {
+    setSelectedNodeId(nodeId);
+    setSearchQuery(''); // Clear search when changing nodes
+    fetchFeed(nodeId);
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      fetchFeed();
+      fetchFeed(selectedNodeId);
       return;
     }
     setLoading(true);
@@ -120,6 +135,7 @@ const MainApp = () => {
         commentCount: p.commentCount,
         expertGated: false,
         vibes: [],
+        linkMeta: p.linkMeta,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -156,7 +172,14 @@ const MainApp = () => {
         {/* --- LEFT COLUMN: SIDEBAR (Tablet/Desktop) --- */}
         {isTablet && (
           <View style={{ width: 280 }}>
-            <Sidebar nodes={nodes} isDesktop />
+            <Sidebar
+              nodes={nodes}
+              isDesktop
+              user={user}
+              onProfileClick={() => setCurrentView('profile')}
+              selectedNodeId={selectedNodeId}
+              onNodeSelect={handleNodeSelect}
+            />
           </View>
         )}
 
@@ -217,12 +240,24 @@ const MainApp = () => {
             </View>
           </View>
 
-          {/* Feed */}
+          {/* Feed or Profile */}
           <View style={{ flex: 1, width: '100%' }}>
-            {loading ? (
+            {currentView === 'profile' ? (
+              <ProfileScreen onBack={() => setCurrentView('feed')} />
+            ) : loading ? (
               <ActivityIndicator size="large" color={COLORS.node.accent} style={{ marginTop: 20 }} />
             ) : (
               <Feed posts={posts} />
+            )}
+
+            {/* FAB for New Post */}
+            {currentView === 'feed' && (
+              <TouchableOpacity
+                style={styles.fab}
+                onPress={() => setIsCreatePostOpen(true)}
+              >
+                <Plus color="#fff" size={24} />
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -243,7 +278,17 @@ const MainApp = () => {
         <Modal visible={menuVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
             <View style={styles.drawerLeft}>
-              <Sidebar nodes={nodes} onClose={() => setMenuVisible(false)} />
+              <Sidebar
+                nodes={nodes}
+                onClose={() => setMenuVisible(false)}
+                user={user}
+                onProfileClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('profile');
+                }}
+                selectedNodeId={selectedNodeId}
+                onNodeSelect={handleNodeSelect}
+              />
             </View>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setMenuVisible(false)} />
           </View>
@@ -265,6 +310,19 @@ const MainApp = () => {
           </View>
         </Modal>
       )}
+
+      {/* Create Post Modal */}
+      <CreatePostModal
+        visible={isCreatePostOpen}
+        onClose={() => setIsCreatePostOpen(false)}
+        onSuccess={() => {
+          setIsCreatePostOpen(false);
+          queryClient.invalidateQueries({ queryKey: ['posts'] });
+          fetchFeed(selectedNodeId); // Refresh feed after posting
+        }}
+        nodes={nodes}
+        initialNodeId={selectedNodeId}
+      />
 
     </SafeAreaView>
   );
@@ -423,5 +481,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 20,
     padding: 8
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: COLORS.node.accent,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 100,
   }
 });

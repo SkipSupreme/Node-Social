@@ -8,9 +8,31 @@ interface SidebarProps {
     nodes: any[];
     onClose?: () => void;
     isDesktop?: boolean;
+    user?: any;
+    onProfileClick?: () => void;
+    selectedNodeId?: string | null;
+    onNodeSelect?: (nodeId: string | null) => void;
 }
 
-export const Sidebar = ({ nodes, onClose, isDesktop = false }: SidebarProps) => {
+export const Sidebar = ({
+    nodes,
+    onClose,
+    isDesktop = false,
+    user,
+    onProfileClick,
+    selectedNodeId,
+    onNodeSelect
+}: SidebarProps) => {
+
+    const handleNodeClick = (nodeId: string | null) => {
+        if (onNodeSelect) {
+            onNodeSelect(nodeId);
+        }
+        if (onClose && !isDesktop) {
+            onClose();
+        }
+    };
+
     return (
         <SafeAreaView style={[styles.container, isDesktop && styles.containerDesktop]}>
             {/* Header */}
@@ -44,7 +66,12 @@ export const Sidebar = ({ nodes, onClose, isDesktop = false }: SidebarProps) => 
 
             <ScrollView style={{ flex: 1 }}>
                 <View style={styles.navSection}>
-                    <NavItem icon={Flame} label="Your Flow" active />
+                    <NavItem
+                        icon={Flame}
+                        label="Your Flow"
+                        active={selectedNodeId === null}
+                        onPress={() => handleNodeClick(null)}
+                    />
                     <NavItem icon={Search} label="Discovery" />
                     <NavItem icon={Users} label="Following" />
                     <NavItem icon={Palette} label="Themes" />
@@ -56,9 +83,13 @@ export const Sidebar = ({ nodes, onClose, isDesktop = false }: SidebarProps) => 
 
                 <View style={styles.nodeList}>
                     {nodes.map(node => (
-                        <TouchableOpacity key={node.id} style={styles.nodeItem}>
+                        <TouchableOpacity
+                            key={node.id}
+                            style={[styles.nodeItem, selectedNodeId === node.id && styles.nodeItemActive]}
+                            onPress={() => handleNodeClick(node.id)}
+                        >
                             <View style={[styles.nodeDot, { backgroundColor: node.color || '#2a2d35' }]} />
-                            <Text style={styles.nodeName}>{node.name}</Text>
+                            <Text style={[styles.nodeName, selectedNodeId === node.id && styles.nodeNameActive]}>{node.name}</Text>
                             {node.vibeVelocity > 80 && <Zap size={12} color="#eab308" />}
                         </TouchableOpacity>
                     ))}
@@ -66,13 +97,17 @@ export const Sidebar = ({ nodes, onClose, isDesktop = false }: SidebarProps) => 
             </ScrollView>
 
             {/* User Footer */}
-            <View style={styles.footer}>
-                <View style={styles.avatar} />
-                <View>
-                    <Text style={styles.footerUser}>dev_optimist</Text>
-                    <Text style={styles.footerEra}>Main Character Era</Text>
+            <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
+                <View style={[styles.avatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981', justifyContent: 'center', alignItems: 'center' }]}>
+                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                        {user?.firstName?.[0] || 'U'}{user?.lastName?.[0]}
+                    </Text>
                 </View>
-            </View>
+                <View>
+                    <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
+                    <Text style={styles.footerEra}>{user?.era || 'Lurker Era'}</Text>
+                </View>
+            </TouchableOpacity>
         </SafeAreaView>
     );
 };
@@ -81,10 +116,14 @@ interface NavItemProps {
     icon: any;
     label: string;
     active?: boolean;
+    onPress?: () => void;
 }
 
-const NavItem = ({ icon: Icon, label, active }: NavItemProps) => (
-    <TouchableOpacity style={[styles.navItem, active && styles.navItemActive]}>
+const NavItem = ({ icon: Icon, label, active, onPress }: NavItemProps) => (
+    <TouchableOpacity
+        style={[styles.navItem, active && styles.navItemActive]}
+        onPress={onPress}
+    >
         <Icon size={20} color={active ? COLORS.node.accent : COLORS.node.muted} />
         <Text style={[styles.navText, active && { color: COLORS.node.accent }]}>{label}</Text>
     </TouchableOpacity>
@@ -111,8 +150,10 @@ const styles = StyleSheet.create({
     sectionTitle: { fontSize: 12, fontWeight: 'bold', color: COLORS.node.muted, textTransform: 'uppercase' },
     nodeList: { paddingHorizontal: 8 },
     nodeItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
+    nodeItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
     nodeDot: { width: 8, height: 8, borderRadius: 4 },
     nodeName: { fontSize: 14, fontWeight: '500', color: COLORS.node.text, flex: 1 },
+    nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
     avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#374151' },
     footerUser: { color: '#fff', fontWeight: 'bold' },

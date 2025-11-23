@@ -19,6 +19,17 @@ model User {
   resetTokenExpires        DateTime? // When reset token expires
   createdAt                DateTime  @default(now())
 
+  // Profile Fields
+  username        String    @unique @default(cuid()) // Default for migration, should be set by user
+  firstName       String?
+  lastName        String?
+  dateOfBirth     DateTime?
+  bio             String?
+  avatar          String?
+  connoisseurCred Int       @default(0)
+  era             String    @default("Lurker Era")
+  theme           String?
+
   // Relations
   posts               Post[]
   comments            Comment[]
@@ -34,6 +45,7 @@ model Node {
   slug        String   @unique
   name        String
   description String?
+  color       String?
   createdAt   DateTime @default(now())
 
   // Relations
@@ -47,18 +59,22 @@ model Node {
 }
 
 model Post {
-  id         String    @id @default(uuid())
-  authorId   String
-  author     User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  nodeId     String?
-  node       Node?     @relation(fields: [nodeId], references: [id])
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  deletedAt DateTime?
+  authorId  String
+  nodeId    String?
+  linkUrl   String?
+  linkMetaId String?
   title      String?
-  content    String
   postType   String    @default("text") // text, image, link
   visibility String    @default("public")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  deletedAt  DateTime?
+
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  node      Node?    @relation(fields: [nodeId], references: [id])
+  linkMeta  LinkMetadata? @relation(fields: [linkMetaId], references: [id])
 
   // Relations
   comments Comment[]
@@ -70,6 +86,20 @@ model Post {
   @@index([nodeId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("posts")
+}
+
+model LinkMetadata {
+  id          String   @id @default(cuid())
+  url         String   @unique
+  title       String?
+  description String?
+  image       String?
+  domain      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  posts       Post[]
+
+  @@map("link_metadata")
 }
 
 model Comment {

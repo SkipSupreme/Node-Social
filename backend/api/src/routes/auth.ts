@@ -31,7 +31,21 @@ const appleJwks = appleAudience.length
   ? createRemoteJWKSet(new URL('https://appleid.apple.com/auth/keys'))
   : null;
 
-const baseUserSelect = { id: true, email: true, emailVerified: true, createdAt: true } as const;
+const baseUserSelect = {
+  id: true,
+  email: true,
+  emailVerified: true,
+  createdAt: true,
+  username: true,
+  firstName: true,
+  lastName: true,
+  dateOfBirth: true,
+  bio: true,
+  avatar: true,
+  connoisseurCred: true,
+  era: true,
+  theme: true,
+} as const;
 const isProd = process.env.NODE_ENV === 'production';
 const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;
 
@@ -80,9 +94,42 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   const registerSchema = z.object({
     email: z.string().email(),
     password: z.string().min(8),
+    username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username must be alphanumeric'),
+    firstName: z.string().min(1),
+    lastName: z.string().min(1),
+    dateOfBirth: z.string().datetime(), // Expect ISO string
   });
 
-  const loginSchema = registerSchema;
+  const loginSchema = z.object({
+    email: z.string().email(),
+    password: z.string().min(8),
+  });
+
+  // Helper to calculate Era based on age
+  const calculateEra = (dob: Date): string => {
+    const today = new Date();
+    let age = today.getFullYear() - dob.getFullYear();
+    const m = today.getMonth() - dob.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < dob.getDate())) {
+      age--;
+    }
+
+    if (age >= 18 && age <= 24) return 'Zoomer Era';
+    if (age >= 25 && age <= 29) return 'Mastermind Era';
+    if (age >= 30 && age <= 39) return 'Builder Era';
+    if (age >= 40 && age <= 54) return 'Gen X Era';
+    if (age >= 55) return 'Wisdom Era';
+    return 'Lurker Era';
+  };
+
+  // Check Username Availability Endpoint
+  fastify.get('/check-username', async (request, reply) => {
+    const { username } = request.query as { username: string };
+    if (!username || username.length < 3) return reply.send({ available: false });
+
+    const user = await fastify.prisma.user.findUnique({ where: { username } });
+    return reply.send({ available: !user });
+  });
 
   // Helper to hash refresh token for storage (security best practice)
   const hashToken = (token: string): string => {
@@ -106,10 +153,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     // Generate new refresh token
     const refreshToken = randomBytes(32).toString('hex');
     const tokenHash = hashToken(refreshToken);
-    
+
     // Create or use existing family ID
     const newFamilyId = familyId || randomBytes(16).toString('hex');
-    
+
     // Calculate expiration (7 days)
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 7);
@@ -130,8 +177,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const refreshKey = `refresh:${userId}:${refreshToken}`;
     await fastify.redis.set(refreshKey, '1', 'EX', 7 * 24 * 60 * 60);
 
-    return { 
-      accessToken, 
+    return {
+      accessToken,
       refreshToken,
       refreshTokenId: refreshTokenRecord.id,
       familyId: newFamilyId,
@@ -150,60 +197,77 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const parsed = registerSchema.safeParse(request.body);
-      if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid input' });
-      }
-
-      const { email, password } = parsed.data;
-
-      const existing = await fastify.prisma.user.findUnique({ where: { email } });
-      if (existing) {
-        return reply.status(400).send({ error: 'Email already in use' });
-      }
-
-      // Argon2id with document-specified parameters (Section 2.1.1)
-      // Type: argon2id, Memory: 64 MB, Time: 3 iterations, Parallelism: 1
-      const hash = await argon2.hash(password, {
-        type: argon2.argon2id,
-        memoryCost: 65536, // 64 MB = 2^16 KB
-        timeCost: 3,
-        parallelism: 1,
-        saltLength: 16, // 128-bit salt
-      });
-
-      // Generate email verification token
-      const verificationToken = randomBytes(32).toString('hex');
-      const verificationExpires = new Date();
-      verificationExpires.setHours(verificationExpires.getHours() + 24); // 24 hour expiry
-
-      const user = await fastify.prisma.user.create({
-        data: {
-          email,
-          password: hash,
-          emailVerificationToken: verificationToken,
-          emailVerificationExpires: verificationExpires,
-        },
-        select: baseUserSelect,
-      });
-
-      // Enqueue verification email; log but don't block registration flow on error
       try {
-        await sendVerificationEmail(fastify, email, verificationToken);
-      } catch (err) {
-        fastify.log.error({ err, email }, 'Failed to enqueue verification email');
+        const parsed = registerSchema.safeParse(request.body);
+        if (!parsed.success) {
+          return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+        }
+
+        const { email, password, username, firstName, lastName, dateOfBirth } = parsed.data;
+
+        const existingEmail = await fastify.prisma.user.findUnique({ where: { email } });
+        if (existingEmail) {
+          return reply.status(400).send({ error: 'Email already in use' });
+        }
+
+        const existingUsername = await fastify.prisma.user.findUnique({ where: { username } });
+        if (existingUsername) {
+          return reply.status(400).send({ error: 'Username already taken' });
+        }
+
+        // Argon2id with document-specified parameters (Section 2.1.1)
+        // Type: argon2id, Memory: 64 MB, Time: 3 iterations, Parallelism: 1
+        const hash = await argon2.hash(password, {
+          type: argon2.argon2id,
+          memoryCost: 65536, // 64 MB = 2^16 KB
+          timeCost: 3,
+          parallelism: 1,
+        });
+
+        // Generate email verification token
+        const verificationToken = randomBytes(32).toString('hex');
+        const verificationExpires = new Date();
+        verificationExpires.setHours(verificationExpires.getHours() + 24); // 24 hour expiry
+
+        const dobDate = new Date(dateOfBirth);
+        const era = calculateEra(dobDate);
+
+        const user = await fastify.prisma.user.create({
+          data: {
+            email,
+            password: hash,
+            username,
+            firstName,
+            lastName,
+            dateOfBirth: dobDate,
+            era,
+            emailVerificationToken: verificationToken,
+            emailVerificationExpires: verificationExpires,
+          },
+          select: baseUserSelect,
+        });
+
+        // Enqueue verification email; log but don't block registration flow on error
+        try {
+          await sendVerificationEmail(fastify, email, verificationToken);
+        } catch (err) {
+          fastify.log.error({ err, email }, 'Failed to enqueue verification email');
+        }
+
+        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+
+        issueSessionCookies(reply, accessToken, refreshToken);
+
+        return reply.send({
+          user,
+          token: accessToken,
+          refreshToken,
+          message: 'Registration successful. Please check your email to verify your account.',
+        });
+      } catch (error: any) {
+        fastify.log.error({ error, stack: error.stack }, 'Registration failed');
+        return reply.status(500).send({ error: 'Internal Server Error' });
       }
-
-      const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
-
-      issueSessionCookies(reply, accessToken, refreshToken);
-
-      return reply.send({
-        user,
-        token: accessToken,
-        refreshToken,
-        message: 'Registration successful. Please check your email to verify your account.',
-      });
     }
   );
 
@@ -246,6 +310,15 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           email: user.email,
           emailVerified: user.emailVerified,
           createdAt: user.createdAt,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          dateOfBirth: user.dateOfBirth,
+          bio: user.bio,
+          avatar: user.avatar,
+          connoisseurCred: user.connoisseurCred,
+          era: user.era,
+          theme: user.theme,
         },
         token: accessToken,
         refreshToken,
@@ -327,7 +400,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (!user) {
           const randomPassword = randomBytes(32).toString('hex');
           const hash = await argon2.hash(randomPassword);
-          
+
           // Create user and federated identity in a transaction
           user = await fastify.prisma.user.create({
             data: {
@@ -348,7 +421,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Step 4: User exists - check if we need to link Google account
           let needsLinking = !federatedIdentity;
           let needsEmailVerification = !user.emailVerified;
-          
+
           if (needsLinking) {
             // Check if this Google ID is already linked to another user
             const existingFederatedIdentity = await fastify.prisma.federatedIdentity.findUnique({
@@ -368,12 +441,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             if (existingFederatedIdentity && existingFederatedIdentity.user.id !== user.id) {
               // Conflict: This Google account is already linked to a different user
               fastify.log.warn(
-                { 
-                  googleId, 
+                {
+                  googleId,
                   existingUserId: existingFederatedIdentity.user.id,
                   existingUserEmail: existingFederatedIdentity.user.email,
                   attemptedUserId: user.id,
-                  attemptedUserEmail: user.email 
+                  attemptedUserEmail: user.email
                 },
                 'Google account linking conflict'
               );
@@ -439,18 +512,18 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (error?.statusCode === 409) {
           throw error;
         }
-        
+
         // Log the full error for debugging
         fastify.log.error({ error, errorCode: error?.code, errorMessage: error?.message }, 'Google sign-in failed');
-        
+
         // Provide more specific error messages when possible
         if (error?.code === 'P2002') {
           // Prisma unique constraint violation
-          return reply.status(409).send({ 
-            error: 'This Google account is already linked to another account. Please sign in with your original method.' 
+          return reply.status(409).send({
+            error: 'This Google account is already linked to another account. Please sign in with your original method.'
           });
         }
-        
+
         return reply.status(400).send({ error: 'Unable to verify Google credential' });
       }
     }
@@ -516,7 +589,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         const rawEmail =
           (typeof payload.email === 'string' ? payload.email : undefined) || clientEmail;
         const email = rawEmail?.toLowerCase();
-        
+
         // Log first-login data if provided (for debugging)
         if (clientEmail || fullName) {
           fastify.log.info({ clientEmail, fullName }, 'Apple Sign-In first-login data received');
@@ -563,7 +636,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
           const randomPassword = randomBytes(32).toString('hex');
           const hash = await argon2.hash(randomPassword);
-          
+
           // Create user and federated identity in a transaction
           user = await fastify.prisma.user.create({
             data: {
@@ -584,7 +657,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           // Step 4: User exists - check if we need to link Apple account
           let needsLinking = !federatedIdentity;
           let needsEmailVerification = !user.emailVerified && emailVerified;
-          
+
           if (needsLinking) {
             // Check if this Apple ID is already linked to another user
             const existingFederatedIdentity = await fastify.prisma.federatedIdentity.findUnique({
@@ -604,12 +677,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             if (existingFederatedIdentity && existingFederatedIdentity.user.id !== user.id) {
               // Conflict: This Apple account is already linked to a different user
               fastify.log.warn(
-                { 
-                  appleId, 
+                {
+                  appleId,
                   existingUserId: existingFederatedIdentity.user.id,
                   existingUserEmail: existingFederatedIdentity.user.email,
                   attemptedUserId: user.id,
-                  attemptedUserEmail: user.email 
+                  attemptedUserEmail: user.email
                 },
                 'Apple account linking conflict'
               );
@@ -625,7 +698,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                   userId: user.id,
                   provider: 'apple',
                   providerSubjectId: appleId,
-                  providerEmail: email || undefined,
+                  providerEmail: email || null,
                 },
               });
             } catch (linkError: any) {
@@ -675,18 +748,18 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         if (error?.statusCode === 409) {
           throw error;
         }
-        
+
         // Log the full error for debugging
         fastify.log.error({ error, errorCode: error?.code, errorMessage: error?.message }, 'Apple sign-in failed');
-        
+
         // Provide more specific error messages when possible
         if (error?.code === 'P2002') {
           // Prisma unique constraint violation
-          return reply.status(409).send({ 
-            error: 'This Apple account is already linked to another account. Please sign in with your original method.' 
+          return reply.status(409).send({
+            error: 'This Apple account is already linked to another account. Please sign in with your original method.'
           });
         }
-        
+
         return reply.status(400).send({ error: 'Unable to verify Apple credential' });
       }
     }
@@ -927,7 +1000,6 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         memoryCost: 65536, // 64 MB = 2^16 KB
         timeCost: 3,
         parallelism: 1,
-        saltLength: 16, // 128-bit salt
       });
 
       // Update password and clear reset token

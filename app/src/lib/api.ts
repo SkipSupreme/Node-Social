@@ -10,6 +10,15 @@ export type AuthResponse = {
     email: string;
     emailVerified: boolean;
     createdAt: string;
+    username?: string;
+    firstName?: string;
+    lastName?: string;
+    dateOfBirth?: string;
+    bio?: string;
+    avatar?: string;
+    connoisseurCred?: number;
+    era?: string;
+    theme?: string;
   };
   token: string;
   refreshToken: string;
@@ -40,6 +49,15 @@ export type Post = {
   commentCount: number;
   createdAt: string;
   updatedAt?: string;
+  linkUrl?: string | null;
+  linkMeta?: {
+    id: string;
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    domain?: string;
+  } | null;
 };
 
 export type Comment = {
@@ -186,7 +204,10 @@ async function request<T>(
 
   // If 401 and we haven't retried, try refreshing token
   // The queue system handles concurrent requests properly
-  if (res.status === 401 && retry) {
+  // Skip refresh for auth endpoints (login/register) to avoid "Session expired" on invalid credentials
+  const isAuthEndpoint = path.includes("/auth/login") || path.includes("/auth/register");
+
+  if (res.status === 401 && retry && !isAuthEndpoint) {
     const newToken = await refreshAccessToken();
     if (!newToken) {
       throw new Error("Session expired. Please sign in again.");
@@ -206,10 +227,30 @@ async function request<T>(
 
 // --- Auth Endpoints ---
 
-export function register(email: string, password: string) {
+export function checkUsername(username: string) {
+  return request<{ available: boolean }>(`/auth/check-username?username=${username}`, {
+    method: "GET",
+  });
+}
+
+export function register(
+  email: string,
+  password: string,
+  username: string,
+  firstName: string,
+  lastName: string,
+  dateOfBirth: string
+) {
   return request<AuthResponse>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, username, firstName, lastName, dateOfBirth }),
+  });
+}
+
+export function updateProfile(data: { bio?: string; avatar?: string; theme?: string }) {
+  return request<{ user: AuthResponse["user"] }>("/users/me", {
+    method: "PUT",
+    body: JSON.stringify(data),
   });
 }
 
@@ -235,7 +276,7 @@ export async function logout(refreshToken?: string) {
 }
 
 export function getMe() {
-  return request<{ user: AuthResponse["user"] }>("/me", {
+  return request<{ user: AuthResponse["user"] }>("/users/me", {
     method: "GET",
   });
 }
@@ -323,10 +364,24 @@ export function createNode(data: { name: string; slug: string; description?: str
 
 // --- Post Endpoints ---
 
-export function createPost(data: { content: string; nodeId?: string }) {
+export function createPost(data: { content: string; nodeId?: string; linkUrl?: string }) {
   return request<Post>("/posts", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+export function getLinkPreview(url: string) {
+  return request<{
+    id: string;
+    url: string;
+    title?: string;
+    description?: string;
+    image?: string;
+    domain?: string;
+  }>("/metadata/preview", {
+    method: "POST",
+    body: JSON.stringify({ url }),
   });
 }
 

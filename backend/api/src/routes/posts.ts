@@ -24,6 +24,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         content: z.string().min(1).max(6000),
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().max(500).optional(),
+        linkUrl: z.string().url().optional(),
       });
 
       const parsed = schema.safeParse(request.body);
@@ -31,7 +32,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, nodeId, title } = parsed.data;
+      const { content, nodeId, title, linkUrl } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Check if node exists if nodeId is provided
@@ -42,12 +43,22 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      let linkMetaId: string | undefined;
+      if (linkUrl) {
+        const meta = await fastify.prisma.linkMetadata.findUnique({ where: { url: linkUrl } });
+        if (meta) {
+          linkMetaId = meta.id;
+        }
+      }
+
       const post = await fastify.prisma.post.create({
         data: {
           content,
           nodeId: nodeId ?? null,
           title: title ?? null,
           authorId: userId,
+          linkUrl: linkUrl ?? null,
+          linkMetaId: linkMetaId ?? null,
         },
         include: {
           author: {
@@ -56,6 +67,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               email: true, // In real app, use username/avatar
             },
           },
+          linkMeta: true,
         },
       });
 

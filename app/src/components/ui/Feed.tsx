@@ -23,12 +23,28 @@ interface UIComment {
     replies?: UIComment[];
 }
 
+function timeAgo(date: Date | string) {
+    const now = new Date();
+    const past = new Date(date);
+    const diffMs = now.getTime() - past.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    const diffMin = Math.floor(diffSec / 60);
+    const diffHour = Math.floor(diffMin / 60);
+    const diffDay = Math.floor(diffHour / 24);
+
+    if (diffDay > 0) return `${diffDay}d ago`;
+    if (diffHour > 0) return `${diffHour}h ago`;
+    if (diffMin > 0) return `${diffMin}m ago`;
+    return 'Just now';
+}
+
 interface UIPost {
     id: string;
     node: { id?: string; name: string; color?: string };
     author: UIAuthor;
     title: string;
     content: string;
+    createdAt: string | Date;
     commentCount: number;
     expertGated?: boolean;
     vibes?: any[];
@@ -173,11 +189,14 @@ const PostCard = ({ post }: PostCardProps) => {
                         <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <Text style={styles.usernameLarge}>{post.author.username}</Text>
+                                <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
+                                    <Text style={styles.badgeText}>{post.author.connoisseurCred} Cred</Text>
+                                </View>
                                 <View style={[styles.badge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border, borderWidth: 1 }]}>
                                     <Text style={[styles.badgeText, { color: eraStyle.text }]}>{post.author.era}</Text>
                                 </View>
                             </View>
-                            <Text style={styles.subtext}>{post.node.name} • 2h ago</Text>
+                            <Text style={styles.subtext}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
                         </View>
                     </View>
                     <MoreHorizontal size={16} color={COLORS.node.muted} />

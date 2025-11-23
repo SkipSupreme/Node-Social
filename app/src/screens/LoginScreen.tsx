@@ -19,6 +19,7 @@ import * as Crypto from "expo-crypto";
 import { login, loginWithApple, loginWithGoogle } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { googleOAuthConfig, isGoogleSignInEnabled } from "../config";
+import { COLORS } from "../constants/theme";
 
 // CRITICAL: Must be called at top level (outside component) to dismiss auth popup
 WebBrowser.maybeCompleteAuthSession();
@@ -326,6 +327,12 @@ export const LoginScreen: React.FC<{
     }
   }, [appleAvailable, onSuccessLogin, setAuth]);
 
+
+
+  // ... (imports remain the same)
+
+  // ... (LoginScreen component logic remains the same)
+
   return (
     <SafeAreaView style={styles.container}>
       <KeyboardAvoidingView
@@ -341,7 +348,7 @@ export const LoginScreen: React.FC<{
           <View style={styles.form}>
             <TextInput
               placeholder="Email"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
@@ -352,7 +359,7 @@ export const LoginScreen: React.FC<{
 
             <TextInput
               placeholder="Password"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               secureTextEntry
               autoComplete="password"
               value={password}
@@ -399,7 +406,7 @@ export const LoginScreen: React.FC<{
                     disabled={googleLoading || !googleRequest}
                   >
                     {googleLoading ? (
-                      <ActivityIndicator color="#1E293B" />
+                      <ActivityIndicator color={COLORS.node.text} />
                     ) : (
                       <Text style={styles.googleButtonText}>Continue with Google</Text>
                     )}
@@ -440,7 +447,7 @@ export const LoginScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.bg,
   },
   keyboardView: {
     flex: 1,
@@ -456,46 +463,46 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    color: "#1E293B",
+    color: COLORS.node.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#1E293B",
+    color: COLORS.node.text,
   },
   errorContainer: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
   errorText: {
-    color: "#DC2626",
+    color: '#EF4444',
     fontSize: 14,
     textAlign: "center",
   },
   button: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#2563EB",
+    shadowColor: COLORS.node.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -522,25 +529,25 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#E2E8F0",
+    backgroundColor: COLORS.node.border,
   },
   dividerText: {
     fontSize: 13,
-    color: "#94A3B8",
+    color: COLORS.node.muted,
     textTransform: "uppercase",
     letterSpacing: 1.2,
   },
   googleButton: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#CBD5F5",
+    borderColor: COLORS.node.border,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
   },
   googleButtonText: {
-    color: "#1F2937",
+    color: COLORS.node.text,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -569,11 +576,11 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: "#64748B",
+    color: COLORS.node.muted,
     fontSize: 14,
   },
   linkText: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },

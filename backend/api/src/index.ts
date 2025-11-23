@@ -19,6 +19,8 @@ import feedPreferenceRoutes from './routes/feedPreferences.js';
 import searchRoutes from './routes/search.js';
 import moderationRoutes from './routes/moderation.js';
 import reactionRoutes from './routes/reactions.js';
+import usersRoutes from './routes/users.js';
+import metadataRoutes from './routes/metadata.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 
 const app = Fastify({ logger: true });
@@ -33,15 +35,15 @@ const allowedOriginsList = process.env.ALLOWED_ORIGINS
 const corsOrigin =
   allowedOriginsList && allowedOriginsList.length > 0
     ? ((origin: string, cb: (err: Error | null, allow: boolean | string) => void) => {
-        // Allow configured origins in prod, reflect all in dev for local testing
-        if (!origin) return cb(null, true);
-        if (!isProd) return cb(null, true);
-        if (allowedOriginsList.includes(origin)) return cb(null, origin);
-        return cb(new Error('Origin not allowed'), false);
-      })
+      // Allow configured origins in prod, reflect all in dev for local testing
+      if (!origin) return cb(null, true);
+      if (!isProd) return cb(null, true);
+      if (allowedOriginsList.includes(origin)) return cb(null, origin);
+      return cb(new Error('Origin not allowed'), false);
+    })
     : ((origin: string, cb: (err: Error | null, allow: boolean | string) => void) => {
-        cb(null, true); // reflect any origin in dev/tunnel scenarios
-      });
+      cb(null, true); // reflect any origin in dev/tunnel scenarios
+    });
 app.register(cors, {
   origin: corsOrigin,
   credentials: true,
@@ -134,25 +136,11 @@ app.register(feedPreferenceRoutes, { prefix: '/' });
 app.register(searchRoutes, { prefix: '/' });
 app.register(moderationRoutes, { prefix: '/' });
 app.register(reactionRoutes, { prefix: '/reactions' }); // Phase 0.1 - Vibe Vector reactions
+app.register(usersRoutes, { prefix: '/users' });
+app.register(metadataRoutes, { prefix: '/metadata' });
 
 // health check
 app.get('/health', async () => ({ ok: true }));
-
-// Example protected route
-app.get(
-  '/me',
-  {
-    onRequest: [app.authenticate],
-  },
-  async (request, reply) => {
-    const userId = (request.user as { sub: string }).sub;
-    const user = await app.prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, email: true, emailVerified: true, createdAt: true },
-    });
-    return { user };
-  }
-);
 
 // start server
 const port = Number(process.env.PORT) || 3000;
