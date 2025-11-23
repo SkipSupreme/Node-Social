@@ -241,7 +241,9 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Apply pagination after sorting
       const paginatedPosts = postsWithScores.slice(0, limit);
-      const nextCursor = postsWithScores.length > limit ? paginatedPosts[paginatedPosts.length - 1].post.id : undefined;
+      const lastPaginated = paginatedPosts[paginatedPosts.length - 1];
+      const nextCursor =
+        postsWithScores.length > limit && lastPaginated ? lastPaginated.post.id : undefined;
 
       // Format response
       const formattedPosts = paginatedPosts.map(({ post }) => ({
@@ -356,4 +358,3 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 };
 
 export default postRoutes;
-

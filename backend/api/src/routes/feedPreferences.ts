@@ -102,10 +102,20 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const data = parsed.data;
+      const optionalFields = {
+        ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
+        ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
+        ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
+      };
 
       // If preset is provided, use preset values
       if (data.preset && data.preset !== 'custom') {
         const preset = PRESETS[data.preset];
+        const presetUpdate = {
+          ...preset,
+          ...optionalFields,
+        };
+
         const preferences = await fastify.prisma.userFeedPreference.upsert({
           where: { userId },
           create: {
@@ -115,12 +125,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
             followingOnly: data.followingOnly ?? false,
             minConnoisseurCred: data.minConnoisseurCred ?? null,
           },
-          update: {
-            ...preset,
-            recencyHalfLife: data.recencyHalfLife ?? undefined,
-            followingOnly: data.followingOnly ?? undefined,
-            minConnoisseurCred: data.minConnoisseurCred ?? undefined,
-          },
+          update: presetUpdate,
         });
 
         return reply.send(preferences);
@@ -160,9 +165,9 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
             engagementWeight,
             personalizationWeight,
             presetMode: 'custom',
-            recencyHalfLife: data.recencyHalfLife ?? undefined,
-            followingOnly: data.followingOnly ?? undefined,
-            minConnoisseurCred: data.minConnoisseurCred ?? undefined,
+            ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
+            ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
+            ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
           },
         });
 
@@ -170,23 +175,31 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Partial update (only update provided fields)
+      const partialUpdate = {
+        ...(data.qualityWeight !== undefined ? { qualityWeight: data.qualityWeight } : {}),
+        ...(data.recencyWeight !== undefined ? { recencyWeight: data.recencyWeight } : {}),
+        ...(data.engagementWeight !== undefined ? { engagementWeight: data.engagementWeight } : {}),
+        ...(data.personalizationWeight !== undefined ? { personalizationWeight: data.personalizationWeight } : {}),
+        ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
+        ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
+        ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
+        ...(data.preset ? { presetMode: data.preset } : {}),
+      };
+
       const preferences = await fastify.prisma.userFeedPreference.upsert({
         where: { userId },
         create: {
           userId,
-          qualityWeight: 35.0,
-          recencyWeight: 30.0,
-          engagementWeight: 20.0,
-          personalizationWeight: 15.0,
-          presetMode: 'balanced',
-          recencyHalfLife: '12h',
-          followingOnly: false,
-          minConnoisseurCred: null,
-          ...data,
+          qualityWeight: data.qualityWeight ?? 35.0,
+          recencyWeight: data.recencyWeight ?? 30.0,
+          engagementWeight: data.engagementWeight ?? 20.0,
+          personalizationWeight: data.personalizationWeight ?? 15.0,
+          presetMode: data.preset ?? 'balanced',
+          recencyHalfLife: data.recencyHalfLife ?? '12h',
+          followingOnly: data.followingOnly ?? false,
+          minConnoisseurCred: data.minConnoisseurCred ?? null,
         },
-        update: {
-          ...data,
-        },
+        update: partialUpdate,
       });
 
       return reply.send(preferences);
@@ -195,4 +208,3 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
 };
 
 export default feedPreferenceRoutes;
-

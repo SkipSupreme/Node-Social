@@ -73,15 +73,16 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { action, targetType, targetId, reason, metadata } = parsed.data;
       const moderatorId = (request.user as { sub: string }).sub;
+      const modActionOptions = {
+        moderatorId,
+        ...(reason !== undefined ? { reason } : {}),
+        ...(metadata !== undefined ? { metadata } : {}),
+      };
 
       // Import here to avoid circular dependency
       const { logModAction } = await import('../lib/moderation.js');
 
-      await logModAction(fastify, action, targetType, targetId, {
-        moderatorId,
-        reason: reason ?? null,
-        metadata: metadata ?? undefined,
-      });
+      await logModAction(fastify, action, targetType, targetId, modActionOptions);
 
       return reply.status(201).send({
         message: 'Moderation action logged',
@@ -96,4 +97,3 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
 };
 
 export default moderationRoutes;
-

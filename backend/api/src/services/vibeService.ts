@@ -77,7 +77,7 @@ export async function createOrUpdateReaction(
     where: {
       userId,
       nodeId,
-      ...(postId ? { postId } : { commentId }),
+      ...(postId ? { postId } : { commentId: commentId! }),
     },
   });
 
@@ -178,7 +178,7 @@ export async function getReactionsForContent(
 
   const reactions = await prisma.vibeReaction.findMany({
     where: {
-      ...(postId ? { postId } : { commentId }),
+      ...(postId ? { postId } : { commentId: commentId! }),
     },
     include: {
       user: {
@@ -273,7 +273,7 @@ export async function deleteReaction(
 
   const where: any = {
     userId,
-    ...(postId ? { postId } : { commentId }),
+    ...(postId ? { postId } : { commentId: commentId! }),
   };
 
   if (nodeId) {
@@ -369,4 +369,3 @@ export async function getAllVibeVectors(prisma: PrismaClient) {
     orderBy: { order: 'asc' },
   });
 }
-

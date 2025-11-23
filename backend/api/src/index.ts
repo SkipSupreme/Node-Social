@@ -1,7 +1,7 @@
 // src/index.ts
 import 'dotenv/config'; // loads .env
 import Fastify from 'fastify';
-import cors from '@fastify/cors';
+import cors, { type OriginFunction } from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
 import '@fastify/cookie';
@@ -32,18 +32,18 @@ const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined
 const allowedOriginsList = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
   : null;
-const corsOrigin =
+const corsOrigin: OriginFunction =
   allowedOriginsList && allowedOriginsList.length > 0
-    ? ((origin: string, cb: (err: Error | null, allow: boolean | string) => void) => {
+    ? (origin, cb) => {
       // Allow configured origins in prod, reflect all in dev for local testing
       if (!origin) return cb(null, true);
       if (!isProd) return cb(null, true);
       if (allowedOriginsList.includes(origin)) return cb(null, origin);
       return cb(new Error('Origin not allowed'), false);
-    })
-    : ((origin: string, cb: (err: Error | null, allow: boolean | string) => void) => {
+    }
+    : (origin, cb) => {
       cb(null, true); // reflect any origin in dev/tunnel scenarios
-    });
+    };
 app.register(cors, {
   origin: corsOrigin,
   credentials: true,

@@ -1,6 +1,7 @@
 // src/plugins/meilisearch.ts
 import fp from 'fastify-plugin';
 import { MeiliSearch } from 'meilisearch';
+import type { Config as MeiliConfig } from 'meilisearch';
 import type { FastifyInstance } from 'fastify';
 
 declare module 'fastify' {
@@ -13,10 +14,12 @@ const meilisearchPlugin = fp(async (fastify: FastifyInstance) => {
   const meiliUrl = process.env.MEILISEARCH_URL || 'http://localhost:7700';
   const meiliKey = process.env.MEILISEARCH_MASTER_KEY;
 
-  const client = new MeiliSearch({
+  const clientConfig: MeiliConfig = {
     host: meiliUrl,
-    apiKey: meiliKey,
-  });
+    ...(meiliKey ? { apiKey: meiliKey } : {}),
+  };
+
+  const client = new MeiliSearch(clientConfig);
 
   // Test connection
   try {
@@ -43,4 +46,3 @@ const meilisearchPlugin = fp(async (fastify: FastifyInstance) => {
 });
 
 export default meilisearchPlugin;
-

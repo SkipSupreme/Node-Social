@@ -6,8 +6,10 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.get('/me', {
         onRequest: [fastify.authenticate]
     }, async (request, reply) => {
+        const userId = (request.user as { sub: string }).sub;
+
         const user = await fastify.prisma.user.findUnique({
-            where: { id: request.user.sub },
+            where: { id: userId },
             select: {
                 id: true,
                 email: true,
@@ -48,14 +50,20 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const { bio, avatar, theme } = parsed.data;
+        const userId = (request.user as { sub: string }).sub;
+        const updateData = {
+            ...(bio !== undefined ? { bio } : {}),
+            ...(avatar !== undefined ? { avatar } : {}),
+            ...(theme !== undefined ? { theme } : {}),
+        };
+
+        if (Object.keys(updateData).length === 0) {
+            return reply.status(400).send({ error: 'No profile fields provided' });
+        }
 
         const user = await fastify.prisma.user.update({
-            where: { id: request.user.sub },
-            data: {
-                bio,
-                avatar,
-                theme,
-            },
+            where: { id: userId },
+            data: updateData,
             select: {
                 id: true,
                 email: true,

@@ -22,14 +22,16 @@ export async function logModAction(
   }
 ): Promise<void> {
   try {
+    const { moderatorId, reason, metadata } = options ?? {};
+
     await fastify.prisma.modActionLog.create({
       data: {
         action,
         targetType,
         targetId,
-        moderatorId: options?.moderatorId ?? null,
-        reason: options?.reason ?? null,
-        metadata: options?.metadata ?? null,
+        moderatorId: moderatorId ?? null,
+        reason: reason ?? null,
+        ...(metadata !== undefined ? { metadata } : {}),
       },
     });
   } catch (error) {
@@ -40,4 +42,3 @@ export async function logModAction(
     );
   }
 }
-
