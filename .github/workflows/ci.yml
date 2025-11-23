@@ -78,7 +78,10 @@ jobs:
           npx prisma validate
         env:
           DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
-      
+          
+      - name: Install redis-cli
+        run: sudo apt-get update && sudo apt-get install -y redis-tools
+
       - name: Test Docker health
         run: |
           # Start services (already running via services, but verify)
