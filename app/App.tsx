@@ -1,357 +1,402 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform, Dimensions } from "react-native";
-import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
-import { useAuthStore } from "./src/store/auth";
-import { LoginScreen } from "./src/screens/LoginScreen";
-import { RegisterScreen } from "./src/screens/RegisterScreen";
-import { ForgotPasswordScreen } from "./src/screens/ForgotPasswordScreen";
-import { ResetPasswordScreen } from "./src/screens/ResetPasswordScreen";
-import { EnterResetTokenScreen } from "./src/screens/EnterResetTokenScreen";
-import { FeedScreen } from "./src/screens/FeedScreen";
-import { CreatePostScreen } from "./src/screens/CreatePostScreen";
-import { PostDetailScreen } from "./src/screens/PostDetailScreen";
-import { Post } from "./src/lib/api";
-import { setupLoggingFilters } from "./src/lib/logging";
-import { VerifyEmailScreen } from "./src/screens/VerifyEmailScreen";
 
-// Phase 0-6 - Web Interface Components
-import { WebLayout } from "./src/web/components/WebLayout";
-import { useResponsive } from "./src/web/hooks/useResponsive";
-import { RadialWheelProvider } from "./src/web/components/VibeVectors/RadialWheelProvider";
+import React, { useState, useEffect } from 'react';
+import { View, SafeAreaView, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Menu, Settings, X, MessageSquare, Bell, PanelRight, Search } from './src/components/ui/Icons';
+import { useAuthStore } from './src/store/auth';
+import { LoginScreen } from './src/screens/LoginScreen';
+import { RegisterScreen } from './src/screens/RegisterScreen';
+import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
+import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
+import { VerifyEmailScreen } from './src/screens/VerifyEmailScreen';
+import * as Linking from 'expo-linking';
+import { COLORS, SCOPE_COLORS } from './src/constants/theme';
 
-import * as Linking from "expo-linking";
+// New UI Components
+import { Sidebar } from './src/components/ui/Sidebar';
+import { Feed } from './src/components/ui/Feed';
+import { VibeValidator } from './src/components/ui/VibeValidator';
+import { getFeed, getNodes, Post, searchPosts } from './src/lib/api';
 
-// Setup logging filters to suppress harmless iOS Simulator warnings
-setupLoggingFilters();
+// Initialize Query Client
+const queryClient = new QueryClient();
 
-// Navigation state types
-type Screen = 
-  | "feed"
-  | "createPost"
-  | "postDetail"
-  | "profile"; // Placeholder for future
+const MainApp = () => {
+  const { user, logout } = useAuthStore();
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
+  const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
+  const [posts, setPosts] = useState<any[]>([]); // Use any for now to match Feed props
+  const [loading, setLoading] = useState(true);
 
-// Main App Component - wrapped with RadialWheelProvider at root level for both web and mobile
-function AppContent() {
-  const { user, loading, loadFromStorage, logout, markEmailVerified } = useAuthStore();
-  const { isMobile, isDesktop } = useResponsive();
-  
-  // Auth flow state
-  const [showRegister, setShowRegister] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
-  const [showEnterToken, setShowEnterToken] = useState(false);
-  const [resetToken, setResetToken] = useState<string | null>(null);
-  const [verificationToken, setVerificationToken] = useState<string | null>(null);
+  const [algoSettings, setAlgoSettings] = useState({
+    preset: 'balanced',
+    weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 }
+  });
 
-  // App flow state
-  const [currentScreen, setCurrentScreen] = useState<Screen>("feed");
-  const [selectedPostId, setSelectedPostId] = useState<string | null>(null);
+  const { width } = useWindowDimensions();
+  const isTablet = width >= 768;
+  const isDesktop = width >= 1024; // 3-column breakpoint
+
+  const [nodes, setNodes] = useState<any[]>([]);
+
+  const fetchNodes = async () => {
+    try {
+      const data = await getNodes();
+      // Map API nodes to UI nodes (add color/vibeVelocity if missing)
+      const mappedNodes = data.map((n: any) => ({
+        ...n,
+        type: 'child', // Default type
+        vibeVelocity: Math.floor(Math.random() * 100), // Mock velocity
+        color: SCOPE_COLORS[Math.floor(Math.random() * SCOPE_COLORS.length)] // Mock color
+      }));
+      setNodes(mappedNodes);
+    } catch (error) {
+      console.error('Failed to fetch nodes:', error);
+    }
+  };
+
+  const fetchFeed = async () => {
+    try {
+      const data = await getFeed();
+      const mappedPosts = data.posts.map((p: any) => ({
+        id: p.id,
+        node: { name: p.node?.name || 'Global', color: '#6366f1' },
+        author: {
+          username: p.author.email.split('@')[0],
+          avatar: `https://picsum.photos/seed/${p.author.id}/200`,
+          era: 'Builder Era',
+          connoisseurCred: 420
+        },
+        title: p.title || 'Untitled Post',
+        content: p.content,
+        commentCount: p.commentCount,
+        expertGated: false,
+        vibes: [],
+        comments: []
+      }));
+      setPosts(mappedPosts);
+    } catch (error) {
+      console.error('Failed to fetch feed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const handleSearch = async () => {
+    if (!searchQuery.trim()) {
+      fetchFeed();
+      return;
+    }
+    setLoading(true);
+    try {
+      const data = await searchPosts(searchQuery);
+      const mappedPosts = data.posts.map((p: any) => ({
+        id: p.id,
+        node: { name: p.node?.name || 'Global', color: '#6366f1' },
+        author: {
+          username: p.author.email.split('@')[0],
+          avatar: `https://picsum.photos/seed/${p.author.id}/200`,
+          era: 'Builder Era',
+          connoisseurCred: 420
+        },
+        title: p.title || 'Untitled Post',
+        content: p.content,
+        commentCount: p.commentCount,
+        expertGated: false,
+        vibes: [],
+        comments: []
+      }));
+      setPosts(mappedPosts);
+    } catch (error) {
+      console.error('Search failed:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    loadFromStorage();
+    fetchNodes();
+    fetchFeed();
+  }, []);
 
-    // Handle deep links for password reset
-    if (Linking && typeof Linking.getInitialURL === 'function') {
-      const handleDeepLink = (event: { url: string }) => {
-        try {
-          const parsed = Linking.parse(event.url);
-          const path = parsed.path;
-          const token = parsed.queryParams?.token;
-          if (path === "reset-password" && token) {
-            setResetToken(token as string);
-          } else if (path === "verify-email" && token) {
-            setVerificationToken(token as string);
-          }
-        } catch (error) {
-          console.error("Error parsing deep link:", error);
-        }
-      };
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.node.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }}>
+      <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
 
-      Linking.getInitialURL()
-        .then((url: string | null) => {
-          if (url) {
-            try {
-              const parsed = Linking.parse(url);
-              const path = parsed.path;
-              const token = parsed.queryParams?.token;
-              if (path === "reset-password" && token) {
-                setResetToken(token as string);
-              } else if (path === "verify-email" && token) {
-                setVerificationToken(token as string);
-              }
-            } catch (error) {
-              console.error("Error parsing initial URL:", error);
-            }
-          }
-        })
-        .catch((error: unknown) => {
-          console.error("Error getting initial URL:", error);
-        });
+      <View style={{ flex: 1, flexDirection: 'row' }}>
 
-      const subscription = Linking.addEventListener("url", handleDeepLink);
-      return () => {
-        if (subscription) subscription.remove();
-      };
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); 
-
-  if (loading) {
-    return (
-      <SafeAreaProvider>
-        <SafeAreaView style={styles.container}>
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color="#2563EB" />
-            <Text style={styles.loadingText}>Loading...</Text>
+        {/* --- LEFT COLUMN: SIDEBAR (Tablet/Desktop) --- */}
+        {isTablet && (
+          <View style={{ width: 280 }}>
+            <Sidebar nodes={nodes} isDesktop />
           </View>
-        </SafeAreaView>
-      </SafeAreaProvider>
-    );
-  }
+        )}
 
-  // Auth Stack
-  if (!user) {
-    if (resetToken) {
-      return (
-        <SafeAreaProvider>
-          <ResetPasswordScreen
-            token={resetToken}
-            onSuccess={() => {
-              setResetToken(null);
-              setShowForgotPassword(false);
-            }}
-          />
-        </SafeAreaProvider>
-      );
-    }
+        {/* --- CENTER COLUMN: FEED --- */}
+        <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: isTablet ? 1 : 0, borderLeftColor: COLORS.node.border }}>
 
-    if (showForgotPassword) {
-      return (
-        <SafeAreaProvider>
-          <ForgotPasswordScreen
-            goToLogin={() => setShowForgotPassword(false)}
-            onEnterTokenManually={() => {
-              setShowForgotPassword(false);
-              setShowEnterToken(true);
-            }}
-          />
-        </SafeAreaProvider>
-      );
-    }
+          {/* Header */}
+          <View style={[styles.header, { paddingHorizontal: isTablet ? 24 : 16 }]}>
+            {!isTablet && (
+              <TouchableOpacity onPress={() => setMenuVisible(true)}>
+                <Menu color={COLORS.node.muted} size={24} />
+              </TouchableOpacity>
+            )}
 
-    if (showEnterToken) {
-      return (
-        <SafeAreaProvider>
-          <EnterResetTokenScreen
-            onTokenEntered={(token) => {
-              setResetToken(token);
-              setShowEnterToken(false);
-            }}
-            goBack={() => setShowEnterToken(false)}
-          />
-        </SafeAreaProvider>
-      );
-    }
-
-    if (showRegister) {
-      return (
-        <SafeAreaProvider>
-          <RegisterScreen
-            onSuccessLogin={() => {
-              setShowRegister(false);
-            }}
-            goToLogin={() => setShowRegister(false)}
-          />
-        </SafeAreaProvider>
-      );
-    }
-
-    return (
-      <SafeAreaProvider>
-        <LoginScreen
-          onSuccessLogin={() => {}}
-          goToRegister={() => setShowRegister(true)}
-          goToForgotPassword={() => setShowForgotPassword(true)}
-        />
-      </SafeAreaProvider>
-    );
-  }
-
-  if (user && !user.emailVerified) {
-    return (
-      <SafeAreaProvider>
-        <VerifyEmailScreen
-          email={user.email}
-          pendingToken={verificationToken}
-          onTokenConsumed={() => setVerificationToken(null)}
-          onVerified={async () => {
-            await markEmailVerified();
-            setVerificationToken(null);
-          }}
-          onLogout={async () => {
-            await logout();
-            setVerificationToken(null);
-          }}
-        />
-      </SafeAreaProvider>
-    );
-  }
-
-  // Phase 8 - Responsive: Switch between web/mobile layouts based on screen size
-  // On web platform, use responsive hook; on native, always mobile
-  const isWeb = Platform.OS === "web";
-  const shouldUseWebLayout = isWeb && isDesktop; // Desktop web = web layout, mobile/native = mobile layout
-
-  // Main App Stack
-  if (currentScreen === "createPost") {
-    return (
-      <SafeAreaProvider>
-        <CreatePostScreen
-          onSuccess={() => setCurrentScreen("feed")}
-          onCancel={() => setCurrentScreen("feed")}
-        />
-      </SafeAreaProvider>
-    );
-  }
-
-  if (currentScreen === "postDetail" && selectedPostId) {
-    return (
-      <SafeAreaProvider>
-        <PostDetailScreen
-          postId={selectedPostId}
-          onBack={() => {
-            setSelectedPostId(null);
-            setCurrentScreen("feed");
-          }}
-        />
-      </SafeAreaProvider>
-    );
-  }
-
-  // Render web layout on desktop web, mobile layout on small screens or native platforms
-  if (shouldUseWebLayout) {
-    return (
-      <SafeAreaProvider>
-        <View style={styles.webContainer}>
-          {/* Web Header Bar */}
-          <View style={styles.webHeader}>
-            <Text style={styles.webHeaderTitle}>Node Social</Text>
-            <View style={styles.webHeaderRight}>
-              {user && (
-                <>
-                  <Text style={styles.webHeaderUser}>{user.email.split("@")[0]}</Text>
-                  <TouchableOpacity style={styles.webHeaderButton} onPress={logout}>
-                    <Text style={styles.webHeaderButtonText}>Sign Out</Text>
+            {/* Desktop Search */}
+            {isTablet ? (
+              <View style={styles.desktopSearch}>
+                <Search size={16} color={COLORS.node.muted} />
+                <TextInput
+                  placeholder="Search Nodes, people, or vibes..."
+                  placeholderTextColor={COLORS.node.muted}
+                  style={{ flex: 1, color: '#fff', fontSize: 14, height: '100%' }}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearch}
+                  returnKeyType="search"
+                />
+                {searchQuery.length > 0 && (
+                  <TouchableOpacity onPress={() => { setSearchQuery(''); fetchFeed(); }}>
+                    <X size={16} color={COLORS.node.muted} />
                   </TouchableOpacity>
-                </>
+                )}
+              </View>
+            ) : (
+              <Text style={styles.headerTitle}>Node<Text style={{ color: COLORS.node.accent }}>Social</Text></Text>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
+              <MessageSquare color={COLORS.node.muted} size={24} />
+              <Bell color={COLORS.node.muted} size={24} />
+
+              {/* Right Panel Toggle (Desktop) */}
+              {isDesktop && (
+                <TouchableOpacity
+                  onPress={() => setRightPanelOpen(!rightPanelOpen)}
+                  style={[styles.iconBtn, rightPanelOpen && { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
+                >
+                  <PanelRight color={rightPanelOpen ? COLORS.node.accent : COLORS.node.muted} size={24} />
+                </TouchableOpacity>
+              )}
+
+              {/* Vibe Modal Trigger (Mobile/Tablet) */}
+              {!isDesktop && (
+                <TouchableOpacity onPress={() => setVibeVisible(true)}>
+                  <PanelRight color={COLORS.node.muted} size={24} />
+                </TouchableOpacity>
               )}
             </View>
           </View>
 
-          {/* Main Web Layout */}
-          <WebLayout />
+          {/* Feed */}
+          <View style={{ flex: 1, width: '100%' }}>
+            {loading ? (
+              <ActivityIndicator size="large" color={COLORS.node.accent} style={{ marginTop: 20 }} />
+            ) : (
+              <Feed posts={posts} />
+            )}
+          </View>
         </View>
-      </SafeAreaProvider>
+
+        {/* --- RIGHT COLUMN: VIBE VALIDATOR (Desktop) --- */}
+        {isDesktop && rightPanelOpen && (
+          <View style={{ width: 320 }}>
+            <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
+          </View>
+        )}
+
+      </View>
+
+      {/* --- MOBILE MODALS --- */}
+
+      {/* Left Menu Modal */}
+      {!isTablet && (
+        <Modal visible={menuVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.drawerLeft}>
+              <Sidebar nodes={nodes} onClose={() => setMenuVisible(false)} />
+            </View>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setMenuVisible(false)} />
+          </View>
+        </Modal>
+      )}
+
+      {/* Vibe Validator Modal (Mobile/Tablet) */}
+      {!isDesktop && (
+        <Modal visible={vibeVisible} animationType="fade" transparent>
+          <View style={styles.modalOverlay}>
+            <TouchableOpacity style={{ flex: 1 }} onPress={() => setVibeVisible(false)} />
+            <View style={styles.drawerRight}>
+              {/* Close Button needed inside since VibeValidator doesn't have one */}
+              <TouchableOpacity onPress={() => setVibeVisible(false)} style={styles.closeBtnOverlay}>
+                <X size={20} color="#fff" />
+              </TouchableOpacity>
+              <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+    </SafeAreaView>
+  );
+};
+
+export default function App() {
+  const { user, loading, loadFromStorage, markEmailVerified, logout } = useAuthStore();
+  const [currentScreen, setCurrentScreen] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>('login');
+  const [resetToken, setResetToken] = useState<string | null>(null);
+  const [verifyToken, setVerifyToken] = useState<string | null>(null);
+
+  // Deep linking setup
+  useEffect(() => {
+    const handleDeepLink = (event: { url: string }) => {
+      const { path, queryParams } = Linking.parse(event.url);
+
+      if (path === 'reset-password' && queryParams?.token) {
+        setResetToken(queryParams.token as string);
+        setCurrentScreen('reset-password');
+      } else if (path === 'verify-email' && queryParams?.token) {
+        setVerifyToken(queryParams.token as string);
+        setCurrentScreen('verify-email');
+      }
+    };
+
+    Linking.getInitialURL().then((url) => {
+      if (url) handleDeepLink({ url });
+    });
+
+    const subscription = Linking.addEventListener('url', handleDeepLink);
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    loadFromStorage();
+  }, []);
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.node.bg }}>
+        <ActivityIndicator size="large" color="#6366f1" />
+      </View>
     );
   }
 
-  // Mobile: Render existing mobile screens
   return (
     <SafeAreaProvider>
-      <SafeAreaView style={styles.container}>
-        <FeedScreen
-          onCreatePost={() => setCurrentScreen("createPost")}
-          onPostPress={(post: Post) => {
-            setSelectedPostId(post.id);
-            setCurrentScreen("postDetail");
-          }}
-        />
-        <TouchableOpacity style={styles.logoutButton} onPress={logout}>
-          <Text style={styles.logoutText}>Sign Out</Text>
-        </TouchableOpacity>
-      </SafeAreaView>
+      <QueryClientProvider client={queryClient}>
+        <StatusBar barStyle="light-content" backgroundColor="#0f1115" />
+        {!user ? (
+          // Auth Flow
+          currentScreen === 'login' ? (
+            <LoginScreen
+              onSuccessLogin={() => { }}
+              goToRegister={() => setCurrentScreen('register')}
+              goToForgotPassword={() => setCurrentScreen('forgot-password')}
+            />
+          ) : currentScreen === 'register' ? (
+            <RegisterScreen
+              onSuccessLogin={() => setCurrentScreen('login')}
+              goToLogin={() => setCurrentScreen('login')}
+            />
+          ) : currentScreen === 'forgot-password' ? (
+            <ForgotPasswordScreen
+              goToLogin={() => setCurrentScreen('login')}
+            />
+          ) : currentScreen === 'reset-password' ? (
+            <ResetPasswordScreen
+              token={resetToken || ''}
+              onSuccess={() => setCurrentScreen('login')}
+            />
+          ) : currentScreen === 'verify-email' ? (
+            <VerifyEmailScreen
+              pendingToken={verifyToken || ''}
+              email={''}
+              onTokenConsumed={() => setVerifyToken(null)}
+              onVerified={async () => {
+                await markEmailVerified();
+                setVerifyToken(null);
+                setCurrentScreen('login');
+              }}
+              onLogout={async () => {
+                await logout();
+                setVerifyToken(null);
+                setCurrentScreen('login');
+              }}
+            />
+          ) : null
+        ) : (
+          // Main App
+          <MainApp />
+        )}
+      </QueryClientProvider>
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#F8FAFC",
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 16,
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#64748B",
-  },
-  logoutButton: {
-    position: 'absolute',
-    top: 50,
-    right: 20,
-    padding: 8,
-    zIndex: 10,
-  },
-  logoutText: {
-    color: "#DC2626",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  // Phase 0-6 - Web Interface Styles
-  webContainer: {
-    width: "100%",
-    height: "100vh",
-    backgroundColor: "#F8FAFC",
-    overflow: "hidden",
-  },
-  webHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+  header: {
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
-    height: 56,
+    borderBottomColor: COLORS.node.border,
+    backgroundColor: COLORS.node.bg,
+    width: '100%'
   },
-  webHeaderTitle: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1E293B",
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff'
   },
-  webHeaderRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  webHeaderUser: {
-    fontSize: 14,
-    color: "#64748B",
-    fontWeight: "500",
-  },
-  webHeaderButton: {
+  desktopSearch: {
+    flex: 1,
+    maxWidth: 400,
+    height: 36,
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: "#F1F5F9",
+    gap: 8,
+    marginHorizontal: 24
   },
-  webHeaderButtonText: {
-    fontSize: 14,
-    color: "#DC2626",
-    fontWeight: "600",
+  iconBtn: {
+    padding: 8,
+    borderRadius: 8
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    flexDirection: 'row'
+  },
+  drawerLeft: {
+    width: '80%',
+    maxWidth: 300,
+    backgroundColor: COLORS.node.panel,
+    height: '100%'
+  },
+  drawerRight: {
+    width: '85%',
+    maxWidth: 320,
+    backgroundColor: COLORS.node.panel,
+    height: '100%',
+    position: 'relative'
+  },
+  closeBtnOverlay: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 50,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    borderRadius: 20,
+    padding: 8
+  }
 });
-
-// Root App Component - wraps everything with RadialWheelProvider
-export default function App() {
-  return (
-    <RadialWheelProvider>
-      <AppContent />
-    </RadialWheelProvider>
-  );
-}

@@ -43,10 +43,9 @@ export const LoginScreen: React.FC<{
   const redirectUri = Platform.OS === "web"
     ? "https://node-social.com" // Use the actual domain from Cloudflare Tunnel
     : AuthSession.makeRedirectUri({
-        scheme: "nodesocial",
-        path: "oauth2redirect/google",
-        useProxy: false,
-      });
+      scheme: "nodesocial",
+      path: "oauth2redirect/google",
+    });
 
   // Log redirect URI for debugging - CRITICAL for web setup
   useEffect(() => {
@@ -89,7 +88,6 @@ export const LoginScreen: React.FC<{
     },
     {
       // NO proxy - we're using development builds, not Expo Go
-      useProxy: false,
     }
   );
 
@@ -157,8 +155,8 @@ export const LoginScreen: React.FC<{
     // Debug logging to help diagnose issues
     console.log("Google OAuth Response:", {
       type: googleResponse.type,
-      params: googleResponse.params,
-      error: googleResponse.error,
+      params: (googleResponse as any).params,
+      error: (googleResponse as any).error,
     });
 
     if (googleResponse.type === "success") {
@@ -185,10 +183,10 @@ export const LoginScreen: React.FC<{
       setGoogleLoading(false);
       const errorMsg =
         googleResponse.error?.message ??
-        googleResponse.error?.error_description ??
+        (googleResponse as any).error?.error_description ??
         "Google sign-in was interrupted. Please try again.";
       console.error("Google OAuth error:", googleResponse.error);
-      
+
       // Provide helpful error message for redirect URI mismatch
       if (errorMsg.includes("invalid_request") || errorMsg.includes("redirect_uri_mismatch")) {
         if (Platform.OS === "web") {
@@ -231,7 +229,7 @@ export const LoginScreen: React.FC<{
       platform: Platform.OS,
       requestUrl: googleRequest.url,
     });
-    
+
     // Log OAuth configuration info (only in dev mode)
     if (__DEV__) {
       if (Platform.OS === "web") {
@@ -288,7 +286,7 @@ export const LoginScreen: React.FC<{
       // Subsequent logins return null for these fields
       // We MUST capture and send this data immediately - it cannot be retrieved again
       const isFirstLogin = !!(credential.email || credential.fullName);
-      
+
       if (isFirstLogin) {
         console.log("🍎 Apple Sign-In - FIRST LOGIN detected");
         console.log("📧 Email:", credential.email);

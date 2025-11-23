@@ -21,7 +21,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const schema = z.object({
-        content: z.string().min(1).max(5000),
+        content: z.string().min(1).max(6000),
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().max(500).optional(),
       });
@@ -111,13 +111,13 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Load user feed preferences or use defaults
       let preferences: FeedPreferences;
-      
+
       // Ensure Prisma is available
       if (!fastify.prisma) {
         fastify.log.error('Prisma client not available - server may need restart after schema changes');
         return reply.status(500).send({ error: 'Database connection not available. Please restart the server.' });
       }
-      
+
       try {
         const userPrefs = await fastify.prisma.userFeedPreference.findUnique({
           where: { userId },
@@ -147,7 +147,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (nodeId) where.nodeId = nodeId;
       if (authorId) where.authorId = authorId;
-      
+
       // Phase 4.2 - Post Type Filtering
       if (postTypeFilter && postTypeFilter.length > 0) {
         where.postType = { in: postTypeFilter };
@@ -173,13 +173,25 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         _count: {
           select: { comments: true },
         },
+        reactions: {
+          where: { userId },
+          select: { intensities: true },
+          take: 1,
+        },
+        comments: {
+          take: 3,
+          orderBy: { createdAt: 'desc' },
+          include: {
+            author: { select: { id: true, email: true } }
+          }
+        },
       } as const;
 
       // For MVP: Fetch more posts than needed, score them, sort, then paginate
       // This is less efficient but ensures correct ordering
       // TODO: Optimize with database-level scoring in future
       const fetchLimit = Math.min(limit * 3, 100); // Fetch 3x to account for scoring variance
-      
+
       const queryArgs: Prisma.PostFindManyArgs = {
         take: fetchLimit,
         where,
@@ -222,9 +234,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       // Format response
       const formattedPosts = paginatedPosts.map(({ post }) => ({
         ...post,
-        commentCount: post._count.comments,
+        commentCount: post._count?.comments ?? 0,
         metrics: undefined, // Don't expose metrics in response (or expose selectively)
         _count: undefined,
+        myReaction: post.reactions[0]?.intensities || null,
+        reactions: undefined,
       }));
 
       return reply.send({

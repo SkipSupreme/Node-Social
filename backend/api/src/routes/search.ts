@@ -69,6 +69,13 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
             _count: {
               select: { comments: true },
             },
+            comments: {
+              take: 3,
+              orderBy: { createdAt: 'desc' },
+              include: {
+                author: { select: { id: true, email: true } }
+              }
+            },
           },
           orderBy: { createdAt: 'desc' },
         });

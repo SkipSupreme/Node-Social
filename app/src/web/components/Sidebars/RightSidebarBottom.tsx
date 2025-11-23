@@ -2,19 +2,19 @@
 // Node community information panel
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { NodeInfoCard } from '../NodeInfo/NodeInfoCard';
 import type { Node } from '../../../lib/api';
 
 interface RightSidebarBottomProps {
   node?: Node | null;
-  className?: string;
+  style?: StyleProp<ViewStyle>;
 }
 
-export const RightSidebarBottom: React.FC<RightSidebarBottomProps> = ({ node, className }) => {
+export const RightSidebarBottom: React.FC<RightSidebarBottomProps> = ({ node, style }) => {
   if (!node) {
     return (
-      <View style={[styles.container, className]}>
+      <View style={[styles.container, style]}>
         <View style={styles.header}>
           <Text style={styles.title}>Node Info</Text>
         </View>
@@ -26,7 +26,7 @@ export const RightSidebarBottom: React.FC<RightSidebarBottomProps> = ({ node, cl
   }
 
   return (
-    <View style={[styles.container, className]}>
+    <View style={[styles.container, style]}>
       <View style={styles.header}>
         <Text style={styles.title}>About n/{node.slug}</Text>
       </View>

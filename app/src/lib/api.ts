@@ -123,10 +123,10 @@ async function refreshAccessToken(): Promise<string | null> {
     const data: RefreshResponse = await res.json();
     await storage.setItem("token", data.token);
     await storage.setItem("refreshToken", data.refreshToken);
-    
+
     isRefreshing = false;
     onRefreshed(data.token); // Process queue with new token
-    
+
     return data.token;
   } catch (error) {
     isRefreshing = false;
@@ -256,9 +256,9 @@ export function loginWithApple(
       email: email || undefined,
       fullName: fullName
         ? {
-            givenName: fullName.givenName || undefined,
-            familyName: fullName.familyName || undefined,
-          }
+          givenName: fullName.givenName || undefined,
+          familyName: fullName.familyName || undefined,
+        }
         : undefined,
       // Nonce for replay protection (per document Section 6.2)
       nonce: nonce || undefined,
@@ -310,9 +310,9 @@ export function createPost(data: { content: string; nodeId?: string }) {
   });
 }
 
-export function getFeed(params: { 
-  cursor?: string; 
-  limit?: number; 
+export function getFeed(params: {
+  cursor?: string;
+  limit?: number;
   nodeId?: string;
   postType?: string; // Single post type filter
   postTypes?: string[]; // Multiple post type filter
@@ -510,3 +510,15 @@ export function deleteCommentReaction(commentId: string, nodeId?: string) {
     method: "DELETE",
   });
 }
+
+// Search
+export const searchPosts = async (query: string, limit = 20, offset = 0) => {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString()
+  });
+  return request<{ posts: Post[], total: number, hasMore: boolean }>(`/search/posts?${params.toString()}`, {
+    method: 'GET'
+  });
+};

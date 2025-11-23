@@ -181,21 +181,46 @@ export async function getReactionsForContent(
       ...(postId ? { postId } : { commentId }),
     },
     include: {
-      vector: {
-        select: {
-          slug: true,
-          name: true,
-          emoji: true,
-        },
-      },
       user: {
         select: {
           id: true,
           email: true,
         },
       },
+      node: {
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+        },
+      },
     },
   });
+
+  // Collect all unique vector slugs from reactions
+  const vectorSlugs = new Set<string>();
+  for (const reaction of reactions) {
+    const intensities = reaction.intensities as VibeIntensities;
+    for (const slug of Object.keys(intensities)) {
+      vectorSlugs.add(slug);
+    }
+  }
+
+  // Fetch vector details for all slugs
+  const vectors = await prisma.vibeVector.findMany({
+    where: {
+      slug: { in: Array.from(vectorSlugs) },
+      enabled: true,
+    },
+    select: {
+      slug: true,
+      name: true,
+      emoji: true,
+    },
+  });
+
+  // Create a map for quick lookup
+  const vectorMap = new Map(vectors.map(v => [v.slug, v]));
 
   // Aggregate intensities by vector slug
   const aggregated: Record<string, {
@@ -210,11 +235,11 @@ export async function getReactionsForContent(
     const intensities = reaction.intensities as VibeIntensities;
     for (const [slug, intensity] of Object.entries(intensities)) {
       if (!aggregated[slug]) {
-        // Get vector info from first reaction (all should have same vectors)
+        const vector = vectorMap.get(slug);
         aggregated[slug] = {
           slug,
-          name: slug.charAt(0).toUpperCase() + slug.slice(1), // Fallback
-          emoji: null,
+          name: vector?.name || slug.charAt(0).toUpperCase() + slug.slice(1),
+          emoji: vector?.emoji || null,
           totalIntensity: 0,
           reactionCount: 0,
         };

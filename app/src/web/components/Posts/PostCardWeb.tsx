@@ -3,17 +3,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { PostVibeReactions } from '../VibeVectors/PostVibeReactions';
 import { useAuthStore } from '../../../store/auth';
 import {
-  getVibeVectors,
-  getPostReactions,
-  createPostReaction,
-  deletePostReaction,
   getNode,
-  getPost,
-  type VibeVector,
-  type VibeIntensities,
   type Post,
   type Node,
 } from '../../../lib/api';
@@ -26,25 +18,7 @@ interface PostCardWebProps {
 
 export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, onPress }) => {
   const { user } = useAuthStore();
-  const [vectors, setVectors] = useState<VibeVector[]>([]);
-  const [userReaction, setUserReaction] = useState<VibeIntensities | null>(null);
-  const [loadingVectors, setLoadingVectors] = useState(true);
-  const [loadingReaction, setLoadingReaction] = useState(true);
   const [node, setNode] = useState<Node | null>(nodeProp || null);
-
-  // Load Vibe Vectors - use platform-wide vectors for now
-  // Phase 0.1 - Vectors are platform-wide, node-specific weights affect ranking only
-  useEffect(() => {
-    getVibeVectors()
-      .then((data) => {
-        setVectors(data.vectors);
-        setLoadingVectors(false);
-      })
-      .catch((error) => {
-        console.error('Failed to load Vibe Vectors:', error);
-        setLoadingVectors(false);
-      });
-  }, []);
 
   // Load node if post has nodeId but node prop not provided
   useEffect(() => {
@@ -52,7 +26,7 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
       setNode(nodeProp);
       return;
     }
-    
+
     // Use node from post if available, or fetch if we only have nodeId
     if (post.node) {
       setNode(post.node);
@@ -69,46 +43,6 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
     }
   }, [post, nodeProp]);
 
-  // Load user's reaction if logged in
-  useEffect(() => {
-    if (!user || !node) {
-      setLoadingReaction(false);
-      return;
-    }
-
-    getPostReactions(post.id)
-      .then((data) => {
-        // Find user's reaction
-        const userReact = data.reactions.find((r) => r.userId === user.id);
-        if (userReact) {
-          setUserReaction(userReact.intensities);
-        }
-        setLoadingReaction(false);
-      })
-      .catch((error) => {
-        console.error('Failed to load reactions:', error);
-        setLoadingReaction(false);
-      });
-  }, [post.id, user, node]);
-
-  const handleReact = async (intensities: VibeIntensities) => {
-    if (!user) return;
-    
-    // Use node ID from post, or 'global' if no node
-    const nodeIdToUse = node?.id || post.nodeId || 'global';
-
-    try {
-      await createPostReaction(post.id, {
-        nodeId: nodeIdToUse,
-        intensities,
-      });
-      setUserReaction(intensities);
-    } catch (error) {
-      console.error('Failed to react:', error);
-      throw error;
-    }
-  };
-
   const formatTimeAgo = (dateString: string) => {
     const now = new Date();
     const date = new Date(dateString);
@@ -124,14 +58,6 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
 
     return date.toLocaleDateString();
   };
-
-  if (loadingVectors) {
-    return (
-      <View style={styles.card}>
-        <Text style={styles.loadingText}>Loading...</Text>
-      </View>
-    );
-  }
 
   return (
     <TouchableOpacity
@@ -163,20 +89,7 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
       {/* Post Footer with Reactions */}
       <View style={styles.footer}>
         <View style={styles.footerLeft}>
-          {/* Show reaction button if we have vectors and node (or use global node) */}
-          {!loadingVectors && vectors.length > 0 && (
-            <PostVibeReactions
-              vectors={vectors}
-              postId={post.id}
-              node={node || { id: 'global', slug: 'global', name: 'Global' }} // Use global if no node
-              existingReaction={userReaction}
-              onReact={handleReact}
-              showCounts={false} // Hidden by default per master plan
-            />
-          )}
-          {loadingVectors && (
-            <Text style={styles.loadingText}>Loading...</Text>
-          )}
+          {/* Reaction logic removed as PostVibeReactions is deleted */}
         </View>
         <View style={styles.footerRight}>
           <Text style={styles.commentCount}>💬 {post.commentCount || 0}</Text>
@@ -259,6 +172,41 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#64748B',
     fontWeight: '500',
+  },
+  // Development: Intensity display
+  intensityDisplay: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E2E8F0',
+    gap: 6,
+  },
+  intensityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  intensityEmoji: {
+    fontSize: 16,
+    width: 24,
+  },
+  intensityBarContainer: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  intensityBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  intensityText: {
+    fontSize: 12,
+    color: '#64748B',
+    fontWeight: '600',
+    minWidth: 40,
+    textAlign: 'right',
   },
 });
 

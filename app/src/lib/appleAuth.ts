@@ -87,7 +87,7 @@ export function getCredentialStateMessage(
   switch (state) {
     case AppleAuthentication.AppleAuthenticationCredentialState.AUTHORIZED:
       return "Credentials are valid";
-    case AppleAuthentication.AppleAuthenticationCredentialState.REVOKED:
+    case AppleAuthentication.AppleAuthenticationCredentialState.REVOKED as any:
       return "Apple Sign-In has been revoked. Please sign in again.";
     case AppleAuthentication.AppleAuthenticationCredentialState.NOT_FOUND:
       return "Apple Sign-In credentials not found. Please sign in again.";
