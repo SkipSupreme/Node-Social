@@ -74,7 +74,19 @@ const MainApp = () => {
         commentCount: p.commentCount,
         expertGated: false,
         vibes: [],
-        comments: []
+        comments: p.comments?.map((c: any) => ({
+          id: c.id,
+          author: {
+            username: c.author.email.split('@')[0],
+            avatar: `https://picsum.photos/seed/${c.author.id}/200`,
+            era: 'Builder Era',
+            connoisseurCred: 100
+          },
+          content: c.content,
+          timestamp: new Date(c.createdAt),
+          depth: 0,
+          replies: []
+        })) || []
       }));
       setPosts(mappedPosts);
     } catch (error) {
@@ -108,7 +120,19 @@ const MainApp = () => {
         commentCount: p.commentCount,
         expertGated: false,
         vibes: [],
-        comments: []
+        comments: p.comments?.map((c: any) => ({
+          id: c.id,
+          author: {
+            username: c.author.email.split('@')[0],
+            avatar: `https://picsum.photos/seed/${c.author.id}/200`,
+            era: 'Builder Era',
+            connoisseurCred: 100
+          },
+          content: c.content,
+          timestamp: new Date(c.createdAt),
+          depth: 0,
+          replies: []
+        })) || []
       }));
       setPosts(mappedPosts);
     } catch (error) {

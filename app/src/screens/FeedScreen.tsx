@@ -41,6 +41,7 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
 
   const loadPosts = async (refresh = false) => {
     if (refresh) {
+      setLoading(true);
       setRefreshing(true);
       setError(null);
     } else {
