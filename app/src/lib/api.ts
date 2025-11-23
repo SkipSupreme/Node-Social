@@ -188,7 +188,7 @@ async function request<T>(
   // The queue system handles concurrent requests properly
   if (res.status === 401 && retry) {
     const newToken = await refreshAccessToken();
-    if (!newToken && !isWeb) {
+    if (!newToken) {
       throw new Error("Session expired. Please sign in again.");
     }
     // Retry the request with updated cookies/token

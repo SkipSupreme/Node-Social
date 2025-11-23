@@ -25,7 +25,7 @@ interface UIComment {
 
 interface UIPost {
     id: string;
-    node: { name: string; color?: string };
+    node: { id?: string; name: string; color?: string };
     author: UIAuthor;
     title: string;
     content: string;
@@ -220,7 +220,7 @@ const PostCard = ({ post }: PostCardProps) => {
                             if (Object.keys(normalized).length > 0) {
                                 // Use "global" as default nodeId if missing
                                 await createPostReaction(post.id, {
-                                    nodeId: post.node?.name === 'Global' ? 'global' : 'global', // TODO: Use real node ID
+                                    nodeId: post.node?.id || 'global', // Prefer actual node ID if available
                                     intensities: normalized
                                 });
                                 console.log('Reaction sent:', normalized);

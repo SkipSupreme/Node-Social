@@ -34,12 +34,22 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         if (authorId) filters.push(`authorId = "${authorId}"`);
 
         // Search MeiliSearch
-        const searchResults = await index.search(q, {
+        const filter = filters.length > 0 ? filters.join(' AND ') : undefined;
+        const searchParams: {
+          limit: number;
+          offset: number;
+          filter?: string;
+          sort: string[];
+        } = {
           limit,
           offset,
-          filter: filters.length > 0 ? filters.join(' AND ') : undefined,
           sort: ['createdAt:desc'],
-        });
+        };
+        if (filter !== undefined) {
+          searchParams.filter = filter;
+        }
+
+        const searchResults = await index.search(q, searchParams);
 
         // Extract post IDs
         const postIds = searchResults.hits.map((hit) => hit.id);
@@ -101,4 +111,3 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
 };
 
 export default searchRoutes;
-
