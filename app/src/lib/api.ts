@@ -1,6 +1,8 @@
 // src/lib/api.ts
+import { Platform } from "react-native";
 import { API_URL } from "../config";
 import { storage } from "./storage";
+import { getCookie } from "./cookies";
 
 export type AuthResponse = {
   user: {
@@ -52,6 +54,13 @@ export type Comment = {
   createdAt: string;
 };
 
+const isWeb = Platform.OS === "web";
+
+function readCsrfToken(): string | null {
+  if (!isWeb) return null;
+  return getCookie("csrfToken");
+}
+
 // Get token from storage for API requests
 async function getAuthToken(): Promise<string | null> {
   return await storage.getItem("token");
@@ -98,17 +107,25 @@ async function refreshAccessToken(): Promise<string | null> {
   isRefreshing = true;
 
   try {
-    const refreshToken = await storage.getItem("refreshToken");
-    if (!refreshToken) {
-      isRefreshing = false;
-      onRefreshed(""); // Resolve queue with empty (will fail)
-      return null;
+    let refreshToken: string | null = null;
+    if (!isWeb) {
+      refreshToken = await storage.getItem("refreshToken");
+      if (!refreshToken) {
+        isRefreshing = false;
+        onRefreshed(""); // Resolve queue with empty (will fail)
+        return null;
+      }
     }
+    const csrfToken = readCsrfToken();
 
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
+      headers: {
+        "Content-Type": "application/json",
+        ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
+      },
+      body: isWeb ? undefined : JSON.stringify({ refreshToken }),
+      credentials: isWeb ? "include" : undefined,
     });
 
     if (!res.ok) {
@@ -151,6 +168,10 @@ async function request<T>(
     "Content-Type": "application/json",
     ...(options.headers as Record<string, string> || {}),
   };
+  const csrfToken = readCsrfToken();
+  if (isWeb && csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
 
   // Add Authorization header if we have a token
   if (token) {
@@ -160,19 +181,18 @@ async function request<T>(
   const res = await fetch(`${API_URL}${path}`, {
     ...options,
     headers,
+    credentials: isWeb ? "include" : options.credentials,
   });
 
   // If 401 and we haven't retried, try refreshing token
   // The queue system handles concurrent requests properly
-  if (res.status === 401 && retry && token) {
+  if (res.status === 401 && retry) {
     const newToken = await refreshAccessToken();
-    if (newToken) {
-      // Retry the request with new token
-      return request<T>(path, options, false);
-    } else {
-      // Refresh failed - tokens invalid, user needs to re-login
+    if (!newToken && !isWeb) {
       throw new Error("Session expired. Please sign in again.");
     }
+    // Retry the request with updated cookies/token
+    return request<T>(path, options, false);
   }
 
   if (!res.ok) {

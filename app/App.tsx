@@ -251,6 +251,7 @@ export default function App() {
   const [currentScreen, setCurrentScreen] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>('login');
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const emailForVerification = user?.email ?? '';
 
   // Deep linking setup
   useEffect(() => {
@@ -315,7 +316,7 @@ export default function App() {
           ) : currentScreen === 'verify-email' ? (
             <VerifyEmailScreen
               pendingToken={verifyToken || ''}
-              email={''}
+              email={emailForVerification}
               onTokenConsumed={() => setVerifyToken(null)}
               onVerified={async () => {
                 await markEmailVerified();

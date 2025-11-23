@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -28,6 +28,7 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [showNodePicker, setShowNodePicker] = useState(false);
+  const prevSelectedNodeId = useRef<string | undefined>(undefined);
 
   const loadNodes = async () => {
     try {
@@ -81,11 +82,14 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
   }, []);
 
   useEffect(() => {
-    // Reload feed when node filter changes
-    if (!loading) {
+    // Reload feed when node filter changes, once current load is finished
+    if (loading) return;
+
+    if (prevSelectedNodeId.current !== selectedNodeId) {
+      prevSelectedNodeId.current = selectedNodeId;
       loadPosts(true);
     }
-  }, [selectedNodeId]);
+  }, [selectedNodeId, loading]);
 
   const renderFooter = () => {
     if (!loadingMore) return null;
@@ -321,4 +325,3 @@ const styles = StyleSheet.create({
     marginTop: -2,
   },
 });
-

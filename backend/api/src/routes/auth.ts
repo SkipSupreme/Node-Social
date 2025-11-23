@@ -7,6 +7,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Prisma } from '../../generated/prisma/client.js';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import '@fastify/cookie';
 
 const googleAudience = [
   process.env.GOOGLE_OAUTH_ANDROID_CLIENT_ID,
@@ -31,6 +32,49 @@ const appleJwks = appleAudience.length
   : null;
 
 const baseUserSelect = { id: true, email: true, emailVerified: true, createdAt: true } as const;
+const isProd = process.env.NODE_ENV === 'production';
+const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;
+
+const refreshCookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: isProd,
+  path: '/',
+  domain: cookieDomain,
+  maxAge: 7 * 24 * 60 * 60, // 7 days
+};
+
+const accessCookieOptions = {
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: isProd,
+  path: '/',
+  domain: cookieDomain,
+  maxAge: 15 * 60, // 15 minutes
+};
+
+const csrfCookieOptions = {
+  httpOnly: false,
+  sameSite: 'lax' as const,
+  secure: isProd,
+  path: '/',
+  domain: cookieDomain,
+  maxAge: 7 * 24 * 60 * 60, // align with refresh token lifetime
+};
+
+const issueSessionCookies = (reply: any, accessToken: string, refreshToken: string) => {
+  const csrfToken = randomBytes(24).toString('hex');
+  reply.setCookie('accessToken', accessToken, accessCookieOptions);
+  reply.setCookie('refreshToken', refreshToken, refreshCookieOptions);
+  reply.setCookie('csrfToken', csrfToken, csrfCookieOptions);
+};
+
+const clearSessionCookies = (reply: any) => {
+  const base = { path: '/', domain: cookieDomain, sameSite: 'lax' as const, secure: isProd };
+  reply.clearCookie('accessToken', base);
+  reply.clearCookie('refreshToken', base);
+  reply.clearCookie('csrfToken', base);
+};
 
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const registerSchema = z.object({
@@ -152,6 +196,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
 
+      issueSessionCookies(reply, accessToken, refreshToken);
+
       return reply.send({
         user,
         token: accessToken,
@@ -191,6 +237,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+
+      issueSessionCookies(reply, accessToken, refreshToken);
 
       return reply.send({
         user: {
@@ -378,6 +426,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         };
 
         const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+
+        issueSessionCookies(reply, accessToken, refreshToken);
 
         return reply.send({
           user: sanitizedUser,
@@ -613,6 +663,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
         const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
 
+        issueSessionCookies(reply, accessToken, refreshToken);
+
         return reply.send({
           user: sanitizedUser,
           token: accessToken,
@@ -644,15 +696,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   // CRITICAL: Implements document Section 3.2 - "The most critical component"
   fastify.post('/refresh', async (request, reply) => {
     const schema = z.object({
-      refreshToken: z.string(),
+      refreshToken: z.string().optional(),
     });
 
-    const parsed = schema.safeParse(request.body);
-    if (!parsed.success) {
+    const parsed = schema.safeParse(request.body || {});
+    const bodyRefreshToken = parsed.success ? parsed.data.refreshToken : undefined;
+    const refreshToken = bodyRefreshToken || request.cookies?.refreshToken;
+
+    if (!refreshToken) {
       return reply.status(400).send({ error: 'Invalid input' });
     }
 
-    const { refreshToken } = parsed.data;
     const tokenHash = hashToken(refreshToken);
 
     // Find the refresh token in database
@@ -729,6 +783,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     const refreshKey = `refresh:${tokenRecord.user.id}:${refreshToken}`;
     await fastify.redis.del(refreshKey);
 
+    issueSessionCookies(reply, accessToken, newRefreshToken);
+
     return reply.send({
       token: accessToken,
       refreshToken: newRefreshToken,
@@ -746,18 +802,30 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       const { refreshToken } = z
         .object({ refreshToken: z.string().optional() })
         .parse(request.body || {});
+      const cookieRefreshToken = request.cookies?.refreshToken;
+      const refreshTokenToRevoke = refreshToken || cookieRefreshToken;
 
       // If refresh token provided, revoke it
-      if (refreshToken) {
-        const key = `refresh:${userId}:${refreshToken}`;
+      if (refreshTokenToRevoke) {
+        const key = `refresh:${userId}:${refreshTokenToRevoke}`;
         await fastify.redis.del(key);
+        await fastify.prisma.refreshToken.updateMany({
+          where: { userId, tokenHash: hashToken(refreshTokenToRevoke) },
+          data: { revoked: true },
+        });
       } else {
         // Revoke all refresh tokens for this user
         const keys = await fastify.redis.keys(`refresh:${userId}:*`);
         if (keys.length > 0) {
           await fastify.redis.del(...keys);
         }
+        await fastify.prisma.refreshToken.updateMany({
+          where: { userId },
+          data: { revoked: true },
+        });
       }
+
+      clearSessionCookies(reply);
 
       return reply.send({ message: 'Logged out successfully' });
     }

@@ -16,6 +16,13 @@ if (!isWeb) {
 export const storage = {
   async getItem(key: string): Promise<string | null> {
     try {
+      // Do not persist refresh tokens on web for security; always treat as missing
+      if (isWeb && key === "refreshToken") {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(key);
+        }
+        return null;
+      }
       if (isWeb) {
         // Use localStorage for web
         if (typeof window !== "undefined" && window.localStorage) {
@@ -37,6 +44,13 @@ export const storage = {
 
   async setItem(key: string, value: string): Promise<void> {
     try {
+      // Never store refresh tokens in web storage
+      if (isWeb && key === "refreshToken") {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(key);
+        }
+        return;
+      }
       if (isWeb) {
         // Use localStorage for web
         if (typeof window !== "undefined" && window.localStorage) {
@@ -76,4 +90,3 @@ export const storage = {
     }
   },
 };
-
