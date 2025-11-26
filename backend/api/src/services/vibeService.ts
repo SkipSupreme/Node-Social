@@ -1,8 +1,12 @@
+
 // Phase 0.1 - Vibe Vector Service
 // Core feature: Handles Vibe Vector reactions with intensity and Node weighting
 
-import type { PrismaClient } from '../../generated/prisma/client.js';
+import { PrismaClient } from '@prisma/client';
+import type { VibeReaction } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
+import { getSocketService } from './socketService.js';
+import { ModerationService } from './moderationService.js';
 
 export interface VibeIntensities {
   [vectorSlug: string]: number; // 0.0-1.0
@@ -131,7 +135,7 @@ export async function createOrUpdateReaction(
   // Update PostMetric if postId exists (fire-and-forget, don't block)
   if (postId) {
     updatePostMetricsFromReactions(prisma, postId).catch((err) => {
-      console.error(`Failed to update metrics for post ${postId}:`, err);
+      console.error('Failed to update metrics for post ' + postId + ': ', err);
     });
   }
 
@@ -295,7 +299,7 @@ export async function deleteReaction(
   // Update PostMetric if postId exists
   if (postId) {
     updatePostMetricsFromReactions(prisma, postId).catch((err) => {
-      console.error(`Failed to update metrics for post ${postId}:`, err);
+      console.error('Failed to update metrics for post ' + postId + ': ', err);
     });
   }
 
@@ -329,6 +333,24 @@ async function updatePostMetricsFromReactions(
   let weightedEngagementScore = 0;
   let totalWeightedIntensity = 0;
 
+  // Initialize aggregates for PostVibeAggregate
+  const aggregates: any = {
+    insightfulSum: 0,
+    joySum: 0,
+    fireSum: 0,
+    supportSum: 0,
+    shockSum: 0,
+    questionableSum: 0,
+    insightfulCount: 0,
+    joyCount: 0,
+    fireCount: 0,
+    supportCount: 0,
+    shockCount: 0,
+    questionableCount: 0,
+    totalReactors: reactions.length,
+    totalIntensity: 0,
+  };
+
   for (const reaction of reactions) {
     const intensities = reaction.intensities as VibeIntensities;
     const nodeWeights = new Map(
@@ -340,6 +362,18 @@ async function updatePostMetricsFromReactions(
       const nodeWeight = nodeWeights.get(slug) || 1.0;
       weightedEngagementScore += intensity * nodeWeight;
       totalWeightedIntensity += intensity;
+
+      // Update aggregates
+      const sumKey = slug + 'Sum';
+      const countKey = slug + 'Count';
+
+      if (typeof aggregates[sumKey] === 'number') {
+        aggregates[sumKey] += intensity;
+        if (intensity > 0) {
+          aggregates[countKey] += 1;
+        }
+      }
+      aggregates.totalIntensity += intensity;
     }
   }
 
@@ -357,6 +391,61 @@ async function updatePostMetricsFromReactions(
     },
   });
 
+  // Update PostVibeAggregate
+  await prisma.postVibeAggregate.upsert({
+    where: { postId },
+    update: {
+      ...aggregates,
+      updatedAt: new Date(),
+    },
+    create: {
+      postId,
+      ...aggregates,
+    },
+  });
+
+  // Phase 3: Moderation Queue Check
+  // We need to fetch the node ID for the post to pass to checkAndAddToModQueue
+  const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true, nodeId: true, authorId: true } });
+  if (post && post.nodeId) {
+    await ModerationService.checkAndAddToModQueue(postId, post.nodeId, aggregates);
+
+    // Phase 3: Update User Cred
+    // We need to fetch the full post with reactions to calculate cred
+    // This might be expensive to do on every reaction, so maybe debounce or sample?
+    // For now, let's do it directly but optimize later.
+    const fullPost = await prisma.post.findUnique({
+      where: { id: postId },
+      include: {
+        reactions: {
+          include: {
+            user: { select: { nodeCredScores: true } }
+          }
+        },
+        author: true
+      }
+    });
+
+    if (fullPost) {
+      await updateUserCred(prisma, fullPost);
+    }
+  }
+
+  // Emit socket update
+  try {
+    const socketService = getSocketService();
+    socketService.emitPostUpdate(postId, {
+      postId,
+      metrics: {
+        engagementScore: weightedEngagementScore,
+      },
+      vibeAggregate: aggregates,
+    });
+  } catch (error) {
+    // Ignore socket errors (e.g. if service not initialized in tests)
+    console.warn('Failed to emit socket update:', error);
+  }
+
   return metric;
 }
 
@@ -368,4 +457,155 @@ export async function getAllVibeVectors(prisma: PrismaClient) {
     where: { enabled: true },
     orderBy: { order: 'asc' },
   });
+}
+
+/**
+ * Phase 3: ConnoisseurCred Logic
+ */
+
+function calculateCredEarned(post: any): number {
+  let credEarned = 0;
+
+  for (const reaction of post.reactions) {
+    // Get reactor's cred for this node
+    const nodeCreds = reaction.user.nodeCredScores as Record<string, number> || {};
+    const reactorCred = Math.min(nodeCreds[post.nodeId] || 0, 2000); // Cap at 2x
+    const normalizedCred = Math.max(0.1, reactorCred / 1000); // Normalize to ~0-2 range, min 0.1
+
+    const intensities = reaction.intensities as VibeIntensities;
+
+    // Positive vectors earn Cred
+    const positiveValue =
+      ((intensities.insightful || 0) * 3.0) +
+      ((intensities.support || 0) * 2.5) +
+      ((intensities.joy || 0) * 1.5) +
+      ((intensities.fire || 0) * 2.0);
+
+    credEarned += normalizedCred * positiveValue;
+  }
+
+  return credEarned;
+}
+
+function calculateCredLost(post: any): number {
+  let credLost = 0;
+
+  for (const reaction of post.reactions) {
+    const nodeCreds = reaction.user.nodeCredScores as Record<string, number> || {};
+    const reactorCred = Math.min(nodeCreds[post.nodeId] || 0, 2000);
+    const normalizedCred = Math.max(0.1, reactorCred / 1000);
+
+    const intensities = reaction.intensities as VibeIntensities;
+
+    // Negative vectors lose Cred
+    const negativeValue =
+      ((intensities.questionable || 0) * 1.5);
+
+    // Shock only loses Cred if content was removed (we check status)
+    // For now, let's just count it as negative if it's high? 
+    // Roadmap says "Shock only loses Cred if content was removed".
+    // So we skip shock here unless we know status.
+    // Let's assume we are just calculating potential loss from reactions.
+
+    credLost += normalizedCred * negativeValue;
+  }
+
+  return credLost;
+}
+
+async function updateUserCred(prisma: PrismaClient, post: any) {
+  const earned = calculateCredEarned(post);
+  const lost = calculateCredLost(post);
+  const netChange = earned - lost;
+
+  // Update author's Node-specific Cred
+  const author = post.author;
+  const currentNodeCreds = author.nodeCredScores as Record<string, number> || {};
+  const currentCred = currentNodeCreds[post.nodeId] || 0;
+
+  // Simple additive model for now (roadmap implies accumulation)
+  // We should probably store "cred earned from this post" on the post itself to avoid re-calculating everything?
+  // But for MVP, let's just add the *change*? 
+  // Wait, if we re-calculate every time, we need to know the *previous* cred earned from this post to subtract it.
+  // Or we just re-calculate total cred from all posts? That's too expensive.
+  // 
+  // Better approach for MVP:
+  // Just add a small amount for the *current* reaction being processed?
+  // But `updatePostMetricsFromReactions` iterates ALL reactions.
+  //
+  // Let's stick to the roadmap formula but maybe we need to store `post.credEarned` to diff it.
+  // Since we don't have `post.credEarned` in schema yet, let's just skip the diff and 
+  // assume we are recalculating the user's TOTAL cred from scratch? No, too expensive.
+  //
+  // Alternative: Just update the user's cred by a small delta based on the *current* aggregate state?
+  // That's risky for drift.
+  //
+  // Let's try to be smart. 
+  // We can just calculate the score for THIS post.
+  // And maybe we assume the User's `nodeCredScores` is the sum of all their posts' scores.
+  // But we can't query all posts every time.
+  //
+  // Let's modify `User` to just have `connoisseurCred` (global) and `nodeCredScores` (local).
+  // For this MVP, let's just increment/decrement based on the *delta* of the aggregate?
+  //
+  // Actually, `updatePostMetricsFromReactions` is called after *one* reaction change.
+  // We can just calculate the impact of THAT reaction?
+  // But `updatePostMetricsFromReactions` re-sums everything.
+  //
+  // Let's simplify:
+  // We will just update the User's cred based on the *total* score of the post, 
+  // but we need to know what it was *before* to add the diff.
+  // We don't have "before".
+  //
+  // Okay, let's just log the calculated cred for now and not write to DB to avoid corruption,
+  // UNLESS we add `credEarned` to `Post` or `PostVibeAggregate`.
+  // `PostVibeAggregate` has `qualityScore`. Maybe we use that?
+  //
+  // Let's add `credEarned` to `PostVibeAggregate` in the next schema update if needed.
+  // For now, I will implement the calculation but NOT the write to User, 
+  // or I'll write it but acknowledge it might be "jumpy" if I don't diff.
+  //
+  // Wait, `PostVibeAggregate` has `qualityScore`. 
+  // Let's use `qualityScore` as the "Cred earned from this post".
+  // And we can update the User's total by (newQuality - oldQuality).
+  //
+  // Yes! `PostVibeAggregate` already exists and we are updating it.
+  // We can fetch the OLD aggregate before upserting?
+  // `updatePostMetricsFromReactions` does an upsert.
+  //
+  // Let's fetch old aggregate first.
+
+  const oldAggregate = await prisma.postVibeAggregate.findUnique({ where: { postId: post.id } });
+  const oldScore = oldAggregate?.qualityScore || 0;
+
+  // Calculate NEW quality score (which is basically cred earned)
+  const newScore = netChange; // Use our formula
+
+  const diff = newScore - oldScore;
+
+  if (Math.abs(diff) > 0.1) {
+    const newNodeCred = Math.max(0, currentCred + diff);
+
+    const newNodeCreds = {
+      ...currentNodeCreds,
+      [post.nodeId]: newNodeCred
+    };
+
+    // Update User
+    await prisma.user.update({
+      where: { id: author.id },
+      data: {
+        nodeCredScores: newNodeCreds,
+        // Also update global cred? Maybe average or sum?
+        // Roadmap says: "totalCred = Object.values(author.nodeCredScores).reduce((a, b) => a + b, 0);"
+        connoisseurCred: (Object.values(newNodeCreds) as number[]).reduce((a, b) => a + b, 0)
+      }
+    });
+
+    // Also update the aggregate's qualityScore so we have a baseline for next time
+    await prisma.postVibeAggregate.update({
+      where: { postId: post.id },
+      data: { qualityScore: newScore }
+    });
+  }
 }

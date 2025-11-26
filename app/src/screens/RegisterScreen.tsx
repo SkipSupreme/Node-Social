@@ -276,8 +276,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 40,
     paddingBottom: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   header: {
     marginBottom: 32,

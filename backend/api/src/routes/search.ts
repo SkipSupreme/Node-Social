@@ -1,5 +1,6 @@
 // src/routes/search.ts
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 
 const searchRoutes: FastifyPluginAsync = async (fastify) => {
@@ -91,7 +92,8 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         // Format response
-        const formattedPosts = posts.map((post) => ({
+        // TODO: Fix strict typing for post with relations. Using explicit any to resolve implicit any error.
+        const formattedPosts = posts.map((post: any) => ({
           ...post,
           commentCount: post._count.comments,
           _count: undefined,

@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { View, SafeAreaView, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput } from 'react-native';
+import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Menu, Settings, X, MessageSquare, Bell, PanelRight, Search } from './src/components/ui/Icons';
@@ -21,6 +22,14 @@ import { VibeValidator } from './src/components/ui/VibeValidator';
 import { getFeed, getNodes, Post, searchPosts } from './src/lib/api';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
 import { Plus } from 'lucide-react-native';
+import { NotificationsScreen } from './src/screens/NotificationsScreen';
+import { SavedPostsScreen } from './src/screens/SavedPostsScreen';
+import { BetaTestScreen } from './src/screens/BetaTestScreen';
+import { ThemesScreen } from './src/screens/ThemesScreen';
+import { CredHistoryScreen } from './src/screens/CredHistoryScreen';
+import { MessagesScreen } from './src/screens/MessagesScreen';
+import { ChatScreen } from './src/screens/ChatScreen';
+import { useSocket } from './src/context/SocketContext';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
@@ -30,10 +39,13 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
-  const [currentView, setCurrentView] = useState<'feed' | 'profile'>('feed');
-  const [posts, setPosts] = useState<any[]>([]); // Use any for now to match Feed props
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat'>('feed');
+  const [viewParams, setViewParams] = useState<any>(null);
+  const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+
+
 
   const [algoSettings, setAlgoSettings] = useState({
     preset: 'balanced',
@@ -62,34 +74,53 @@ const MainApp = () => {
     }
   };
 
+  const [feedMode, setFeedMode] = useState<'global' | 'discovery' | 'following'>('global');
+
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const fetchFeed = async (nodeId?: string | null) => {
+  const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
     setLoading(true);
     try {
-      const data = await getFeed({ nodeId: nodeId || undefined });
+      const params: any = {
+        nodeId: nodeId || undefined,
+        qualityWeight: algoSettings.weights.quality,
+        recencyWeight: algoSettings.weights.recency,
+        engagementWeight: algoSettings.weights.engagement,
+        personalizationWeight: algoSettings.weights.personalization
+      };
+
+      if (mode === 'discovery') {
+        params.preset = 'popular'; // Or 'balanced'
+      } else if (mode === 'following') {
+        params.followingOnly = true;
+      }
+
+      const data = await getFeed(params);
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
         node: { name: p.node?.name || 'Global', color: '#6366f1' },
         author: {
-          username: p.author.email.split('@')[0],
-          avatar: `https://picsum.photos/seed/${p.author.id}/200`,
-          era: 'Builder Era',
-          connoisseurCred: 420
+          id: p.author.id,
+          username: p.author.username || 'User',
+          avatar: p.author.avatar, // Use backend avatar
+          era: p.author.era || 'Lurker Era',
+          connoisseurCred: p.author.connoisseurCred || 0
         },
         title: p.title || 'Untitled Post',
         content: p.content,
         commentCount: p.commentCount,
+        createdAt: p.createdAt, // Pass original createdAt
         expertGated: false,
         vibes: [],
         linkMeta: p.linkMeta, // Pass link metadata
+        poll: p.poll, // Pass poll data
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
-            username: c.author.email.split('@')[0],
-            avatar: `https://picsum.photos/seed/${c.author.id}/200`,
-            era: 'Builder Era',
-            connoisseurCred: 100
+            username: c.author.username || 'User',
+            avatar: c.author.avatar,
+            era: c.author.era || 'Lurker Era',
+            connoisseurCred: c.author.connoisseurCred || 0
           },
           content: c.content,
           timestamp: new Date(c.createdAt),
@@ -105,17 +136,36 @@ const MainApp = () => {
     }
   };
 
+  // Debounced feed refresh when algo settings change
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      fetchFeed(selectedNodeId, feedMode);
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [algoSettings]);
+
   const handleNodeSelect = (nodeId: string | null) => {
     setSelectedNodeId(nodeId);
     setSearchQuery(''); // Clear search when changing nodes
-    fetchFeed(nodeId);
+    // If selecting a node, we implicitly go to global mode for that node
+    // But if we are in discovery/following, maybe we should stay there?
+    // For now, let's reset to global when picking a node to be safe/simple
+    setFeedMode('global');
+    fetchFeed(nodeId, 'global');
+  };
+
+  const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
+    setFeedMode(mode);
+    setSelectedNodeId(null); // Clear node selection
+    setSearchQuery('');
+    fetchFeed(null, mode);
   };
 
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      fetchFeed(selectedNodeId);
+      fetchFeed(selectedNodeId, feedMode);
       return;
     }
     setLoading(true);
@@ -125,24 +175,27 @@ const MainApp = () => {
         id: p.id,
         node: { name: p.node?.name || 'Global', color: '#6366f1' },
         author: {
-          username: p.author.email.split('@')[0],
-          avatar: `https://picsum.photos/seed/${p.author.id}/200`,
-          era: 'Builder Era',
-          connoisseurCred: 420
+          id: p.author.id,
+          username: p.author.username || 'User',
+          avatar: p.author.avatar,
+          era: p.author.era || 'Lurker Era',
+          connoisseurCred: p.author.connoisseurCred || 0
         },
         title: p.title || 'Untitled Post',
         content: p.content,
         commentCount: p.commentCount,
+        createdAt: p.createdAt,
         expertGated: false,
         vibes: [],
         linkMeta: p.linkMeta,
+        poll: p.poll,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
-            username: c.author.email.split('@')[0],
-            avatar: `https://picsum.photos/seed/${c.author.id}/200`,
-            era: 'Builder Era',
-            connoisseurCred: 100
+            username: c.author.username || 'User',
+            avatar: c.author.avatar,
+            era: c.author.era || 'Lurker Era',
+            connoisseurCred: c.author.connoisseurCred || 0
           },
           content: c.content,
           timestamp: new Date(c.createdAt),
@@ -163,108 +216,184 @@ const MainApp = () => {
     fetchFeed();
   }, []);
 
+  // Socket.io Integration for Real-time Feed
+  const { socket } = useSocket();
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('post:new', (newPost: any) => {
+      // Only add if we are in global mode or if the post matches the current node
+      // For simplicity, just add to top if global or matching node
+      // We need to map the raw post to the UI format
+      const mappedPost = {
+        id: newPost.id,
+        node: { name: newPost.node?.name || 'Global', color: '#6366f1' },
+        author: {
+          id: newPost.author.id,
+          username: newPost.author.username || 'User',
+          avatar: newPost.author.avatar,
+          era: newPost.author.era || 'Lurker Era',
+          connoisseurCred: newPost.author.connoisseurCred || 0
+        },
+        title: newPost.title || 'Untitled Post',
+        content: newPost.content,
+        commentCount: 0,
+        createdAt: newPost.createdAt,
+        expertGated: false,
+        vibes: [],
+        linkMeta: newPost.linkMeta,
+        poll: newPost.poll,
+        comments: []
+      };
+
+      setPosts(prev => [mappedPost, ...prev]);
+    });
+
+    return () => {
+      socket.off('post:new');
+    };
+  }, [socket, selectedNodeId, feedMode]);
+
+  // Check for Beta Route
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const path = window.location.pathname;
+      console.log('Current Path:', path); // DEBUG
+      if (path.includes('beta')) {
+        setCurrentView('beta');
+      }
+    }
+  }, []);
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.node.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }}>
-      <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
+      {/* ... (keep existing StatusBar) */}
 
       <View style={{ flex: 1, flexDirection: 'row' }}>
 
-        {/* --- LEFT COLUMN: SIDEBAR (Tablet/Desktop) --- */}
-        {isTablet && (
-          <View style={{ width: 280 }}>
+        {/* Desktop Sidebar */}
+        {isDesktop && (
+          <View style={styles.drawerLeft}>
             <Sidebar
               nodes={nodes}
-              isDesktop
+              isDesktop={true}
               user={user}
               onProfileClick={() => setCurrentView('profile')}
               selectedNodeId={selectedNodeId}
               onNodeSelect={handleNodeSelect}
+              feedMode={feedMode}
+              onFeedModeSelect={handleFeedModeSelect}
+              onThemesClick={() => setCurrentView('themes')}
+              onSavedClick={() => setCurrentView('saved')}
+              onBetaClick={() => setCurrentView('beta')}
+              onNewPostClick={() => setIsCreatePostOpen(true)}
             />
           </View>
         )}
 
-        {/* --- CENTER COLUMN: FEED --- */}
-        <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: isTablet ? 1 : 0, borderLeftColor: COLORS.node.border }}>
+        {/* Main Content Wrapper - Pushes Right Sidebar to edge */}
+        <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
 
-          {/* Header */}
-          <View style={[styles.header, { paddingHorizontal: isTablet ? 24 : 16 }]}>
-            {!isTablet && (
+          {/* Header - Full Width */}
+          <View style={styles.header}>
+            {!isDesktop && (
               <TouchableOpacity onPress={() => setMenuVisible(true)}>
-                <Menu color={COLORS.node.muted} size={24} />
+                <Menu size={24} color={COLORS.node.text} />
               </TouchableOpacity>
             )}
 
             {/* Desktop Search */}
-            {isTablet ? (
-              <View style={styles.desktopSearch}>
-                <Search size={16} color={COLORS.node.muted} />
+            {isDesktop && (
+              <View style={styles.searchContainerDesktop}>
+                <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
                 <TextInput
-                  placeholder="Search Nodes, people, or vibes..."
+                  style={styles.inputDesktop}
+                  placeholder="Search..."
                   placeholderTextColor={COLORS.node.muted}
-                  style={{ flex: 1, color: '#fff', fontSize: 14, height: '100%' }}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={handleSearch}
-                  returnKeyType="search"
                 />
-                {searchQuery.length > 0 && (
-                  <TouchableOpacity onPress={() => { setSearchQuery(''); fetchFeed(); }}>
-                    <X size={16} color={COLORS.node.muted} />
-                  </TouchableOpacity>
-                )}
               </View>
-            ) : (
-              <Text style={styles.headerTitle}>Node<Text style={{ color: COLORS.node.accent }}>Social</Text></Text>
             )}
 
-            <View style={{ flexDirection: 'row', gap: 16, alignItems: 'center' }}>
-              <MessageSquare color={COLORS.node.muted} size={24} />
-              <Bell color={COLORS.node.muted} size={24} />
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingRight: 16 }}>
+              {/* Messages Icon */}
+              <TouchableOpacity onPress={() => setCurrentView('messages')}>
+                <MessageSquare size={24} color={COLORS.node.text} />
+              </TouchableOpacity>
 
-              {/* Right Panel Toggle (Desktop) */}
+              {/* Notifications Bell */}
+              <TouchableOpacity onPress={() => setCurrentView('notifications')}>
+                <Bell size={24} color={COLORS.node.text} />
+              </TouchableOpacity>
+
+              {/* Desktop Right Panel Toggle */}
               {isDesktop && (
-                <TouchableOpacity
-                  onPress={() => setRightPanelOpen(!rightPanelOpen)}
-                  style={[styles.iconBtn, rightPanelOpen && { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
-                >
-                  <PanelRight color={rightPanelOpen ? COLORS.node.accent : COLORS.node.muted} size={24} />
-                </TouchableOpacity>
-              )}
-
-              {/* Vibe Modal Trigger (Mobile/Tablet) */}
-              {!isDesktop && (
-                <TouchableOpacity onPress={() => setVibeVisible(true)}>
-                  <PanelRight color={COLORS.node.muted} size={24} />
+                <TouchableOpacity onPress={() => setRightPanelOpen(!rightPanelOpen)}>
+                  <PanelRight size={24} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
                 </TouchableOpacity>
               )}
             </View>
           </View>
 
-          {/* Feed or Profile */}
-          <View style={{ flex: 1, width: '100%' }}>
-            {currentView === 'profile' ? (
-              <ProfileScreen onBack={() => setCurrentView('feed')} />
-            ) : loading ? (
-              <ActivityIndicator size="large" color={COLORS.node.accent} style={{ marginTop: 20 }} />
-            ) : (
-              <Feed posts={posts} />
-            )}
+          {/* Scrollable Content - Full Width */}
+          <View style={{ width: '100%', maxWidth: '100%', flex: 1 }}>
+            {currentView === 'feed' ? (
+              <Feed
+                posts={posts}
+                currentUser={user}
+                onPostAction={(postId, action) => {
+                  // Optimistic update: remove post from feed
+                  setPosts(prev => prev.filter(p => p.id !== postId));
+                }}
+              />
+            ) : currentView === 'profile' ? (
+              <ProfileScreen
+                onBack={() => setCurrentView('feed')}
+                onCredClick={() => setCurrentView('cred-history')}
+              />
+            ) : currentView === 'beta' ? (
+              <BetaTestScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'notifications' ? (
+              <NotificationsScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'saved' ? (
+              <SavedPostsScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'cred-history' ? (
+              <CredHistoryScreen onBack={() => setCurrentView('profile')} />
+            ) : currentView === 'themes' ? (
+              <ThemesScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'messages' ? (
+              <MessagesScreen
+                onBack={() => setCurrentView('feed')}
+                onNavigate={(screen, params) => {
+                  setCurrentView(screen as any);
+                  setViewParams(params);
+                }}
+              />
+            ) : currentView === 'chat' ? (
+              <ChatScreen
+                onBack={() => setCurrentView('messages')}
+                conversationId={viewParams?.conversationId}
+                recipient={viewParams?.recipient}
+              />
+            ) : null}
 
-            {/* FAB for New Post */}
-            {currentView === 'feed' && (
+            {/* Mobile FAB */}
+            {!isDesktop && currentView === 'feed' && (
               <TouchableOpacity
                 style={styles.fab}
                 onPress={() => setIsCreatePostOpen(true)}
               >
-                <Plus color="#fff" size={24} />
+                <Plus size={24} color="#fff" />
               </TouchableOpacity>
             )}
           </View>
         </View>
 
-        {/* --- RIGHT COLUMN: VIBE VALIDATOR (Desktop) --- */}
+        {/* Desktop Right Panel */}
         {isDesktop && rightPanelOpen && (
-          <View style={{ width: 320 }}>
+          <View style={styles.drawerRight}>
             <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
           </View>
         )}
@@ -288,25 +417,23 @@ const MainApp = () => {
                 }}
                 selectedNodeId={selectedNodeId}
                 onNodeSelect={handleNodeSelect}
+                feedMode={feedMode}
+                onFeedModeSelect={handleFeedModeSelect}
+                onThemesClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('themes');
+                }}
+                onSavedClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('saved');
+                }}
+                onBetaClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('beta');
+                }}
               />
             </View>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setMenuVisible(false)} />
-          </View>
-        </Modal>
-      )}
-
-      {/* Vibe Validator Modal (Mobile/Tablet) */}
-      {!isDesktop && (
-        <Modal visible={vibeVisible} animationType="fade" transparent>
-          <View style={styles.modalOverlay}>
-            <TouchableOpacity style={{ flex: 1 }} onPress={() => setVibeVisible(false)} />
-            <View style={styles.drawerRight}>
-              {/* Close Button needed inside since VibeValidator doesn't have one */}
-              <TouchableOpacity onPress={() => setVibeVisible(false)} style={styles.closeBtnOverlay}>
-                <X size={20} color="#fff" />
-              </TouchableOpacity>
-              <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
-            </View>
           </View>
         </Modal>
       )}
@@ -482,6 +609,24 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 8
   },
+  searchContainerDesktop: {
+    flex: 1,
+    maxWidth: 400,
+    marginHorizontal: 24,
+    position: 'relative',
+    justifyContent: 'center'
+  },
+  inputDesktop: {
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    paddingVertical: 8,
+    paddingLeft: 36,
+    paddingRight: 12,
+    color: '#fff',
+    fontSize: 14
+  },
   fab: {
     position: 'absolute',
     bottom: 24,
@@ -492,11 +637,11 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
-    zIndex: 100,
+    shadowRadius: 4,
+    zIndex: 100
   }
 });

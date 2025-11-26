@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { randomBytes, createHash } from 'crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
-import type { Prisma } from '../../generated/prisma/client.js';
+import type { Prisma } from '@prisma/client';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
 import '@fastify/cookie';
 

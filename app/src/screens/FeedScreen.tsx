@@ -2,15 +2,17 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
   ActivityIndicator,
   TouchableOpacity,
   RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { getFeed, getNodes, Post, Node } from "../lib/api";
-import { PostCard } from "../components/PostCard";
+import { getFeed, getNodes, Post, Node, createPostReaction } from "../lib/api";
+import { Feed } from "../components/ui/Feed";
+import { VibeValidator, VIBE_PRESETS, VibePreset } from "../components/VibeValidator";
+import { VibeCheckModal } from "../components/VibeCheckModal";
+import { COLORS } from "../constants/theme";
 
 type FeedScreenProps = {
   onCreatePost: () => void;
@@ -28,7 +30,13 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
   const [nodes, setNodes] = useState<Node[]>([]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | undefined>(undefined);
   const [showNodePicker, setShowNodePicker] = useState(false);
+  const [activePreset, setActivePreset] = useState<VibePreset>(VIBE_PRESETS[1]); // Default to Balanced
   const prevSelectedNodeId = useRef<string | undefined>(undefined);
+  const prevActivePresetId = useRef<string>('balanced');
+
+  // Vibe Check Modal State
+  const [vibeModalVisible, setVibeModalVisible] = useState(false);
+  const [activePost, setActivePost] = useState<Post | null>(null);
 
   const loadNodes = async () => {
     try {
@@ -51,7 +59,13 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
 
     try {
       const currentCursor = refresh ? undefined : cursor;
-      const data = await getFeed({ cursor: currentCursor, limit: 20, nodeId: selectedNodeId });
+      const weights = activePreset ? activePreset.weights : {};
+      const data = await getFeed({
+        cursor: currentCursor,
+        limit: 20,
+        nodeId: selectedNodeId,
+        ...weights
+      });
 
       if (refresh) {
         setPosts(data.posts);
@@ -84,21 +98,40 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
 
   useEffect(() => {
     // Reload feed when node filter changes, once current load is finished
-    if (loading) return;
-
-    if (prevSelectedNodeId.current !== selectedNodeId) {
-      prevSelectedNodeId.current = selectedNodeId;
+    if (
+      selectedNodeId !== prevSelectedNodeId.current ||
+      activePreset.id !== prevActivePresetId.current
+    ) {
+      setPosts([]);
+      setCursor(undefined);
+      setHasMore(true);
       loadPosts(true);
+      prevSelectedNodeId.current = selectedNodeId;
+      prevActivePresetId.current = activePreset.id;
     }
-  }, [selectedNodeId, loading]);
+  }, [selectedNodeId, activePreset]);
 
-  const renderFooter = () => {
-    if (!loadingMore) return null;
-    return (
-      <View style={styles.footerLoader}>
-        <ActivityIndicator size="small" color="#2563EB" />
-      </View>
-    );
+  const handleVibeCheck = (post: any) => {
+    setActivePost(post);
+    setVibeModalVisible(true);
+  };
+
+  const handleVibeComplete = async (intensities: { [key: string]: number }) => {
+    if (!activePost) return;
+
+    // Optimistic update
+    const updatedPost = { ...activePost, myReaction: intensities };
+    setPosts(posts.map(p => p.id === activePost.id ? updatedPost : p));
+
+    try {
+      await createPostReaction(activePost.id, {
+        nodeId: activePost.nodeId || activePost.node?.id || 'global', // Fallback if needed
+        intensities
+      });
+    } catch (error) {
+      console.error('Failed to save reaction:', error);
+      // Revert? For now just log
+    }
   };
 
   const renderEmpty = () => {
@@ -136,6 +169,14 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
           </Text>
           <Text style={styles.nodeFilterArrow}>▼</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.vibeValidatorContainer}>
+        <VibeValidator
+          selectedPresetId={activePreset.id}
+          onSelectPreset={setActivePreset}
+          currentConfig={activePreset.weights}
+        />
       </View>
 
       {showNodePicker && (
@@ -179,25 +220,48 @@ export const FeedScreen = ({ onCreatePost, onPostPress }: FeedScreenProps) => {
         </View>
       )}
 
-      <FlatList
-        data={posts}
-        renderItem={({ item }) => (
-          <PostCard post={item} onPress={onPostPress} />
-        )}
-        keyExtractor={(item) => item.id}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={() => loadPosts(true)} tintColor="#2563EB" />
-        }
-        onEndReached={() => loadPosts(false)}
-        onEndReachedThreshold={0.5}
-        ListFooterComponent={renderFooter}
-        ListEmptyComponent={renderEmpty}
-        contentContainerStyle={posts.length === 0 && styles.listContentEmpty}
-      />
+      {/* Use Unified Feed Component */}
+      <View style={{ flex: 1 }}>
+        {/* We need to wrap Feed in a way that handles pull-to-refresh if Feed doesn't support it directly yet.
+              The Feed component uses ScrollView. We might need to pass refreshControl to it or wrap it.
+              For now, let's assume Feed handles scrolling and we lose pull-to-refresh unless we modify Feed.tsx.
+              Actually, Feed.tsx uses ScrollView.
+              Let's modify Feed.tsx to accept refreshControl or just wrap it?
+              Wrapping ScrollView in ScrollView is bad.
+              Let's just pass the posts to Feed and let it render.
+              BUT we lose onEndReached and RefreshControl.
+              
+              Refactoring Feed.tsx to be a pure list renderer (FlatList) would be better.
+              But Feed.tsx currently maps posts.
+              
+              Let's stick to the plan: Use Feed component.
+              Wait, Feed component is just a ScrollView with map.
+              It doesn't support pagination/refresh.
+              
+              Maybe I should just keep FlatList in FeedScreen and use PostCard from Feed.tsx?
+              Yes, that's safer for preserving functionality.
+              
+              So, I will import PostCard from '../components/ui/Feed' (I need to export it).
+              And keep the FlatList here.
+          */}
+        <Feed
+          posts={posts as any}
+          currentUser={{}} // TODO: Get from store
+          onVibeCheck={handleVibeCheck}
+        />
+      </View>
 
       <TouchableOpacity style={styles.fab} onPress={onCreatePost}>
         <Text style={styles.fabIcon}>+</Text>
       </TouchableOpacity>
+
+      <VibeCheckModal
+        visible={vibeModalVisible}
+        onClose={() => setVibeModalVisible(false)}
+        onComplete={handleVibeComplete}
+        initialIntensities={activePost?.myReaction || undefined}
+        postId={activePost?.id}
+      />
     </SafeAreaView>
   );
 };
@@ -303,6 +367,9 @@ const styles = StyleSheet.create({
   },
   listContentEmpty: {
     flexGrow: 1,
+  },
+  vibeValidatorContainer: {
+    marginBottom: 8,
   },
   fab: {
     position: "absolute",

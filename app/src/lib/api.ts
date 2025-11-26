@@ -58,6 +58,25 @@ export type Post = {
     image?: string;
     domain?: string;
   } | null;
+  poll?: {
+    id: string;
+    question: string;
+    endsAt: string;
+    options: {
+      id: string;
+      text: string;
+      order: number;
+      _count?: { votes: number };
+    }[];
+    votes?: { optionId: string }[]; // Current user's vote
+  } | null;
+  myReaction?: { [key: string]: number } | null;
+};
+
+export type PollCreate = {
+  question: string;
+  options: string[];
+  duration: number;
 };
 
 export type Comment = {
@@ -364,10 +383,23 @@ export function createNode(data: { name: string; slug: string; description?: str
 
 // --- Post Endpoints ---
 
-export function createPost(data: { content: string; nodeId?: string; linkUrl?: string }) {
+export function createPost(data: {
+  content: string;
+  nodeId?: string;
+  title?: string;
+  linkUrl?: string;
+  poll?: PollCreate;
+}) {
   return request<Post>("/posts", {
     method: "POST",
     body: JSON.stringify(data),
+  });
+}
+
+export function votePoll(postId: string, optionId: string) {
+  return request<{ message: string }>(`/posts/${postId}/vote`, {
+    method: "POST",
+    body: JSON.stringify({ optionId }),
   });
 }
 
@@ -391,6 +423,12 @@ export function getFeed(params: {
   nodeId?: string;
   postType?: string; // Single post type filter
   postTypes?: string[]; // Multiple post type filter
+  preset?: string; // 'balanced', 'popular', etc.
+  followingOnly?: boolean;
+  qualityWeight?: number;
+  recencyWeight?: number;
+  engagementWeight?: number;
+  personalizationWeight?: number;
 } = {}) {
   const searchParams = new URLSearchParams();
   if (params.cursor) searchParams.append("cursor", params.cursor);
@@ -400,6 +438,12 @@ export function getFeed(params: {
   if (params.postTypes && params.postTypes.length > 0) {
     searchParams.append("postTypes", params.postTypes.join(","));
   }
+  if (params.preset) searchParams.append("preset", params.preset);
+  if (params.followingOnly) searchParams.append("followingOnly", "true");
+  if (params.qualityWeight !== undefined) searchParams.append("qualityWeight", params.qualityWeight.toString());
+  if (params.recencyWeight !== undefined) searchParams.append("recencyWeight", params.recencyWeight.toString());
+  if (params.engagementWeight !== undefined) searchParams.append("engagementWeight", params.engagementWeight.toString());
+  if (params.personalizationWeight !== undefined) searchParams.append("personalizationWeight", params.personalizationWeight.toString());
 
   return request<{ posts: Post[]; nextCursor?: string; hasMore: boolean }>(
     `/posts?${searchParams.toString()}`,
@@ -596,4 +640,66 @@ export const searchPosts = async (query: string, limit = 20, offset = 0) => {
   return request<{ posts: Post[], total: number, hasMore: boolean }>(`/search/posts?${params.toString()}`, {
     method: 'GET'
   });
+};
+// Saved Posts
+// Saved Posts
+export function savePost(postId: string) {
+  return request<{ saved: boolean }>(`/posts/${postId}/save`, {
+    method: "POST",
+  });
+}
+
+export function getSavedPosts() {
+  return request<{ posts: Post[] }>("/posts/saved", {
+    method: "GET",
+  });
+}
+
+// User Actions
+export function muteUser(userId: string) {
+  return request<{ muted: boolean }>(`/users/${userId}/mute`, {
+    method: "POST",
+  });
+}
+
+export function blockUser(userId: string) {
+  return request<{ blocked: boolean }>(`/users/${userId}/block`, {
+    method: "POST",
+  });
+}
+
+// Notifications
+export function getNotifications() {
+  return request<{ notifications: any[] }>("/notifications", {
+    method: "GET",
+  });
+}
+
+export function markNotificationsRead() {
+  return request("/notifications/read-all", {
+    method: "POST",
+  });
+}
+
+// Follow
+export function followUser(userId: string) {
+  return request<{ following: boolean }>(`/users/${userId}/follow`, {
+    method: "POST",
+  });
+}
+
+// Cred
+export function getCredHistory() {
+  return request<{ transactions: { id: string; amount: number; reason: string; createdAt: string }[] }>("/users/cred/history", {
+    method: "GET",
+  });
+}
+
+
+
+export const api = {
+  get: <T>(url: string) => request<T>(url, { method: "GET" }),
+  post: <T>(url: string, body: any) => request<T>(url, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(url: string, body: any) => request<T>(url, { method: "PUT", body: JSON.stringify(body) }),
+  delete: <T>(url: string) => request<T>(url, { method: "DELETE" }),
 };

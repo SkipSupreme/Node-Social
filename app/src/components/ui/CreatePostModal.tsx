@@ -9,9 +9,10 @@ import {
     ScrollView,
     ActivityIndicator,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    useWindowDimensions
 } from 'react-native';
-import { X, Image as ImageIcon, Link as LinkIcon } from 'lucide-react-native';
+import { X, Image as ImageIcon, Link as LinkIcon, BarChart2, Trash2 } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 import { createPost, Node, getLinkPreview } from '../../lib/api';
 import { LinkPreviewCard } from '../LinkPreviewCard';
@@ -31,7 +32,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     nodes,
     initialNodeId
 }) => {
+    const { width } = useWindowDimensions();
+    const isDesktop = width >= 768;
+
     const [content, setContent] = useState('');
+    const [title, setTitle] = useState('');
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -41,14 +46,29 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const [linkPreview, setLinkPreview] = useState<any | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
 
+    // Poll State
+    const [showPoll, setShowPoll] = useState(false);
+    const [pollQuestion, setPollQuestion] = useState('');
+    const [pollOptions, setPollOptions] = useState(['', '']);
+
+    // Image State
+    const [showImageInput, setShowImageInput] = useState(false);
+    const [imageUrl, setImageUrl] = useState('');
+
     // Reset state when modal opens
     useEffect(() => {
         if (visible) {
             setContent('');
+            setTitle('');
             setSelectedNodeId(initialNodeId || null);
             setError(null);
             setLinkUrl(null);
             setLinkPreview(null);
+            setShowPoll(false);
+            setPollQuestion('');
+            setPollOptions(['', '']);
+            setShowImageInput(false);
+            setImageUrl('');
         }
     }, [visible, initialNodeId]);
 
@@ -79,17 +99,53 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         }
     };
 
+    const handleAddOption = () => {
+        if (pollOptions.length < 4) {
+            setPollOptions([...pollOptions, '']);
+        }
+    };
+
+    const handleRemoveOption = (index: number) => {
+        if (pollOptions.length > 2) {
+            const newOptions = [...pollOptions];
+            newOptions.splice(index, 1);
+            setPollOptions(newOptions);
+        }
+    };
+
+    const handleOptionChange = (text: string, index: number) => {
+        const newOptions = [...pollOptions];
+        newOptions[index] = text;
+        setPollOptions(newOptions);
+    };
+
     const handleSubmit = async () => {
-        if (!content.trim()) return;
+        if (!title.trim()) return; // Title is required
 
         setLoading(true);
         setError(null);
 
         try {
+            // Validate Poll
+            let pollData;
+            if (showPoll) {
+                const validOptions = pollOptions.filter(o => o.trim().length > 0);
+                if (validOptions.length < 2) {
+                    throw new Error('Poll must have at least 2 options');
+                }
+                pollData = {
+                    question: pollQuestion.trim() || title.trim() || 'Poll',
+                    options: validOptions,
+                    duration: 3
+                };
+            }
+
             await createPost({
                 content,
+                title: title.trim() || undefined,
                 nodeId: selectedNodeId || undefined,
-                linkUrl: linkUrl || undefined
+                linkUrl: linkUrl || imageUrl || undefined, // Use image URL as link URL if present
+                poll: pollData
             });
             onSuccess();
         } catch (err: any) {
@@ -100,20 +156,23 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
+        <Modal visible={visible} animationType="fade" transparent>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.overlay}
             >
-                <View style={styles.container}>
+                <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+
+                <View style={[styles.container, isDesktop && styles.containerDesktop]}>
                     <View style={styles.header}>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                             <X color={COLORS.node.text} size={24} />
                         </TouchableOpacity>
+                        <Text style={styles.headerTitle}>Create Post</Text>
                         <TouchableOpacity
-                            style={[styles.postBtn, (!content.trim() || loading) && styles.disabledBtn]}
+                            style={[styles.postBtn, (!title.trim()) && styles.disabledBtn]}
                             onPress={handleSubmit}
-                            disabled={!content.trim() || loading}
+                            disabled={!title.trim() || loading}
                         >
                             {loading ? (
                                 <ActivityIndicator color="#fff" size="small" />
@@ -131,6 +190,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                     <ScrollView style={styles.content}>
                         <TextInput
+                            style={styles.titleInput}
+                            placeholder="Title (required)"
+                            placeholderTextColor={COLORS.node.muted}
+                            value={title}
+                            onChangeText={setTitle}
+                            maxLength={300}
+                        />
+
+                        <TextInput
                             style={styles.input}
                             placeholder="What's on your mind?"
                             placeholderTextColor={COLORS.node.muted}
@@ -139,6 +207,70 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                             onChangeText={setContent}
                             autoFocus
                         />
+
+                        {/* Image URL Input */}
+                        {showImageInput && (
+                            <View style={styles.sectionContainer}>
+                                <View style={styles.sectionHeader}>
+                                    <ImageIcon size={16} color={COLORS.node.accent} />
+                                    <Text style={styles.sectionTitle}>Image URL</Text>
+                                    <TouchableOpacity onPress={() => setShowImageInput(false)}>
+                                        <X size={16} color={COLORS.node.muted} />
+                                    </TouchableOpacity>
+                                </View>
+                                <TextInput
+                                    style={styles.urlInput}
+                                    placeholder="https://example.com/image.jpg"
+                                    placeholderTextColor={COLORS.node.muted}
+                                    value={imageUrl}
+                                    onChangeText={setImageUrl}
+                                />
+                            </View>
+                        )}
+
+                        {/* Poll Creator */}
+                        {showPoll && (
+                            <View style={styles.sectionContainer}>
+                                <View style={styles.sectionHeader}>
+                                    <BarChart2 size={16} color={COLORS.node.accent} />
+                                    <Text style={styles.sectionTitle}>Poll</Text>
+                                    <TouchableOpacity onPress={() => setShowPoll(false)}>
+                                        <X size={16} color={COLORS.node.muted} />
+                                    </TouchableOpacity>
+                                </View>
+
+                                <TextInput
+                                    style={styles.pollQuestionInput}
+                                    placeholder="Poll Question (optional)"
+                                    placeholderTextColor={COLORS.node.muted}
+                                    value={pollQuestion}
+                                    onChangeText={setPollQuestion}
+                                />
+
+                                {pollOptions.map((option, index) => (
+                                    <View key={index} style={styles.pollOptionRow}>
+                                        <TextInput
+                                            style={styles.pollOptionInput}
+                                            placeholder={`Option ${index + 1}`}
+                                            placeholderTextColor={COLORS.node.muted}
+                                            value={option}
+                                            onChangeText={(text) => handleOptionChange(text, index)}
+                                        />
+                                        {pollOptions.length > 2 && (
+                                            <TouchableOpacity onPress={() => handleRemoveOption(index)}>
+                                                <Trash2 size={16} color={COLORS.node.muted} />
+                                            </TouchableOpacity>
+                                        )}
+                                    </View>
+                                ))}
+
+                                {pollOptions.length < 4 && (
+                                    <TouchableOpacity style={styles.addOptionBtn} onPress={handleAddOption}>
+                                        <Text style={styles.addOptionText}>+ Add Option</Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
 
                         {loadingPreview && (
                             <View style={styles.previewLoading}>
@@ -178,11 +310,17 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         </ScrollView>
 
                         <View style={styles.tools}>
-                            <TouchableOpacity style={styles.toolBtn}>
-                                <ImageIcon color={COLORS.node.accent} size={24} />
+                            <TouchableOpacity
+                                style={[styles.toolBtn, showImageInput && styles.activeToolBtn]}
+                                onPress={() => setShowImageInput(!showImageInput)}
+                            >
+                                <ImageIcon color={showImageInput ? COLORS.node.accent : COLORS.node.text} size={24} />
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.toolBtn}>
-                                <LinkIcon color={COLORS.node.accent} size={24} />
+                            <TouchableOpacity
+                                style={[styles.toolBtn, showPoll && styles.activeToolBtn]}
+                                onPress={() => setShowPoll(!showPoll)}
+                            >
+                                <BarChart2 color={showPoll ? COLORS.node.accent : COLORS.node.text} size={24} />
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -195,8 +333,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 const styles = StyleSheet.create({
     overlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'flex-end',
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(0,0,0,0.5)',
     },
     container: {
         backgroundColor: COLORS.node.bg,
@@ -205,6 +346,13 @@ const styles = StyleSheet.create({
         height: '90%',
         width: '100%',
     },
+    containerDesktop: {
+        width: 600,
+        height: '80%',
+        alignSelf: 'center',
+        borderRadius: 20,
+        marginBottom: '10%',
+    },
     header: {
         flexDirection: 'row',
         justifyContent: 'space-between',
@@ -212,6 +360,11 @@ const styles = StyleSheet.create({
         padding: 16,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.node.border,
+    },
+    headerTitle: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: COLORS.node.text,
     },
     closeBtn: {
         padding: 8,
@@ -243,11 +396,78 @@ const styles = StyleSheet.create({
         flex: 1,
         padding: 16,
     },
+    titleInput: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        color: COLORS.node.text,
+        marginBottom: 12,
+        paddingVertical: 8,
+    },
     input: {
-        fontSize: 18,
+        fontSize: 16,
         color: COLORS.node.text,
         minHeight: 100,
         textAlignVertical: 'top',
+    },
+    sectionContainer: {
+        backgroundColor: COLORS.node.panel,
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 16,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    sectionHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+        gap: 8,
+    },
+    sectionTitle: {
+        flex: 1,
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.node.text,
+    },
+    urlInput: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 8,
+        padding: 12,
+        color: COLORS.node.text,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    pollQuestionInput: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 8,
+        padding: 12,
+        color: COLORS.node.text,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+        marginBottom: 12,
+    },
+    pollOptionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 8,
+    },
+    pollOptionInput: {
+        flex: 1,
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 8,
+        padding: 10,
+        color: COLORS.node.text,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    addOptionBtn: {
+        padding: 12,
+        alignItems: 'center',
+    },
+    addOptionText: {
+        color: COLORS.node.accent,
+        fontWeight: '600',
     },
     previewLoading: {
         flexDirection: 'row',
@@ -302,5 +522,8 @@ const styles = StyleSheet.create({
         padding: 8,
         backgroundColor: COLORS.node.panel,
         borderRadius: 8,
+    },
+    activeToolBtn: {
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
     },
 });

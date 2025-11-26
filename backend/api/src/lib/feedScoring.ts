@@ -63,10 +63,11 @@ function calculateRecencyScore(
  */
 export function calculateFeedScore(
   post: PostWithScores,
-  preferences: FeedPreferences
+  preferences: FeedPreferences,
+  boostMultiplier: number = 1.0
 ): number {
   const recencyScore = calculateRecencyScore(post.createdAt, preferences.recencyHalfLife);
-  
+
   // Normalize scores to 0-100 range (they should already be in this range)
   const normalizedQuality = Math.max(0, Math.min(100, post.qualityScore));
   const normalizedEngagement = Math.max(0, Math.min(100, post.engagementScore / 10)); // Scale down engagement (can be > 100)
@@ -79,7 +80,41 @@ export function calculateFeedScore(
     (normalizedEngagement * preferences.engagementWeight) +
     (normalizedPersonalization * preferences.personalizationWeight);
 
-  return score;
+  return score * boostMultiplier;
+}
+
+/**
+ * Calculate detailed score breakdown
+ */
+export function calculateScoreBreakdown(
+  post: PostWithScores,
+  preferences: FeedPreferences,
+  boostMultiplier: number = 1.0
+) {
+  const recencyScore = calculateRecencyScore(post.createdAt, preferences.recencyHalfLife);
+  const normalizedQuality = Math.max(0, Math.min(100, post.qualityScore));
+  const normalizedEngagement = Math.max(0, Math.min(100, post.engagementScore / 10));
+  const normalizedPersonalization = Math.max(0, Math.min(100, post.personalizationScore));
+
+  const weightedRecency = recencyScore * preferences.recencyWeight;
+  const weightedQuality = normalizedQuality * preferences.qualityWeight;
+  const weightedEngagement = normalizedEngagement * preferences.engagementWeight;
+  const weightedPersonalization = normalizedPersonalization * preferences.personalizationWeight;
+
+  const rawScore = weightedRecency + weightedQuality + weightedEngagement + weightedPersonalization;
+  const finalScore = rawScore * boostMultiplier;
+
+  return {
+    components: {
+      recency: { raw: recencyScore, weight: preferences.recencyWeight, contribution: weightedRecency },
+      quality: { raw: normalizedQuality, weight: preferences.qualityWeight, contribution: weightedQuality },
+      engagement: { raw: normalizedEngagement, weight: preferences.engagementWeight, contribution: weightedEngagement },
+      personalization: { raw: normalizedPersonalization, weight: preferences.personalizationWeight, contribution: weightedPersonalization },
+    },
+    boostMultiplier,
+    rawScore,
+    finalScore,
+  };
 }
 
 /**

@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { updatePostMetrics } from '../lib/metrics.js';
 import { logModAction } from '../lib/moderation.js';
 
@@ -18,7 +19,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const { postId } = request.params as { postId: string };
-      
+
       const schema = z.object({
         content: z.string().min(1).max(2000),
         parentId: z.string().uuid().optional(), // Optional parent comment for threading
@@ -61,10 +62,31 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
             select: {
               id: true,
               email: true,
+              username: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
             },
+          },
+          _count: {
+            select: { replies: true },
           },
         },
       });
+
+      // Create Notification for Post Author
+      if (post.authorId !== userId) {
+        await fastify.prisma.notification.create({
+          data: {
+            userId: post.authorId,
+            actorId: userId,
+            type: 'comment',
+            content: `commented on your post: "${post.content.substring(0, 20)}..."`,
+            postId: post.id,
+            commentId: comment.id
+          }
+        });
+      }
 
       // Update PostMetric (fire-and-forget, don't block response)
       updatePostMetrics(fastify, postId).catch((err) => {
@@ -86,6 +108,8 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
       const schema = z.object({
         parentId: z.string().uuid().optional(), // Filter by parent (for fetching replies)
         limit: z.coerce.number().min(1).max(100).default(50),
+        all: z.enum(['true', 'false']).optional(),
+        sortBy: z.enum(['newest', 'insightful', 'joy', 'fire', 'support', 'shock', 'questionable']).optional(),
       });
 
       const parsed = schema.safeParse(request.query);
@@ -93,34 +117,90 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { parentId, limit } = parsed.data;
+      const { parentId, limit, all, sortBy } = parsed.data;
 
-      const comments = await fastify.prisma.comment.findMany({
-        where: {
-          postId,
-          parentId: parentId || null, // If not provided, fetch top-level comments (parentId: null)
-          deletedAt: null,
-        },
-        orderBy: { createdAt: 'desc' }, // Newest first
-        take: limit,
+      const where: Prisma.CommentWhereInput = {
+        postId,
+        deletedAt: null,
+      };
+
+      if (all !== 'true') {
+        where.parentId = parentId || null;
+      }
+
+      // If sorting by vibe, we need to fetch more to find the top ones
+      // For MVP, we'll fetch up to 200, sort in memory, and return limit
+      const fetchLimit = sortBy && sortBy !== 'newest' ? 200 : limit;
+
+      let comments = await fastify.prisma.comment.findMany({
+        where,
+        orderBy: { createdAt: 'desc' }, // Default to newest first for initial fetch
+        take: fetchLimit,
         include: {
           author: {
             select: {
               id: true,
               email: true,
+              username: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
             },
           },
           _count: {
             select: { replies: true },
           },
+          reactions: true, // Include reactions for sorting
         },
       });
 
+      // Sort in memory if needed
+      if (sortBy && sortBy !== 'newest') {
+        comments.sort((a, b) => {
+          const getScore = (c: typeof a) => {
+            return c.reactions.reduce((sum: number, r) => {
+              const intensities = r.intensities as Record<string, number>;
+              return sum + (intensities[sortBy] || 0);
+            }, 0);
+          };
+          return getScore(b) - getScore(a);
+        });
+
+        // Apply limit after sorting
+        if (comments.length > limit) {
+          comments = comments.slice(0, limit);
+        }
+      }
+
       // Format response
-      const formattedComments = comments.map((comment) => ({
+      type CommentWithRelations = Prisma.CommentGetPayload<{
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
+            },
+          },
+          _count: {
+            select: { replies: true },
+          },
+          reactions: true,
+        }
+      }>;
+
+      const formattedComments = (comments as CommentWithRelations[]).map((comment) => ({
         ...comment,
         replyCount: comment._count.replies,
         _count: undefined,
+        reactions: undefined, // Don't send full reactions array to client to save bandwidth? 
+        // Or maybe send it so client can show "Top Vibe"?
+        // For now, let's remove it to match previous behavior unless we want to show it.
+        // But wait, Feed.tsx might want to show the vibe counts.
+        // Let's keep it undefined for now to match interface.
       }));
 
       return reply.send(formattedComments);

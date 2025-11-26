@@ -1,20 +1,20 @@
 import React, { useState } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown } from './Icons';
-import { RadialMenu } from './RadialMenu';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share } from 'react-native';
+import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff } from './Icons';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api } from '../../lib/api';
+import { VibeReactionButton } from '../VibeReactionButton';
+import { socketManager } from '../../lib/socket';
 
-// Define types for the UI components
-interface UIAuthor {
+export interface UIAuthor {
+    id: string;
     username: string;
     avatar: string;
     era: string;
     connoisseurCred: number;
 }
 
-interface UIComment {
+export interface UIComment {
     id: string;
     author: UIAuthor;
     content: string;
@@ -24,21 +24,28 @@ interface UIComment {
 }
 
 function timeAgo(date: Date | string) {
+    if (!date) return 'Just now';
     const now = new Date();
     const past = new Date(date);
     const diffMs = now.getTime() - past.getTime();
+
+    // Handle future dates (clock skew) or very small diffs
+    if (diffMs < 0) return 'Just now';
+    if (diffMs < 1000) return 'Just now';
+
     const diffSec = Math.floor(diffMs / 1000);
     const diffMin = Math.floor(diffSec / 60);
     const diffHour = Math.floor(diffMin / 60);
     const diffDay = Math.floor(diffHour / 24);
 
+    if (diffDay > 7) return past.toLocaleDateString();
     if (diffDay > 0) return `${diffDay}d ago`;
     if (diffHour > 0) return `${diffHour}h ago`;
     if (diffMin > 0) return `${diffMin}m ago`;
-    return 'Just now';
+    return `${diffSec}s ago`;
 }
 
-interface UIPost {
+export interface UIPost {
     id: string;
     node: { id?: string; name: string; color?: string };
     author: UIAuthor;
@@ -49,15 +56,23 @@ interface UIPost {
     expertGated?: boolean;
     vibes?: any[];
     comments?: UIComment[];
+    poll?: {
+        id: string;
+        question: string;
+        options: { id: string; text: string; _count?: { votes: number } }[];
+        votes?: { optionId: string }[];
+    };
+    myReaction?: { [key: string]: number } | null;
 }
 
 interface CommentNodeProps {
     comment: UIComment;
     isLast?: boolean;
     isFirst?: boolean;
+    onReply?: (comment: UIComment) => void;
 }
 
-const CommentNode = ({ comment, isLast = false, isFirst = false }: CommentNodeProps) => {
+const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: CommentNodeProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const incomingColor = SCOPE_COLORS[(comment.depth - 1) % SCOPE_COLORS.length];
@@ -124,7 +139,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false }: CommentNodePr
                             <Text style={[styles.badgeText, { color: eraStyle.text }]}>{comment.author.era}</Text>
                         </View>
 
-                        <Text style={styles.timestamp}>12:45 PM</Text>
+                        <Text style={styles.timestamp}>{timeAgo(comment.timestamp)}</Text>
 
                         <TouchableOpacity onPress={() => setIsCollapsed(!isCollapsed)} style={{ padding: 2 }}>
                             {isCollapsed ? <CornerDownRight size={12} color={COLORS.node.muted} /> : <Minus size={12} color={COLORS.node.muted} />}
@@ -142,7 +157,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false }: CommentNodePr
                                 <Zap size={12} color={COLORS.node.muted} />
                                 <Text style={styles.actionLabel}>Vibe</Text>
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.actionBtnText}>
+                            <TouchableOpacity style={styles.actionBtnText} onPress={() => onReply && onReply(comment)}>
                                 <Text style={styles.actionLabel}>Reply</Text>
                             </TouchableOpacity>
                         </View>
@@ -159,6 +174,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false }: CommentNodePr
                             comment={reply}
                             isFirst={idx === 0}
                             isLast={idx === (comment.replies?.length || 0) - 1}
+                            onReply={onReply}
                         />
                     ))}
                 </View>
@@ -170,12 +186,243 @@ const CommentNode = ({ comment, isLast = false, isFirst = false }: CommentNodePr
 
 interface PostCardProps {
     post: UIPost;
+    currentUser?: any;
+    onPostAction?: (postId: string, action: 'mute' | 'block') => void;
+    onVibeCheck?: (post: UIPost) => void;
 }
 
-const PostCard = ({ post }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck }: PostCardProps) => {
+    const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
+    const [menuVisible, setMenuVisible] = useState(false);
+    const [isSaved, setIsSaved] = useState(false);
+    const [commentText, setCommentText] = useState('');
+    const [replyingTo, setReplyingTo] = useState<UIComment | null>(null);
+    const [submitting, setSubmitting] = useState(false);
     const eraStyle = ERAS[post.author.era] || ERAS['Default'];
+
+    const [localPoll, setLocalPoll] = useState(post.poll);
+    const [localComments, setLocalComments] = useState<UIComment[]>(post.comments || []);
+    const [commentsLoaded, setCommentsLoaded] = useState(false);
+    const [commentSort, setCommentSort] = useState<string>('newest');
+
+    const fetchComments = async () => {
+        // if (commentsLoaded) return; // Allow reload if sort changes
+        try {
+            const res = await api.get<any[]>(`/posts/${post.id}/comments?all=true&limit=100&sortBy=${commentSort}`);
+
+            // Build Tree
+            const commentMap = new Map();
+            const roots: UIComment[] = [];
+
+            // First pass: create nodes
+            res.forEach((c: any) => {
+                commentMap.set(c.id, {
+                    id: c.id,
+                    author: {
+                        id: c.author.id,
+                        username: c.author.username || 'User',
+                        avatar: c.author.avatar,
+                        era: c.author.era || 'Lurker Era',
+                        connoisseurCred: c.author.connoisseurCred || 0
+                    },
+                    content: c.content,
+                    timestamp: new Date(c.createdAt),
+                    depth: 0, // Will set later
+                    replies: [],
+                    parentId: c.parentId
+                });
+            });
+
+            // Second pass: link children
+            commentMap.forEach(node => {
+                if (node.parentId && commentMap.has(node.parentId)) {
+                    const parent = commentMap.get(node.parentId);
+                    node.depth = parent.depth + 1;
+                    parent.replies.push(node);
+                } else {
+                    roots.push(node);
+                }
+            });
+
+            // Sort by timestamp ONLY if sort is newest
+            const sortComments = (nodes: UIComment[]) => {
+                if (commentSort === 'newest') {
+                    nodes.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+                }
+                // If not newest, rely on API order (which is by score)
+                // But we still need to recurse
+                nodes.forEach(n => {
+                    if (n.replies && n.replies.length > 0) sortComments(n.replies);
+                });
+            };
+            sortComments(roots);
+
+            setLocalComments(roots);
+            setCommentsLoaded(true);
+        } catch (error) {
+            console.error('Failed to fetch comments:', error);
+        }
+    };
+
+    // Fetch comments when showComments becomes true or sort changes
+    React.useEffect(() => {
+        if (showComments) {
+            fetchComments();
+        }
+    }, [showComments, commentSort]);
+
+    // Sync localPoll with post.poll when it changes (e.g. on refresh)
+    React.useEffect(() => {
+        setLocalPoll(post.poll);
+    }, [post.poll]);
+
+    // Socket.io Real-time Updates
+    React.useEffect(() => {
+        // Connect socket if not connected
+        socketManager.connect();
+
+        // Subscribe to updates for this post
+        const unsubscribe = socketManager.subscribeToPost(post.id, (data) => {
+            // Update local post state with new metrics/aggregates
+            if (data.metrics) {
+                // Update engagement score or other metrics if we displayed them
+            }
+            if (data.vibeAggregate) {
+                // We could update a "live" vibe count here if we had one
+                // For now, we might just trigger a refresh or update a specific field
+                // But since we don't display the aggregate counts in the card yet (except maybe via VibeReactionButton?)
+                // Let's just log it for verification
+                console.log('Real-time update for post:', post.id, data);
+            }
+        });
+
+        return () => {
+            unsubscribe?.();
+        };
+    }, [post.id]);
+
+    const handleVote = async (optionId: string) => {
+        if (!localPoll) return;
+
+        // Check if already voted (any option)
+        // We check both the optimistic local state AND the original post state to be safe
+        const hasVotedLocally = localPoll.votes && localPoll.votes.length > 0;
+        if (hasVotedLocally) return;
+
+        // Optimistic update
+        const newPoll = { ...localPoll };
+        const optionIndex = newPoll.options.findIndex(o => o.id === optionId);
+        if (optionIndex === -1) return;
+
+        // Update counts
+        newPoll.options[optionIndex]._count = { votes: (newPoll.options[optionIndex]._count?.votes || 0) + 1 };
+        newPoll.votes = [{ optionId }]; // Set user's vote
+        setLocalPoll(newPoll);
+
+        try {
+            await votePoll(post.id, optionId);
+        } catch (error) {
+            console.error('Failed to vote:', error);
+            // Revert on failure
+            setLocalPoll(post.poll);
+        }
+    };
+
+    const totalVotes = localPoll?.options.reduce((acc, opt) => acc + (opt._count?.votes || 0), 0) || 0;
+
+    const handleShare = async () => {
+        try {
+            await Share.share({
+                message: `Check out this post on NodeSocial: ${post.title}`,
+                url: `https://nodesocial.app/post/${post.id}`, // Mock URL
+            });
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleSave = async () => {
+        try {
+            const res = await savePost(post.id);
+            setIsSaved(res.saved);
+        } catch (error) {
+            console.error('Failed to save post:', error);
+        }
+    };
+
+    const handleMute = async () => {
+        try {
+            await muteUser(post.author.id);
+            setMenuVisible(false);
+            onPostAction && onPostAction(post.id, 'mute');
+        } catch (error) {
+            console.error('Failed to mute user:', error);
+        }
+    };
+
+    const handleBlock = async () => {
+        try {
+            await blockUser(post.author.id);
+            setMenuVisible(false);
+            onPostAction && onPostAction(post.id, 'block');
+        } catch (error) {
+            console.error('Failed to block user:', error);
+        }
+    };
+
+    const handleSubmitComment = async () => {
+        if (!commentText.trim()) return;
+        setSubmitting(true);
+        try {
+            const newCommentData = await createComment(post.id, { content: commentText, parentId: replyingTo?.id });
+
+            // Create UIComment object from response
+            const newComment: UIComment = {
+                id: newCommentData.id,
+                author: {
+                    id: currentUser?.id || 'temp',
+                    username: currentUser?.username || 'You',
+                    avatar: currentUser?.avatar || 'https://picsum.photos/200',
+                    era: currentUser?.era || 'Builder Era',
+                    connoisseurCred: currentUser?.connoisseurCred || 0
+                },
+                content: newCommentData.content,
+                timestamp: new Date(newCommentData.createdAt),
+                depth: replyingTo ? replyingTo.depth + 1 : 0,
+                replies: []
+            };
+
+            // Update local state
+            if (replyingTo) {
+                // Recursive update to find parent and add reply
+                const addReply = (comments: UIComment[]): UIComment[] => {
+                    return comments.map(c => {
+                        if (c.id === replyingTo.id) {
+                            return { ...c, replies: [...(c.replies || []), newComment] };
+                        }
+                        if (c.replies && c.replies.length > 0) {
+                            return { ...c, replies: addReply(c.replies) };
+                        }
+                        return c;
+                    });
+                };
+                setLocalComments(prev => addReply(prev));
+            } else {
+                // Top level comment
+                setLocalComments(prev => [newComment, ...prev]);
+            }
+
+            setCommentText('');
+            setReplyingTo(null);
+
+        } catch (error) {
+            console.error('Failed to submit comment:', error);
+        } finally {
+            setSubmitting(false);
+        }
+    };
 
     return (
         <View style={styles.card}>
@@ -199,7 +446,9 @@ const PostCard = ({ post }: PostCardProps) => {
                             <Text style={styles.subtext}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
                         </View>
                     </View>
-                    <MoreHorizontal size={16} color={COLORS.node.muted} />
+                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={{ padding: 4 }}>
+                        <MoreHorizontal size={16} color={COLORS.node.muted} />
+                    </TouchableOpacity>
                 </View>
 
                 <View style={{ paddingLeft: 4, marginBottom: 8 }}>
@@ -213,9 +462,14 @@ const PostCard = ({ post }: PostCardProps) => {
                             {post.content}
                         </Text>
                         {!isExpanded && post.content.length > 300 && (
-                            <LinearGradient
-                                colors={['transparent', COLORS.node.panel]}
-                                style={styles.fadeOverlay}
+                            <View
+                                style={{
+                                    position: 'absolute',
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    height: 80,
+                                }}
                             />
                         )}
                     </View>
@@ -225,29 +479,42 @@ const PostCard = ({ post }: PostCardProps) => {
                             <ChevronDown size={12} color={COLORS.node.accent} />
                         </View>
                     )}
+
+                    {/* Poll Rendering */}
+                    {localPoll && (
+                        <View style={styles.pollContainer}>
+                            {localPoll.options.map((opt) => {
+                                const votes = opt._count?.votes || 0;
+                                const percent = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
+                                const isVoted = localPoll.votes?.some(v => v.optionId === opt.id);
+
+                                return (
+                                    <TouchableOpacity
+                                        key={opt.id}
+                                        style={[styles.pollOption, isVoted && styles.pollOptionSelected]}
+                                        onPress={() => handleVote(opt.id)}
+                                        disabled={!!localPoll.votes?.length}
+                                    >
+                                        <View style={[styles.pollBar, { width: `${percent}%` }]} />
+                                        <View style={styles.pollContent}>
+                                            <Text style={styles.pollText}>{opt.text}</Text>
+                                            <Text style={styles.pollPercent}>{Math.round(percent)}%</Text>
+                                        </View>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                            <Text style={styles.pollTotal}>{totalVotes} votes • {timeAgo(post.createdAt)} left</Text>
+                        </View>
+                    )}
                 </View>
 
                 <View style={styles.cardActions}>
-                    <RadialMenu onComplete={async (intensities) => {
-                        try {
-                            // Convert 0-100 to 0.0-1.0
-                            const normalized: Record<string, number> = {};
-                            Object.entries(intensities).forEach(([k, v]) => {
-                                if (v > 0) normalized[k.toLowerCase()] = v / 100;
-                            });
-
-                            if (Object.keys(normalized).length > 0) {
-                                // Use "global" as default nodeId if missing
-                                await createPostReaction(post.id, {
-                                    nodeId: post.node?.id || 'global', // Prefer actual node ID if available
-                                    intensities: normalized
-                                });
-                                console.log('Reaction sent:', normalized);
-                            }
-                        } catch (e) {
-                            console.error('Failed to send reaction:', e);
-                        }
-                    }} />
+                    <VibeReactionButton
+                        postId={post.id}
+                        nodeId={post.node.id || 'global'}
+                        initialReaction={post.myReaction}
+                        onLongPress={() => onVibeCheck && onVibeCheck(post)}
+                    />
 
                     <TouchableOpacity
                         style={[styles.pillBtn, showComments && { borderColor: COLORS.node.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
@@ -257,46 +524,109 @@ const PostCard = ({ post }: PostCardProps) => {
                         <Text style={[styles.pillText, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
                     </TouchableOpacity>
 
-
-
-                    <TouchableOpacity style={styles.pillBtn}>
-                        <Bookmark size={20} color={COLORS.node.muted} />
+                    <TouchableOpacity style={styles.pillBtn} onPress={handleSave}>
+                        <Bookmark size={20} color={isSaved ? COLORS.node.accent : COLORS.node.muted} fill={isSaved ? COLORS.node.accent : 'none'} />
                         <Text style={[styles.pillText, { display: 'none' }]}>Save</Text>
-                        {/* Hidden text for mobile optimization request */}
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.pillBtn}>
+                    <TouchableOpacity style={styles.pillBtn} onPress={handleShare}>
                         <Share2 size={20} color={COLORS.node.muted} />
                         <Text style={[styles.pillText, { display: 'none' }]}>Share</Text>
-                        {/* Hidden text for mobile optimization request */}
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
 
             {showComments && (
                 <View style={styles.commentsSection}>
-                    {post.comments && post.comments.map((c, i) => (
+                    {/* Sort Controls */}
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+                        {['newest', 'insightful', 'joy', 'fire', 'support', 'shock', 'questionable'].map(sort => (
+                            <TouchableOpacity
+                                key={sort}
+                                onPress={() => setCommentSort(sort)}
+                                style={[styles.sortChip, commentSort === sort && styles.sortChipSelected]}
+                            >
+                                <Text style={[styles.sortChipText, commentSort === sort && styles.sortChipTextSelected]}>
+                                    {sort.charAt(0).toUpperCase() + sort.slice(1)}
+                                </Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
+
+                    {/* Comment Input */}
+                    <View style={styles.commentInputRow}>
+                        <View style={styles.avatarSmallContainer}>
+                            <Image source={{ uri: currentUser?.avatar || 'https://picsum.photos/200' }} style={styles.avatarImage} />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            {replyingTo && (
+                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                                    <Text style={{ color: COLORS.node.muted, fontSize: 12 }}>Replying to @{replyingTo.author.username}</Text>
+                                    <TouchableOpacity onPress={() => setReplyingTo(null)} style={{ marginLeft: 8 }}>
+                                        <X size={12} color={COLORS.node.muted} />
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                            <TextInput
+                                placeholder="Add a comment..."
+                                placeholderTextColor={COLORS.node.muted}
+                                style={styles.commentInput}
+                                value={commentText}
+                                onChangeText={setCommentText}
+                                onSubmitEditing={handleSubmitComment}
+                            />
+                        </View>
+                        <TouchableOpacity style={styles.sendBtn} onPress={handleSubmitComment} disabled={submitting}>
+                            <CornerDownRight size={16} color={submitting ? COLORS.node.muted : COLORS.node.accent} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {localComments.map((c, i) => (
                         <CommentNode
                             key={c.id}
                             comment={c}
                             isFirst={i === 0}
-                            isLast={i === (post.comments?.length || 0) - 1}
+                            isLast={i === localComments.length - 1}
+                            onReply={(comment) => setReplyingTo(comment)}
                         />
                     ))}
                 </View>
             )}
+
+            {/* Post Menu Modal */}
+            <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
+                    <View style={styles.menuContainer}>
+                        <TouchableOpacity style={styles.menuItem} onPress={handleMute}>
+                            <BellOff size={20} color={COLORS.node.text} />
+                            <Text style={styles.menuText}>Mute @{post.author.username}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.menuItem} onPress={handleBlock}>
+                            <Ban size={20} color="#ef4444" />
+                            <Text style={[styles.menuText, { color: '#ef4444' }]}>Block @{post.author.username}</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={styles.menuItem} onPress={() => setMenuVisible(false)}>
+                            <X size={20} color={COLORS.node.muted} />
+                            <Text style={styles.menuText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
         </View>
     );
 };
 
 interface FeedProps {
     posts: UIPost[];
+    currentUser?: any;
+    onPostAction?: (postId: string, action: 'mute' | 'block') => void;
+    onVibeCheck?: (post: UIPost) => void;
 }
 
-export const Feed = ({ posts }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck }: FeedProps) => {
     return (
         <ScrollView style={{ flex: 1, backgroundColor: COLORS.node.bg }} contentContainerStyle={{ paddingBottom: 80, padding: 8 }}>
-            {posts.map(p => <PostCard key={p.id} post={p} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} />)}
         </ScrollView>
     );
 };
@@ -389,5 +719,62 @@ const styles = StyleSheet.create({
     commentsSection: {
         borderTopWidth: 1, borderTopColor: COLORS.node.border, backgroundColor: 'rgba(15, 17, 21, 0.3)',
         paddingHorizontal: 8, paddingTop: 16, paddingBottom: 16
-    }
+    },
+    pollContainer: { marginTop: 12, gap: 8 },
+    pollOption: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+        height: 40,
+        justifyContent: 'center',
+        overflow: 'hidden',
+        position: 'relative'
+    },
+    pollOptionSelected: { borderColor: COLORS.node.accent },
+    pollBar: {
+        position: 'absolute',
+        top: 0, bottom: 0, left: 0,
+        backgroundColor: 'rgba(99, 102, 241, 0.2)'
+    },
+    pollContent: {
+        flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+        paddingHorizontal: 12
+    },
+    pollText: { fontSize: 14, color: COLORS.node.text, fontWeight: '500' },
+    pollPercent: { fontSize: 12, color: COLORS.node.muted, fontFamily: 'monospace' },
+    pollTotal: { fontSize: 11, color: COLORS.node.muted, marginTop: 4, textAlign: 'right' },
+    modalOverlay: {
+        flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
+    },
+    menuContainer: {
+        width: 280, backgroundColor: COLORS.node.panel, borderRadius: 12, padding: 8,
+        borderWidth: 1, borderColor: COLORS.node.border
+    },
+    menuItem: {
+        flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
+        borderRadius: 8
+    },
+    menuText: { fontSize: 16, color: COLORS.node.text, fontWeight: '500' },
+    commentInputRow: {
+        flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16,
+        paddingHorizontal: 8
+    },
+    commentInput: {
+        flex: 1, backgroundColor: COLORS.node.bg, borderRadius: 20,
+        paddingHorizontal: 16, paddingVertical: 8, color: '#fff',
+        borderWidth: 1, borderColor: COLORS.node.border
+    },
+    sendBtn: {
+        padding: 8, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 20
+    },
+    sortChip: {
+        paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
+        backgroundColor: COLORS.node.bg, borderWidth: 1, borderColor: COLORS.node.border
+    },
+    sortChipSelected: {
+        backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: COLORS.node.accent
+    },
+    sortChipText: { fontSize: 12, color: COLORS.node.muted },
+    sortChipTextSelected: { color: COLORS.node.accent, fontWeight: '600' }
 });

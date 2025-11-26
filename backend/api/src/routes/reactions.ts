@@ -88,6 +88,22 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
           intensities: intensities as VibeIntensities,
         });
 
+        // Create Notification for Post Author
+        if (post.authorId !== userId) {
+          // Check if notification already exists for this user/post/type to avoid spam?
+          // For MVP, just create it. Or maybe check recent?
+          // Let's just create it for now.
+          await fastify.prisma.notification.create({
+            data: {
+              userId: post.authorId,
+              actorId: userId,
+              type: 'like', // or 'reaction'
+              content: `reacted to your post`,
+              postId: post.id
+            }
+          });
+        }
+
         return reply.status(201).send(reaction);
       } catch (error) {
         fastify.log.error({ err: error, postId, nodeId }, 'Failed to create/update reaction');

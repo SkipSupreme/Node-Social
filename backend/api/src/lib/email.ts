@@ -1,6 +1,6 @@
 // src/lib/email.ts
 import type { FastifyInstance } from 'fastify';
-import type { EmailTemplate } from '../../generated/prisma/client.js';
+import type { EmailTemplate } from '@prisma/client';
 import { enqueueEmailJob } from './emailQueue.js';
 
 type JobPayload = {

@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { Resend } from 'resend';
-import type { EmailTemplate, Prisma } from '../../generated/prisma/client.js';
+import type { EmailTemplate, Prisma } from '@prisma/client';
 import { renderEmailFromTemplate } from './emailTemplates.js';
 
 const resendApiKey = process.env.RESEND_API_KEY || '';
@@ -108,11 +108,11 @@ async function processPendingJobs(fastify: FastifyInstance) {
 
       fastify.log.error(
         {
-            jobId,
-            to,
-            template,
+          jobId,
+          to,
+          template,
           attemptNumber,
-            maxAttempts,
+          maxAttempts,
           error: errorMessage,
         },
         'Resend email delivery failed'

@@ -18,6 +18,7 @@ type AuthState = {
   logout: () => Promise<void>;
   markEmailVerified: () => Promise<void>;
   checkAppleCredentials: () => Promise<boolean>; // Returns true if valid, false if needs reauth
+  updateUser: (user: User) => Promise<void>;
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -33,9 +34,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (appleUserId) {
       await storage.setItem("appleUserId", appleUserId);
     }
-    set({ 
-      user: data.user, 
-      token: data.token, 
+    set({
+      user: data.user,
+      token: data.token,
       loading: false,
       appleUserId: appleUserId || null,
     });
@@ -50,9 +51,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       ]);
       if (token && userJson) {
         const cachedUser = JSON.parse(userJson) as User;
-        set({ 
-          token, 
-          user: cachedUser, 
+        set({
+          token,
+          user: cachedUser,
           loading: false,
           appleUserId: appleUserId || null,
         });
@@ -133,5 +134,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     if (updatedUser) {
       await storage.setItem("user", JSON.stringify(updatedUser));
     }
+  },
+
+  updateUser: async (user: User) => {
+    set({ user });
+    await storage.setItem("user", JSON.stringify(user));
   },
 }));

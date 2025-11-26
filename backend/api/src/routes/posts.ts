@@ -1,10 +1,11 @@
 import type { FastifyPluginAsync } from 'fastify';
-import type { Prisma } from '../../generated/prisma/client.js';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { initializePostMetrics, updatePostMetrics } from '../lib/metrics.js';
-import { calculateFeedScore, getDefaultPreferences, type FeedPreferences } from '../lib/feedScoring.js';
+import { calculateFeedScore, calculateScoreBreakdown, getDefaultPreferences, type FeedPreferences } from '../lib/feedScoring.js';
 import { syncPostToMeili } from '../lib/searchSync.js';
 import { logModAction } from '../lib/moderation.js';
+import { ExpertService, type ExpertRule } from '../services/expertService.js';
 
 const postRoutes: FastifyPluginAsync = async (fastify) => {
   // Create a new post
@@ -23,8 +24,13 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       const schema = z.object({
         content: z.string().min(1).max(6000),
         nodeId: z.string().uuid().optional(), // Optional node/community
-        title: z.string().max(500).optional(),
+        title: z.string().min(1).max(300),
         linkUrl: z.string().url().optional(),
+        poll: z.object({
+          question: z.string().min(1).max(300),
+          options: z.array(z.string().min(1).max(100)).min(2).max(4),
+          duration: z.number().min(1).max(7).default(3), // Days
+        }).optional(),
       });
 
       const parsed = schema.safeParse(request.body);
@@ -32,7 +38,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, nodeId, title, linkUrl } = parsed.data;
+      const { content, nodeId, title, linkUrl, poll } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Check if node exists if nodeId is provided
@@ -51,24 +57,66 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      const postData: Prisma.PostCreateInput = {
+        content,
+        title: title ?? null,
+        author: { connect: { id: userId } },
+        linkUrl: linkUrl ?? null,
+        ...(nodeId ? { node: { connect: { id: nodeId } } } : {}),
+        ...(linkMetaId ? { linkMeta: { connect: { id: linkMetaId } } } : {}),
+      };
+
+      if (poll) {
+        postData.poll = {
+          create: {
+            question: poll.question,
+            endsAt: new Date(Date.now() + poll.duration * 24 * 60 * 60 * 1000),
+            options: {
+              create: poll.options.map((opt, index) => ({
+                text: opt,
+                order: index,
+              })),
+            },
+          },
+        };
+      }
+
       const post = await fastify.prisma.post.create({
-        data: {
-          content,
-          nodeId: nodeId ?? null,
-          title: title ?? null,
-          authorId: userId,
-          linkUrl: linkUrl ?? null,
-          linkMetaId: linkMetaId ?? null,
-        },
+        data: postData,
         include: {
           author: {
             select: {
               id: true,
-              email: true, // In real app, use username/avatar
+              email: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
             },
           },
           linkMeta: true,
+          poll: {
+            include: {
+              options: true,
+            }
+          }
         },
+      });
+
+      // Award Cred for posting
+      await fastify.prisma.user.update({
+        where: { id: userId },
+        data: { connoisseurCred: { increment: 1 } }
+      });
+
+      await fastify.prisma.credTransaction.create({
+        data: {
+          userId,
+          amount: 1,
+          reason: 'created_post'
+        }
       });
 
       // Initialize PostMetric (fire-and-forget, don't block response)
@@ -99,6 +147,10 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         authorId: z.string().uuid().optional(),
         postType: z.string().optional(), // Single post type: "text", "image", "video", "link"
         postTypes: z.string().optional(), // Multiple post types: "text,image,video" (comma-separated)
+        qualityWeight: z.coerce.number().min(0).max(100).optional(),
+        recencyWeight: z.coerce.number().min(0).max(100).optional(),
+        engagementWeight: z.coerce.number().min(0).max(100).optional(),
+        personalizationWeight: z.coerce.number().min(0).max(100).optional(),
       });
 
       const parsed = schema.safeParse(request.query);
@@ -137,20 +189,60 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (userPrefs) {
           preferences = {
-            qualityWeight: userPrefs.qualityWeight,
-            recencyWeight: userPrefs.recencyWeight,
-            engagementWeight: userPrefs.engagementWeight,
-            personalizationWeight: userPrefs.personalizationWeight,
+            qualityWeight: parsed.data.qualityWeight ?? userPrefs.qualityWeight,
+            recencyWeight: parsed.data.recencyWeight ?? userPrefs.recencyWeight,
+            engagementWeight: parsed.data.engagementWeight ?? userPrefs.engagementWeight,
+            personalizationWeight: parsed.data.personalizationWeight ?? userPrefs.personalizationWeight,
             recencyHalfLife: userPrefs.recencyHalfLife,
             followingOnly: userPrefs.followingOnly,
           };
         } else {
-          preferences = getDefaultPreferences();
+          const defaults = getDefaultPreferences();
+          preferences = {
+            qualityWeight: parsed.data.qualityWeight ?? defaults.qualityWeight,
+            recencyWeight: parsed.data.recencyWeight ?? defaults.recencyWeight,
+            engagementWeight: parsed.data.engagementWeight ?? defaults.engagementWeight,
+            personalizationWeight: parsed.data.personalizationWeight ?? defaults.personalizationWeight,
+            recencyHalfLife: defaults.recencyHalfLife,
+            followingOnly: defaults.followingOnly,
+          };
         }
       } catch (error) {
         // If userFeedPreference table doesn't exist or Prisma not ready, use defaults
         fastify.log.warn({ err: error }, 'Failed to load feed preferences, using defaults');
         preferences = getDefaultPreferences();
+      }
+
+      // Phase 4: Expert Config Override & Rules
+      let expertRules: ExpertRule[] = [];
+      if (nodeId) {
+        const nodeConfig = await fastify.prisma.nodeVectorConfig.findUnique({
+          where: { nodeId },
+        });
+
+        if (nodeConfig) {
+          // Override preferences if expert config exists
+          const expertConfig = (nodeConfig as any).expertConfig;
+          if (expertConfig && Object.keys(expertConfig).length > 0) {
+            preferences = {
+              ...preferences,
+              ...expertConfig
+            };
+          }
+
+          // Load rules
+          const suppression = (nodeConfig as any).suppressionRules as any[] || [];
+          const boost = (nodeConfig as any).boostRules as any[] || [];
+          // Validate and combine
+          try {
+            expertRules = [
+              ...ExpertService.validateRules(suppression.map(r => ({ ...r, action: { type: 'suppress' } }))),
+              ...ExpertService.validateRules(boost.map(r => ({ ...r, action: { type: 'boost', multiplier: r.action?.multiplier } })))
+            ];
+          } catch (e) {
+            fastify.log.warn({ err: e }, 'Failed to validate expert rules');
+          }
+        }
       }
 
       const where: Prisma.PostWhereInput = {
@@ -171,6 +263,12 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           select: {
             id: true,
             email: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            era: true,
+            connoisseurCred: true,
           },
         },
         node: {
@@ -185,6 +283,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         _count: {
           select: { comments: true },
         },
+        vibeAggregate: true,
         reactions: {
           where: { userId },
           select: { intensities: true },
@@ -194,9 +293,34 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           take: 3,
           orderBy: { createdAt: 'desc' },
           include: {
-            author: { select: { id: true, email: true } }
+            author: {
+              select: {
+                id: true,
+                email: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                era: true,
+                connoisseurCred: true,
+              },
+            },
           }
         },
+        poll: {
+          include: {
+            options: {
+              include: {
+                _count: { select: { votes: true } }
+              },
+              orderBy: { order: 'asc' }
+            },
+            votes: {
+              where: { userId },
+              select: { optionId: true }
+            }
+          }
+        }
       } as const;
 
       // For MVP: Fetch more posts than needed, score them, sort, then paginate
@@ -220,6 +344,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         queryArgs
       )) as PostWithCounts[];
 
+      // Phase 4: Apply Expert Rules (Suppression & Boost)
+      if (expertRules.length > 0) {
+        posts = ExpertService.applyRules(posts, expertRules);
+      }
+
       // Calculate feed scores and sort
       const postsWithScores = posts.map((post) => {
         const metrics = post.metrics;
@@ -231,13 +360,35 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             qualityScore: metrics?.qualityScore ?? 50.0,
             personalizationScore: 50.0, // Default: no personalization yet (future: following, vibe alignment)
           },
-          preferences
+          preferences,
+          (post as any).boostMultiplier || 1.0 // Apply boost from rules
         );
         return { post, score };
       });
 
       // Sort by score (descending)
       postsWithScores.sort((a, b) => b.score - a.score);
+
+      // Phase 4: Apply Diversity Controls (Author Cooldown)
+      // We re-order the top posts to ensure diversity
+      // Only apply if expert config is present (or we could apply default diversity)
+      if (nodeId) {
+        const nodeConfig = await fastify.prisma.nodeVectorConfig.findUnique({ where: { nodeId } });
+        if (nodeConfig) {
+          const expertConfig = (nodeConfig as any).expertConfig;
+          if (expertConfig) {
+            // Re-order postsWithScores
+            const reordered = ExpertService.applyDiversity(
+              postsWithScores,
+              expertConfig,
+              (item) => item.post.authorId || item.post.author?.id
+            );
+            // Replace postsWithScores with reordered version
+            // Note: applyDiversity returns a new array
+            postsWithScores.splice(0, postsWithScores.length, ...reordered);
+          }
+        }
+      }
 
       // Apply pagination after sorting
       const paginatedPosts = postsWithScores.slice(0, limit);
@@ -252,6 +403,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         metrics: undefined, // Don't expose metrics in response (or expose selectively)
         _count: undefined,
         myReaction: post.reactions[0]?.intensities || null,
+        vibeAggregate: post.vibeAggregate,
         reactions: undefined,
       }));
 
@@ -279,6 +431,12 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             select: {
               id: true,
               email: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
             },
           },
           node: {
@@ -292,6 +450,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           _count: {
             select: { comments: true },
           },
+          vibeAggregate: true,
         },
       });
 
@@ -355,6 +514,190 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.send({ message: 'Post deleted successfully' });
     }
   );
+
+  // Vote on a poll
+  fastify.post(
+    '/:id/vote',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const schema = z.object({
+        optionId: z.string().min(1),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { optionId } = parsed.data;
+      const userId = (request.user as { sub: string }).sub;
+
+      const post = await fastify.prisma.post.findUnique({
+        where: { id },
+        include: { poll: true },
+      });
+
+      if (!post || !post.poll) {
+        return reply.status(404).send({ error: 'Poll not found' });
+      }
+
+      // Check if already voted
+      const existingVote = await fastify.prisma.pollVote.findUnique({
+        where: {
+          pollId_userId: {
+            pollId: post.poll.id,
+            userId,
+          },
+        },
+      });
+
+      if (existingVote) {
+        return reply.status(400).send({ error: 'Already voted' });
+      }
+
+      // Record vote
+      await fastify.prisma.pollVote.create({
+        data: {
+          pollId: post.poll.id,
+          optionId,
+          userId,
+        },
+      });
+
+      return reply.send({ message: 'Vote recorded' });
+    }
+  );
+  // Toggle Save Post
+  fastify.post('/posts/:id/save', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = (request.user as { sub: string }).sub;
+
+    const existing = await fastify.prisma.savedPost.findUnique({
+      where: { userId_postId: { userId, postId: id } }
+    });
+
+    if (existing) {
+      await fastify.prisma.savedPost.delete({
+        where: { userId_postId: { userId, postId: id } }
+      });
+      return { saved: false };
+    } else {
+      await fastify.prisma.savedPost.create({
+        data: { userId, postId: id }
+      });
+      return { saved: true };
+    }
+  });
+
+  // Get Saved Posts
+  fastify.get('/posts/saved', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const userId = (request.user as { sub: string }).sub;
+    const savedPosts = await fastify.prisma.savedPost.findMany({
+      where: { userId },
+      include: {
+        post: {
+          include: {
+            author: true,
+            node: true,
+            metrics: true,
+            poll: {
+              include: {
+                options: {
+                  include: {
+                    _count: { select: { votes: true } }
+                  }
+                },
+                votes: { where: { userId } }
+              }
+            },
+            _count: { select: { comments: true } }
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return { posts: savedPosts.map(sp => sp.post) };
+  });
+
+  // Feed Explain Endpoint (Phase 5)
+  fastify.get('/posts/:id/explain', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = (request.user as { sub: string }).sub;
+
+    const post = await fastify.prisma.post.findUnique({
+      where: { id },
+      include: { metrics: true, author: true }
+    });
+
+    if (!post) {
+      return reply.status(404).send({ error: 'Post not found' });
+    }
+
+    // 1. Get Preferences (Logic duplicated from feed endpoint - ideally refactor)
+    let preferences: FeedPreferences;
+    try {
+      const userPrefs = await fastify.prisma.userFeedPreference.findUnique({ where: { userId } });
+      if (userPrefs) {
+        preferences = {
+          qualityWeight: userPrefs.qualityWeight,
+          recencyWeight: userPrefs.recencyWeight,
+          engagementWeight: userPrefs.engagementWeight,
+          personalizationWeight: userPrefs.personalizationWeight,
+          recencyHalfLife: userPrefs.recencyHalfLife,
+          followingOnly: userPrefs.followingOnly,
+        };
+      } else {
+        preferences = getDefaultPreferences();
+      }
+    } catch (e) {
+      preferences = getDefaultPreferences();
+    }
+
+    // 2. Check Expert Config Override
+    let boostMultiplier = 1.0;
+    if (post.nodeId) {
+      const nodeConfig = await fastify.prisma.nodeVectorConfig.findUnique({ where: { nodeId: post.nodeId } });
+      if (nodeConfig) {
+        const expertConfig = (nodeConfig as any).expertConfig;
+        if (expertConfig && Object.keys(expertConfig).length > 0) {
+          preferences = { ...preferences, ...expertConfig };
+        }
+
+        // Apply Rules (Simplified for explain - just checking boost)
+        const boostRules = (nodeConfig as any).boostRules as any[] || [];
+        const rules = ExpertService.validateRules(boostRules.map(r => ({ ...r, action: { type: 'boost', multiplier: r.action?.multiplier } })));
+
+        // Evaluate rules against post
+        // We need to construct a post object compatible with evaluateRule
+        // For now, let's just use the post object we fetched
+        for (const rule of rules) {
+          if (ExpertService.evaluateRule(post, rule)) {
+            boostMultiplier *= (rule.action.multiplier || 1.0);
+          }
+        }
+      }
+    }
+
+    // 3. Calculate Breakdown
+    const metrics = post.metrics;
+    const breakdown = calculateScoreBreakdown(
+      {
+        id: post.id,
+        createdAt: post.createdAt,
+        engagementScore: metrics?.engagementScore ?? 0,
+        qualityScore: metrics?.qualityScore ?? 50.0,
+        personalizationScore: 50.0,
+      },
+      preferences,
+      boostMultiplier
+    );
+
+    return { breakdown };
+  });
 };
 
 export default postRoutes;

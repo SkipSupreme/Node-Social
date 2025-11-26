@@ -1,6 +1,5 @@
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -29,6 +28,7 @@ model User {
   connoisseurCred Int       @default(0)
   era             String    @default("Lurker Era")
   theme           String?
+  nodeCredScores  Json      @default("{}") // Map<NodeId, number>
 
   // Relations
   posts               Post[]
@@ -38,6 +38,62 @@ model User {
   federatedIdentities FederatedIdentity[] // OAuth provider identities
   feedPreference      UserFeedPreference?
   reactions           VibeReaction[] // User's Vibe Vector reactions
+  pollVotes           PollVote[]
+  savedPosts          SavedPost[]
+  mutes               UserMute[]    @relation("UserMutes")
+  mutedBy             UserMute[]    @relation("UserMutedBy")
+  blocks              UserBlock[]   @relation("UserBlocks")
+
+  blockedBy           UserBlock[]   @relation("UserBlockedBy")
+  following           UserFollow[]  @relation("UserFollowing")
+  followers           UserFollow[]  @relation("UserFollowers")
+  credTransactions    CredTransaction[]
+  notifications       Notification[] @relation("UserNotifications")
+  triggeredNotifications Notification[] @relation("NotificationActor")
+  
+  // Messages
+  sentMessages     Message[] @relation("SentMessages")
+  conversations    ConversationParticipant[]
+
+  // Customization
+  customCss       String? // User's custom CSS
+
+  // Moderation Relations
+  assignedModItems ModQueueItem[] @relation("ModAssignee")
+
+  resolvedModItems ModQueueItem[] @relation("ModResolver")
+  
+  // Phase 5: Community
+  createdPresets FeedPreset[] @relation("PresetCreator")
+}
+
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String   // Recipient
+  user        User     @relation("UserNotifications", fields: [userId], references: [id], onDelete: Cascade)
+  actorId     String   // Who triggered it
+  actor       User     @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  type        String   // 'like', 'comment', 'follow', 'system'
+  content     String?  // Optional text preview
+  postId      String?  // Optional link to post
+  commentId   String?  // Optional link to comment
+  read        Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model CredTransaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int
+  reason      String   // 'post_reaction', 'daily_login', 'manual_award', etc.
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("cred_transactions")
 }
 
 model Node {
@@ -54,6 +110,8 @@ model Node {
   creator     User?     @relation(fields: [creatorId], references: [id])
   vibeWeights NodeVibeWeight[] // Per-node vector weightings
   reactions   VibeReaction[]   // Reactions in this Node's context
+  modQueueItems ModQueueItem[]
+  vectorConfig  NodeVectorConfig?
 
   @@map("nodes")
 }
@@ -64,6 +122,7 @@ model Post {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
+  editedAt  DateTime? // Track if edited
   authorId  String
   nodeId    String?
   linkUrl   String?
@@ -80,12 +139,56 @@ model Post {
   comments Comment[]
   metrics  PostMetric?
   reactions VibeReaction[] // Vibe Vector reactions on this post
+  vibeAggregate PostVibeAggregate?
+  poll     Poll?
+  savedBy  SavedPost[]
+  modQueueItems ModQueueItem[]
 
   // Indexes for feed performance
   @@index([authorId, createdAt(sort: Desc)])
   @@index([nodeId, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("posts")
+}
+
+model Poll {
+  id        String   @id @default(cuid())
+  postId    String   @unique
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  question  String
+  createdAt DateTime @default(now())
+  endsAt    DateTime?
+
+  options   PollOption[]
+  votes     PollVote[]
+
+  @@map("polls")
+}
+
+model PollOption {
+  id        String   @id @default(cuid())
+  pollId    String
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  text      String
+  order     Int
+  
+  votes     PollVote[]
+
+  @@map("poll_options")
+}
+
+model PollVote {
+  id        String   @id @default(cuid())
+  pollId    String
+  poll      Poll     @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId  String
+  option    PollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([pollId, userId]) // One vote per user per poll
+  @@map("poll_votes")
 }
 
 model LinkMetadata {
@@ -304,6 +407,7 @@ model VibeReaction {
   totalIntensity Float @default(0.0) // Sum of all intensities
   
   createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   
   // Note: Unique constraint handled at application level since Prisma doesn't support conditional uniques
   // One reaction per user per post per node OR one reaction per user per comment per node
@@ -313,4 +417,215 @@ model VibeReaction {
   @@index([userId, postId, nodeId])
   @@index([userId, commentId, nodeId])
   @@map("vibe_reactions")
+}
+
+model PostVibeAggregate {
+  postId String @id
+  post   Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  // Sum of all intensity values per vector
+  insightfulSum    Float @default(0)
+  joySum           Float @default(0)
+  fireSum          Float @default(0)
+  supportSum       Float @default(0)
+  shockSum         Float @default(0)
+  questionableSum  Float @default(0)
+
+  // Count of reactions that included each vector (intensity > 0)
+  insightfulCount  Int @default(0)
+  joyCount         Int @default(0)
+  fireCount        Int @default(0)
+  supportCount     Int @default(0)
+  shockCount       Int @default(0)
+  questionableCount Int @default(0)
+
+  // Total unique reactors
+  totalReactors    Int @default(0)
+
+  // Total intensity across all vectors
+  totalIntensity   Float @default(0)
+
+  // Computed scores
+  qualityScore     Float @default(0)
+  engagementScore  Float @default(0)
+  flagScore        Float @default(0)
+
+  // Timestamps
+  firstReactionAt  DateTime?
+  lastReactionAt   DateTime?
+
+  // Velocity tracking
+  reactionsLastHour   Int @default(0)
+  reactionsLast4Hours Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("post_vibe_aggregates")
+}
+
+model SavedPost {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@map("saved_posts")
+}
+
+model UserMute {
+  id        String   @id @default(cuid())
+  muterId   String
+  muter     User     @relation("UserMutes", fields: [muterId], references: [id], onDelete: Cascade)
+  mutedId   String
+  muted     User     @relation("UserMutedBy", fields: [mutedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([muterId, mutedId])
+  @@map("user_mutes")
+}
+
+model UserBlock {
+  id        String   @id @default(cuid())
+  blockerId String
+  blocker   User     @relation("UserBlocks", fields: [blockerId], references: [id], onDelete: Cascade)
+  blockedId String
+  blocked   User     @relation("UserBlockedBy", fields: [blockedId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([blockerId, blockedId])
+  @@map("user_blocks")
+}
+
+model UserFollow {
+  id          String   @id @default(cuid())
+  followerId  String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+
+  @@unique([followerId, followingId])
+  @@map("user_follows")
+}
+
+// Messaging System
+model Conversation {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@map("conversations")
+}
+
+model ConversationParticipant {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  joinedAt       DateTime     @default(now())
+  lastReadAt     DateTime?
+
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId       String
+  sender         User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  content        String
+  createdAt      DateTime     @default(now())
+  readAt         DateTime?
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+
+// Moderation Queue
+model ModQueueItem {
+  id        String   @id @default(uuid())
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  nodeId    String
+  node      Node     @relation(fields: [nodeId], references: [id])
+  
+  flagScore        Decimal @db.Decimal(8, 2)
+  weightedFlagScore Decimal @db.Decimal(8, 2)
+  priority         String  // 'critical', 'high', 'medium', 'low', 'monitor'
+  
+  // Breakdown
+  questionableRatio Decimal? @db.Decimal(5, 4)
+  shockRatio        Decimal? @db.Decimal(5, 4)
+  comboRatio        Decimal? @db.Decimal(5, 4)
+  velocitySpike     Decimal? @db.Decimal(8, 2)
+  reportCount       Int      @default(0)
+  
+  // Status
+  status     String   @default("pending") // 'pending', 'reviewing', 'resolved', 'escalated'
+  assignedTo String?
+  assignee   User?    @relation("ModAssignee", fields: [assignedTo], references: [id])
+  
+  // Resolution
+  resolutionAction String?
+  resolutionReason String?
+  resolvedBy       String?
+  resolver         User?    @relation("ModResolver", fields: [resolvedBy], references: [id])
+  resolvedAt       DateTime?
+  
+  createdAt     DateTime @default(now())
+  firstFlagAt   DateTime @default(now())
+  lastUpdated   DateTime @default(now()) @updatedAt
+
+  @@index([nodeId, priority, createdAt])
+  @@index([assignedTo])
+  @@map("mod_queue_items")
+}
+
+// Node Vector Customization
+model NodeVectorConfig {
+  nodeId String @id
+  node   Node   @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+  
+  vectorLabels Json @default("{\"insightful\": {\"label\": \"Insightful\", \"icon\": \"💡\"}, \"joy\": {\"label\": \"Joy\", \"icon\": \"😄\"}, \"fire\": {\"label\": \"Fire\", \"icon\": \"🔥\"}, \"support\": {\"label\": \"Support\", \"icon\": \"💙\"}, \"shock\": {\"label\": \"Shock\", \"icon\": \"😱\"}, \"questionable\": {\"label\": \"Questionable\", \"icon\": \"🤔\"}}")
+  
+  disabledVectors String[] @default([])
+  
+  // Phase 4: Expert Features
+  expertConfig     Json     @default("{}")
+  suppressionRules Json     @default("[]")
+  boostRules       Json     @default("[]")
+  
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@map("node_vector_configs")
+}
+
+// Phase 5: Community & Sharing
+model FeedPreset {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  creatorId   String
+  creator     User     @relation("PresetCreator", fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  config      Json     // Stores FeedPreferences + ExpertConfig
+  isPublic    Boolean  @default(false)
+  downloads   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([isPublic, downloads(sort: Desc)])
+  @@index([creatorId])
+  @@map("feed_presets")
 }

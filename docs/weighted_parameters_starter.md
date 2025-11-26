@@ -37,7 +37,7 @@
 ## Intermediate Mode: Primary Sliders
 
 ### 1. **Quality Weight** (35% default) 🎯 *HIGHEST PRIORITY*
-- What it controls: ConnoisseurCred scores, Vibe Vector diversity, Wilson confidence scores
+- What it controls: Cred scores, Vibe Vector diversity, Wilson confidence scores
 - User-facing label: "Show quality content from trusted voices"
 - Why first: This is Node Social's core differentiator
 

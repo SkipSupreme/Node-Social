@@ -11,16 +11,20 @@ import rateLimit from '@fastify/rate-limit';
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
 import meilisearchPlugin from './plugins/meilisearch.js';
+import socketPlugin from './plugins/socket.js';
 import authRoutes from './routes/auth.js';
 import nodeRoutes from './routes/nodes.js';
 import postRoutes from './routes/posts.js';
 import commentRoutes from './routes/comments.js';
 import feedPreferenceRoutes from './routes/feedPreferences.js';
-import searchRoutes from './routes/search.js';
+import notificationRoutes from './routes/notifications.js';
 import moderationRoutes from './routes/moderation.js';
+import expertRoutes from './routes/expert.js';
+import presetRoutes from './routes/presets.js';
 import reactionRoutes from './routes/reactions.js';
 import usersRoutes from './routes/users.js';
 import metadataRoutes from './routes/metadata.js';
+import messagesRoutes from './routes/messages.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 
 const app = Fastify({ logger: true });
@@ -69,6 +73,7 @@ app.register(helmet, {
 app.register(redisPlugin);
 app.register(prismaPlugin);
 app.register(meilisearchPlugin);
+app.register(socketPlugin);
 
 app.after(() => {
   registerEmailQueue(app);
@@ -133,11 +138,16 @@ app.register(nodeRoutes, { prefix: '/nodes' });
 app.register(postRoutes, { prefix: '/posts' });
 app.register(commentRoutes, { prefix: '/' }); // Comments are nested under /posts or at root /comments
 app.register(feedPreferenceRoutes, { prefix: '/' });
-app.register(searchRoutes, { prefix: '/' });
-app.register(moderationRoutes, { prefix: '/' });
-app.register(reactionRoutes, { prefix: '/reactions' }); // Phase 0.1 - Vibe Vector reactions
+app.register(notificationRoutes, { prefix: '/notifications' });
+app.register(async (fastify) => {
+  await fastify.register(reactionRoutes, { prefix: '/api/v1' });
+  await fastify.register(moderationRoutes, { prefix: '/api/v1/mod' });
+  await fastify.register(expertRoutes, { prefix: '/api/v1/expert' });
+  await fastify.register(presetRoutes, { prefix: '/api/v1/presets' });
+});
 app.register(usersRoutes, { prefix: '/users' });
 app.register(metadataRoutes, { prefix: '/metadata' });
+app.register(messagesRoutes, { prefix: '/api' }); // Prefix /api so it becomes /api/conversations
 
 // health check
 app.get('/health', async () => ({ ok: true }));

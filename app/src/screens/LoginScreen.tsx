@@ -455,7 +455,10 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    justifyContent: 'center',
   },
   header: {
     marginBottom: 40,

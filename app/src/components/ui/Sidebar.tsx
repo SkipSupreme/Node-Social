@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, SafeAreaView, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X } from './Icons';
 import { COLORS } from '../../constants/theme';
 
@@ -12,6 +13,12 @@ interface SidebarProps {
     onProfileClick?: () => void;
     selectedNodeId?: string | null;
     onNodeSelect?: (nodeId: string | null) => void;
+    feedMode?: 'global' | 'discovery' | 'following';
+    onFeedModeSelect?: (mode: 'global' | 'discovery' | 'following') => void;
+    onThemesClick?: () => void;
+    onSavedClick?: () => void;
+    onBetaClick?: () => void;
+    onNewPostClick?: () => void;
 }
 
 export const Sidebar = ({
@@ -21,12 +28,31 @@ export const Sidebar = ({
     user,
     onProfileClick,
     selectedNodeId,
-    onNodeSelect
+    onNodeSelect,
+    feedMode = 'global',
+    onFeedModeSelect,
+    onThemesClick,
+    onSavedClick,
+    onBetaClick,
+    onNewPostClick
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
         if (onNodeSelect) {
             onNodeSelect(nodeId);
+        }
+        if (onClose && !isDesktop) {
+            onClose();
+        }
+    };
+
+    const handleModeClick = (mode: 'global' | 'discovery' | 'following') => {
+        if (onFeedModeSelect) {
+            onFeedModeSelect(mode);
+        }
+        // Also clear node selection when switching main modes
+        if (onNodeSelect) {
+            onNodeSelect(null);
         }
         if (onClose && !isDesktop) {
             onClose();
@@ -66,15 +92,54 @@ export const Sidebar = ({
 
             <ScrollView style={{ flex: 1 }}>
                 <View style={styles.navSection}>
+                    {/* New Post Button (Desktop) */}
+                    {isDesktop && (
+                        <TouchableOpacity
+                            style={[styles.navItem, { backgroundColor: COLORS.node.accent, marginBottom: 16, justifyContent: 'center' }]}
+                            onPress={onNewPostClick}
+                        >
+                            <Text style={[styles.navText, { color: '#fff', fontWeight: 'bold' }]}>+ New Post</Text>
+                        </TouchableOpacity>
+                    )}
+
                     <NavItem
                         icon={Flame}
                         label="Your Flow"
-                        active={selectedNodeId === null}
-                        onPress={() => handleNodeClick(null)}
+                        active={feedMode === 'global' && selectedNodeId === null}
+                        onPress={() => handleModeClick('global')}
                     />
-                    <NavItem icon={Search} label="Discovery" />
-                    <NavItem icon={Users} label="Following" />
-                    <NavItem icon={Palette} label="Themes" />
+                    <NavItem
+                        icon={Search}
+                        label="Discovery"
+                        active={feedMode === 'discovery'}
+                        onPress={() => handleModeClick('discovery')}
+                    />
+                    <NavItem
+                        icon={Users}
+                        label="Following"
+                        active={feedMode === 'following'}
+                        onPress={() => handleModeClick('following')}
+                    />
+                    <NavItem
+                        icon={Palette}
+                        label="Themes"
+                        onPress={onThemesClick}
+                    />
+                    {/* Saved Posts - using a bookmark icon if available, or just reuse another for now */}
+                    {/* Assuming Palette is imported, let's check if Bookmark exists or use generic */}
+                    <NavItem
+                        icon={Palette} // TODO: Use Bookmark icon
+                        label="Saved Posts"
+                        onPress={onSavedClick}
+                    />
+                    <NavItem
+                        icon={Zap}
+                        label="Beta Features"
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onBetaClick) onBetaClick();
+                        }}
+                    />
                 </View>
 
                 <View style={styles.sectionTitleRow}>
