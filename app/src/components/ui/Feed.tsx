@@ -3,7 +3,7 @@ import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, 
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff } from './Icons';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api } from '../../lib/api';
-import { VibeReactionButton } from '../VibeReactionButton';
+import { VibeRadialWheel } from '../VibeRadialWheel';
 import { socketManager } from '../../lib/socket';
 
 export interface UIAuthor {
@@ -189,9 +189,10 @@ interface PostCardProps {
     currentUser?: any;
     onPostAction?: (postId: string, action: 'mute' | 'block') => void;
     onVibeCheck?: (post: UIPost) => void;
+    onPress?: (post: UIPost) => void;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress }: PostCardProps) => {
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -452,10 +453,12 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 </View>
 
                 <View style={{ paddingLeft: 4, marginBottom: 8 }}>
-                    <Text style={styles.title}>
-                        {post.expertGated && <Shield size={12} color="#f87171" style={{ marginRight: 4 }} />}
-                        {post.title}
-                    </Text>
+                    <TouchableOpacity onPress={() => onPress?.(post)} activeOpacity={0.7}>
+                        <Text style={styles.title}>
+                            {post.expertGated && <Shield size={12} color="#f87171" style={{ marginRight: 4 }} />}
+                            {post.title}
+                        </Text>
+                    </TouchableOpacity>
 
                     <View style={{ maxHeight: isExpanded ? undefined : 80, overflow: 'hidden' }}>
                         <Text style={styles.bodyText}>
@@ -509,11 +512,11 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 </View>
 
                 <View style={styles.cardActions}>
-                    <VibeReactionButton
+                    <VibeRadialWheel
                         postId={post.id}
                         nodeId={post.node.id || 'global'}
                         initialReaction={post.myReaction}
-                        onLongPress={() => onVibeCheck && onVibeCheck(post)}
+                        buttonLabel="Vibe"
                     />
 
                     <TouchableOpacity
@@ -621,12 +624,13 @@ interface FeedProps {
     currentUser?: any;
     onPostAction?: (postId: string, action: 'mute' | 'block') => void;
     onVibeCheck?: (post: UIPost) => void;
+    onPostClick?: (post: UIPost) => void;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick }: FeedProps) => {
     return (
         <ScrollView style={{ flex: 1, backgroundColor: COLORS.node.bg }} contentContainerStyle={{ paddingBottom: 80, padding: 8 }}>
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} />)}
         </ScrollView>
     );
 };

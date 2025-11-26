@@ -2,7 +2,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark } from './Icons';
 import { COLORS } from '../../constants/theme';
 
 interface SidebarProps {
@@ -19,6 +19,7 @@ interface SidebarProps {
     onSavedClick?: () => void;
     onBetaClick?: () => void;
     onNewPostClick?: () => void;
+    onModerationClick?: () => void;
 }
 
 export const Sidebar = ({
@@ -34,7 +35,8 @@ export const Sidebar = ({
     onThemesClick,
     onSavedClick,
     onBetaClick,
-    onNewPostClick
+    onNewPostClick,
+    onModerationClick
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
@@ -50,10 +52,8 @@ export const Sidebar = ({
         if (onFeedModeSelect) {
             onFeedModeSelect(mode);
         }
-        // Also clear node selection when switching main modes
-        if (onNodeSelect) {
-            onNodeSelect(null);
-        }
+        // Note: Don't call onNodeSelect here - it's handled by handleFeedModeSelect
+        // and would override the currentView setting
         if (onClose && !isDesktop) {
             onClose();
         }
@@ -125,12 +125,18 @@ export const Sidebar = ({
                         label="Themes"
                         onPress={onThemesClick}
                     />
-                    {/* Saved Posts - using a bookmark icon if available, or just reuse another for now */}
-                    {/* Assuming Palette is imported, let's check if Bookmark exists or use generic */}
                     <NavItem
-                        icon={Palette} // TODO: Use Bookmark icon
+                        icon={Bookmark}
                         label="Saved Posts"
                         onPress={onSavedClick}
+                    />
+                    <NavItem
+                        icon={Shield}
+                        label="Moderation"
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onModerationClick) onModerationClick();
+                        }}
                     />
                     <NavItem
                         icon={Zap}

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowLeft } from 'lucide-react-native';
 import { api } from '../lib/api';
-import { PostCard } from '../components/ui/Feed';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../hooks/useTheme';
+import { PostCard } from '../components/PostCard';
+import { COLORS } from '../constants/theme';
 
 interface ModQueueItem {
     id: string;
@@ -16,16 +16,19 @@ interface ModQueueItem {
     status: string;
 }
 
-export default function ModerationQueueScreen() {
-    const { theme } = useTheme();
+interface ModerationQueueScreenProps {
+    onBack: () => void;
+}
+
+export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) => {
     const [items, setItems] = useState<ModQueueItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchQueue = async () => {
         try {
-            const response = await api.get('/mod/queue');
-            setItems(response.data.items);
+            const response = await api.get<{ items: ModQueueItem[] }>('/mod/queue');
+            setItems(response.items);
         } catch (error) {
             console.error('Failed to fetch mod queue:', error);
             Alert.alert('Error', 'Failed to fetch moderation queue');
@@ -53,17 +56,17 @@ export default function ModerationQueueScreen() {
 
     const renderItem = ({ item }: { item: ModQueueItem }) => {
         return (
-            <View style={[styles.itemContainer, { backgroundColor: theme.colors.card }]}>
+            <View style={[styles.itemContainer, { backgroundColor: COLORS.node.panel }]}>
                 <View style={styles.header}>
                     <View style={[styles.badge, { backgroundColor: getPriorityColor(item.priority) }]}>
                         <Text style={styles.badgeText}>{item.priority.toUpperCase()}</Text>
                     </View>
-                    <Text style={[styles.score, { color: theme.colors.text }]}>Score: {item.flagScore}</Text>
+                    <Text style={[styles.score, { color: COLORS.node.text }]}>Score: {item.flagScore}</Text>
                 </View>
 
                 {/* Render Post Preview */}
                 <View style={styles.postPreview}>
-                    <PostCard post={item.post} isPreview={true} />
+                    <PostCard post={item.post} />
                 </View>
 
                 <View style={styles.actions}>
@@ -103,16 +106,19 @@ export default function ModerationQueueScreen() {
     };
 
     return (
-        <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: COLORS.node.bg }]}>
             <View style={styles.screenHeader}>
-                <Text style={[styles.title, { color: theme.colors.text }]}>Moderation Queue</Text>
-                <TouchableOpacity onPress={fetchQueue}>
-                    <Ionicons name="refresh" size={24} color={theme.colors.primary} />
+                <TouchableOpacity onPress={onBack} style={styles.backBtn}>
+                    <ArrowLeft size={24} color={COLORS.node.text} />
+                </TouchableOpacity>
+                <Text style={[styles.title, { color: COLORS.node.text }]}>Moderation Queue</Text>
+                <TouchableOpacity onPress={fetchQueue} style={styles.refreshBtn}>
+                    <Text style={{ color: COLORS.node.accent }}>Refresh</Text>
                 </TouchableOpacity>
             </View>
 
             {loading ? (
-                <ActivityIndicator size="large" color={theme.colors.primary} />
+                <ActivityIndicator size="large" color={COLORS.node.accent} />
             ) : (
                 <FlatList
                     data={items}
@@ -125,7 +131,7 @@ export default function ModerationQueueScreen() {
                     }}
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={
-                        <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                        <Text style={[styles.emptyText, { color: COLORS.node.muted }]}>
                             No items in queue. Good job!
                         </Text>
                     }
@@ -133,7 +139,7 @@ export default function ModerationQueueScreen() {
             )}
         </SafeAreaView>
     );
-}
+};
 
 const styles = StyleSheet.create({
     container: {
@@ -145,10 +151,16 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: 'rgba(0,0,0,0.1)',
+        borderBottomColor: COLORS.node.border,
+    },
+    backBtn: {
+        padding: 8,
+    },
+    refreshBtn: {
+        padding: 8,
     },
     title: {
-        fontSize: 24,
+        fontSize: 20,
         fontWeight: 'bold',
     },
     listContent: {

@@ -2,22 +2,23 @@
 // Phase 3.1 - Right Sidebar Top Component
 // Vibe Validator panel (feed algorithm controls)
 
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { VibeValidator } from '../FeedControls/VibeValidator';
+import { VibeValidator } from '../../../components/ui/VibeValidator';
 
 interface RightSidebarTopProps {
   style?: StyleProp<ViewStyle>;
 }
 
 export const RightSidebarTop: React.FC<RightSidebarTopProps> = ({ style }) => {
+  const [settings, setSettings] = useState({
+    preset: 'balanced',
+    weights: { quality: 35, recency: 25, engagement: 20, personalization: 20 }
+  });
+
   return (
     <View style={[styles.container, style]}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Vibe Validator</Text>
-        <Text style={styles.subtitle}>Control your feed</Text>
-      </View>
-      <VibeValidator />
+      <VibeValidator settings={settings} onUpdate={setSettings} />
     </View>
   );
 };

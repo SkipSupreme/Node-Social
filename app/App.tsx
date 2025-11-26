@@ -29,7 +29,11 @@ import { ThemesScreen } from './src/screens/ThemesScreen';
 import { CredHistoryScreen } from './src/screens/CredHistoryScreen';
 import { MessagesScreen } from './src/screens/MessagesScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
-import { useSocket } from './src/context/SocketContext';
+import { DiscoveryScreen } from './src/screens/DiscoveryScreen';
+import { FollowingScreen } from './src/screens/FollowingScreen';
+import { PostDetailScreen } from './src/screens/PostDetailScreen';
+import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
+import { useSocket, SocketProvider } from './src/context/SocketContext';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
@@ -39,11 +43,17 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+
+  // Handle post click to open detail view
+  const handlePostClick = (post: any) => {
+    setViewParams({ postId: post.id });
+    setCurrentView('post-detail');
+  };
 
 
 
@@ -147,6 +157,7 @@ const MainApp = () => {
   const handleNodeSelect = (nodeId: string | null) => {
     setSelectedNodeId(nodeId);
     setSearchQuery(''); // Clear search when changing nodes
+    setCurrentView('feed'); // Always return to feed view when selecting a node
     // If selecting a node, we implicitly go to global mode for that node
     // But if we are in discovery/following, maybe we should stay there?
     // For now, let's reset to global when picking a node to be safe/simple
@@ -158,7 +169,16 @@ const MainApp = () => {
     setFeedMode(mode);
     setSelectedNodeId(null); // Clear node selection
     setSearchQuery('');
-    fetchFeed(null, mode);
+
+    // Navigate to proper screens for discovery/following, otherwise go to feed
+    if (mode === 'discovery') {
+      setCurrentView('discovery');
+    } else if (mode === 'following') {
+      setCurrentView('following');
+    } else {
+      setCurrentView('feed');
+      fetchFeed(null, mode);
+    }
   };
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -287,6 +307,7 @@ const MainApp = () => {
               onSavedClick={() => setCurrentView('saved')}
               onBetaClick={() => setCurrentView('beta')}
               onNewPostClick={() => setIsCreatePostOpen(true)}
+              onModerationClick={() => setCurrentView('moderation')}
             />
           </View>
         )}
@@ -347,6 +368,7 @@ const MainApp = () => {
                   // Optimistic update: remove post from feed
                   setPosts(prev => prev.filter(p => p.id !== postId));
                 }}
+                onPostClick={handlePostClick}
               />
             ) : currentView === 'profile' ? (
               <ProfileScreen
@@ -377,6 +399,14 @@ const MainApp = () => {
                 conversationId={viewParams?.conversationId}
                 recipient={viewParams?.recipient}
               />
+            ) : currentView === 'discovery' ? (
+              <DiscoveryScreen onBack={() => setCurrentView('feed')} onPostClick={handlePostClick} />
+            ) : currentView === 'following' ? (
+              <FollowingScreen onBack={() => setCurrentView('feed')} onPostClick={handlePostClick} />
+            ) : currentView === 'post-detail' ? (
+              <PostDetailScreen postId={viewParams?.postId} onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'moderation' ? (
+              <ModerationQueueScreen onBack={() => setCurrentView('feed')} />
             ) : null}
 
             {/* Mobile FAB */}
@@ -430,6 +460,10 @@ const MainApp = () => {
                 onBetaClick={() => {
                   setMenuVisible(false);
                   setCurrentView('beta');
+                }}
+                onModerationClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('moderation');
                 }}
               />
             </View>
@@ -540,8 +574,10 @@ export default function App() {
             />
           ) : null
         ) : (
-          // Main App
-          <MainApp />
+          // Main App - wrapped with SocketProvider for real-time features
+          <SocketProvider>
+            <MainApp />
+          </SocketProvider>
         )}
       </QueryClientProvider>
     </SafeAreaProvider>
