@@ -38,6 +38,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
         customCss: user?.customCss || '',
     });
 
+    // Sync formData when user changes (e.g. after login or refresh)
+    React.useEffect(() => {
+        if (user) {
+            setFormData({
+                bio: user.bio || '',
+                theme: user.theme || 'default',
+                era: user.era || 'Lurker Era',
+                avatar: user.avatar || '',
+                customCss: user.customCss || '',
+            });
+        }
+    }, [user?.id, user?.bio, user?.theme, user?.era, user?.avatar, user?.customCss]);
+
     const handleSave = async () => {
         setLoading(true);
         try {

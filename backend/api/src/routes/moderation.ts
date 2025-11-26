@@ -5,11 +5,18 @@ import { ModerationService } from '../services/moderationService.js';
 const moderationRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /mod/queue
   fastify.get('/queue', {
-    // schema: ... removed to avoid Zod/JSON schema mismatch
+    onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    // TODO: Add authentication/authorization check (moderator only)
-    // const user = request.user;
-    // if (!user.isModerator) throw new Error('Unauthorized');
+    // Check if user is a moderator
+    const userId = (request.user as { sub: string }).sub;
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isModerator: true }
+    });
+
+    if (!user?.isModerator) {
+      return reply.status(403).send({ error: 'Forbidden: Moderator access required' });
+    }
 
     const schema = z.object({
       nodeId: z.string().uuid().optional(),
@@ -35,10 +42,18 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
 
   // POST /mod/queue/:itemId/resolve
   fastify.post('/queue/:itemId/resolve', {
-    // schema: ... removed
+    onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    // TODO: Add authentication/authorization check
-    // const user = request.user;
+    // Check if user is a moderator
+    const userId = (request.user as { sub: string }).sub;
+    const user = await fastify.prisma.user.findUnique({
+      where: { id: userId },
+      select: { isModerator: true }
+    });
+
+    if (!user?.isModerator) {
+      return reply.status(403).send({ error: 'Forbidden: Moderator access required' });
+    }
 
     const paramsSchema = z.object({
       itemId: z.string().uuid(),
@@ -62,10 +77,7 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
     const { itemId } = parsedParams.data;
     const { action, reason } = parsedBody.data;
 
-    // Mock resolver ID for now if no auth
-    const resolverId = 'system'; // or request.user.id
-
-    await ModerationService.resolveItem(itemId, resolverId, action, reason);
+    await ModerationService.resolveItem(itemId, userId, action, reason);
 
     return { success: true };
   });

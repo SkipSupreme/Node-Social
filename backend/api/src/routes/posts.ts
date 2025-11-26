@@ -524,6 +524,81 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
+  // Edit post
+  fastify.patch(
+    '/:id',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { id } = request.params as { id: string };
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        content: z.string().min(1).max(6000).optional(),
+        title: z.string().min(1).max(300).optional(),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { content, title } = parsed.data;
+
+      const post = await fastify.prisma.post.findUnique({ where: { id } });
+
+      if (!post) {
+        return reply.status(404).send({ error: 'Post not found' });
+      }
+
+      // Check authorization (only author can edit)
+      if (post.authorId !== userId) {
+        return reply.status(403).send({ error: 'Forbidden' });
+      }
+
+      // Check if post is deleted
+      if (post.deletedAt) {
+        return reply.status(410).send({ error: 'Post has been deleted' });
+      }
+
+      const updateData: { content?: string; title?: string; updatedAt: Date } = {
+        updatedAt: new Date(),
+      };
+
+      if (content !== undefined) updateData.content = content;
+      if (title !== undefined) updateData.title = title;
+
+      const updatedPost = await fastify.prisma.post.update({
+        where: { id },
+        data: updateData,
+        include: {
+          author: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              firstName: true,
+              lastName: true,
+              avatar: true,
+              era: true,
+              connoisseurCred: true,
+            },
+          },
+          node: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
+          },
+        },
+      });
+
+      return reply.send(updatedPost);
+    }
+  );
+
   // Vote on a poll
   fastify.post(
     '/:id/vote',
@@ -580,7 +655,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
   // Toggle Save Post
-  fastify.post('/posts/:id/save', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.post('/:id/save', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const userId = (request.user as { sub: string }).sub;
 
@@ -602,7 +677,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Get Saved Posts
-  fastify.get('/posts/saved', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get('/saved', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const userId = (request.user as { sub: string }).sub;
     const savedPosts = await fastify.prisma.savedPost.findMany({
       where: { userId },
@@ -633,7 +708,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Feed Explain Endpoint (Phase 5)
-  fastify.get('/posts/:id/explain', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+  fastify.get('/:id/explain', { onRequest: [fastify.authenticate] }, async (request, reply) => {
     const { id } = request.params as { id: string };
     const userId = (request.user as { sub: string }).sub;
 

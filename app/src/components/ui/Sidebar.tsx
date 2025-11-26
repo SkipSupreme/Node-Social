@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark } from './Icons';
 import { COLORS } from '../../constants/theme';
@@ -22,6 +22,82 @@ interface SidebarProps {
     onModerationClick?: () => void;
     currentView?: string;
 }
+
+// Animated Logo Component
+const PulsingLogo = () => {
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+    const glowAnim = useRef(new Animated.Value(0.4)).current;
+
+    useEffect(() => {
+        // Pulse animation (scale up and down)
+        const pulseLoop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1.15,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+            ])
+        );
+
+        // Glow animation (opacity pulse)
+        const glowLoop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(glowAnim, {
+                    toValue: 0.8,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(glowAnim, {
+                    toValue: 0.4,
+                    duration: 1500,
+                    useNativeDriver: true,
+                }),
+            ])
+        );
+
+        pulseLoop.start();
+        glowLoop.start();
+
+        return () => {
+            pulseLoop.stop();
+            glowLoop.stop();
+        };
+    }, []);
+
+    return (
+        <View style={styles.logoIcon}>
+            {/* Glow effect layer - just for the icon */}
+            <Animated.View
+                style={[
+                    styles.logoGlow,
+                    {
+                        opacity: glowAnim,
+                        transform: [{ scale: pulseAnim }],
+                    },
+                ]}
+            >
+                <Hexagon size={20} color={COLORS.node.accent} />
+            </Animated.View>
+            {/* Main icon */}
+            <Animated.View
+                style={[
+                    styles.logoIconInner,
+                    {
+                        transform: [{ scale: pulseAnim }],
+                    },
+                ]}
+            >
+                <Hexagon size={20} color="#fff" />
+            </Animated.View>
+        </View>
+    );
+};
 
 export const Sidebar = ({
     nodes,
@@ -66,9 +142,7 @@ export const Sidebar = ({
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.logoRow}>
-                    <View style={styles.logoIcon}>
-                        <Hexagon size={20} color="#fff" />
-                    </View>
+                    <PulsingLogo />
                     <Text style={styles.logoText}>Node<Text style={{ color: COLORS.node.accent }}>Social</Text></Text>
                 </View>
 
@@ -216,6 +290,17 @@ const styles = StyleSheet.create({
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
     logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     logoIcon: { width: 32, height: 32, backgroundColor: COLORS.node.accent, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+    logoGlow: {
+        position: 'absolute',
+        shadowColor: COLORS.node.accent,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 1,
+        shadowRadius: 8,
+        elevation: 10,
+    },
+    logoIconInner: {
+        position: 'absolute',
+    },
     logoText: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
     closeBtn: { padding: 8 },
     searchContainer: { marginHorizontal: 16, marginBottom: 24, position: 'relative' },

@@ -119,7 +119,6 @@ export const VibeRadialWheel = ({
         // Only submit if there's at least one reaction
         const hasAnyReaction = Object.values(finalIntensities).some(v => v > 0);
         if (!hasAnyReaction) {
-            console.log('[VibeRadialWheel] No reaction to submit');
             return;
         }
 
@@ -143,19 +142,12 @@ export const VibeRadialWheel = ({
                 intensityData.nodeId = nodeId;
             }
 
-            console.log(`[VibeRadialWheel] Submitting ${contentType} reaction:`, {
-                postId,
-                nodeId: intensityData.nodeId || '(will default to global)',
-                intensities: intensityData.intensities
-            });
-
             let result;
             if (contentType === 'comment') {
                 result = await createCommentReaction(postId, intensityData);
             } else {
                 result = await createPostReaction(postId, intensityData);
             }
-            console.log(`[VibeRadialWheel] Reaction submitted successfully:`, result);
             onComplete?.(finalIntensities);
         } catch (error: any) {
             console.error(`[VibeRadialWheel] FAILED to submit ${contentType} reaction:`, error);
@@ -319,7 +311,7 @@ export const VibeRadialWheel = ({
                         </>
                     ) : (
                         <>
-                            <Zap size={compact ? 16 : 20} color={COLORS.node.muted} />
+                            <Hexagon size={compact ? 16 : 20} color={COLORS.node.muted} />
                             {!compact && <Text style={styles.triggerText}>{buttonLabel}</Text>}
                         </>
                     )}

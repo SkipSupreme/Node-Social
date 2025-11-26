@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share } from 'react-native';
-import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff } from './Icons';
+import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2 } from './Icons';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost } from '../../lib/api';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { socketManager } from '../../lib/socket';
@@ -188,13 +188,14 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 interface PostCardProps {
     post: UIPost;
     currentUser?: any;
-    onPostAction?: (postId: string, action: 'mute' | 'block') => void;
+    onPostAction?: (postId: string, action: 'mute' | 'block' | 'delete') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPress?: (post: UIPost) => void;
+    onEdit?: (post: UIPost) => void;
     globalNodeId?: string;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, globalNodeId }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, globalNodeId }: PostCardProps) => {
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -203,7 +204,11 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     const [commentText, setCommentText] = useState('');
     const [replyingTo, setReplyingTo] = useState<UIComment | null>(null);
     const [submitting, setSubmitting] = useState(false);
+    const [isDeleted, setIsDeleted] = useState(false);
     const eraStyle = ERAS[post.author.era] || ERAS['Default'];
+
+    // Check if current user is the author
+    const isOwnPost = currentUser?.id === post.author.id;
 
     const [localPoll, setLocalPoll] = useState(post.poll);
     const [localComments, setLocalComments] = useState<UIComment[]>(post.comments || []);
@@ -303,11 +308,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 // Update engagement score or other metrics if we displayed them
             }
             if (data.vibeAggregate) {
-                // We could update a "live" vibe count here if we had one
-                // For now, we might just trigger a refresh or update a specific field
-                // But since we don't display the aggregate counts in the card yet (except maybe via VibeReactionButton?)
-                // Let's just log it for verification
-                console.log('Real-time update for post:', post.id, data);
+                // Real-time vibe aggregate updates - can be used to update live counts
             }
         });
 
@@ -315,6 +316,9 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             unsubscribe?.();
         };
     }, [post.id]);
+
+    // Don't render if deleted (after all hooks)
+    if (isDeleted) return null;
 
     const handleVote = async (optionId: string) => {
         if (!localPoll) return;
@@ -383,6 +387,22 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         } catch (error) {
             console.error('Failed to block user:', error);
         }
+    };
+
+    const handleDelete = async () => {
+        try {
+            await deletePost(post.id);
+            setMenuVisible(false);
+            setIsDeleted(true);
+            onPostAction && onPostAction(post.id, 'delete');
+        } catch (error) {
+            console.error('Failed to delete post:', error);
+        }
+    };
+
+    const handleEdit = () => {
+        setMenuVisible(false);
+        onEdit && onEdit(post);
     };
 
     const handleSubmitComment = async () => {
@@ -656,14 +676,29 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
                     <View style={styles.menuContainer}>
-                        <TouchableOpacity style={styles.menuItem} onPress={handleMute}>
-                            <BellOff size={20} color={COLORS.node.text} />
-                            <Text style={styles.menuText}>Mute @{post.author.username}</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.menuItem} onPress={handleBlock}>
-                            <Ban size={20} color="#ef4444" />
-                            <Text style={[styles.menuText, { color: '#ef4444' }]}>Block @{post.author.username}</Text>
-                        </TouchableOpacity>
+                        {isOwnPost ? (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
+                                    <Edit2 size={20} color={COLORS.node.text} />
+                                    <Text style={styles.menuText}>Edit Post</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
+                                    <Trash2 size={20} color="#ef4444" />
+                                    <Text style={[styles.menuText, { color: '#ef4444' }]}>Delete Post</Text>
+                                </TouchableOpacity>
+                            </>
+                        ) : (
+                            <>
+                                <TouchableOpacity style={styles.menuItem} onPress={handleMute}>
+                                    <BellOff size={20} color={COLORS.node.text} />
+                                    <Text style={styles.menuText}>Mute @{post.author.username}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuItem} onPress={handleBlock}>
+                                    <Ban size={20} color="#ef4444" />
+                                    <Text style={[styles.menuText, { color: '#ef4444' }]}>Block @{post.author.username}</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
                         <TouchableOpacity style={styles.menuItem} onPress={() => setMenuVisible(false)}>
                             <X size={20} color={COLORS.node.muted} />
                             <Text style={styles.menuText}>Cancel</Text>
@@ -678,16 +713,17 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
 interface FeedProps {
     posts: UIPost[];
     currentUser?: any;
-    onPostAction?: (postId: string, action: 'mute' | 'block') => void;
+    onPostAction?: (postId: string, action: 'mute' | 'block' | 'delete') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPostClick?: (post: UIPost) => void;
+    onEdit?: (post: UIPost) => void;
     globalNodeId?: string;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, globalNodeId }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, globalNodeId }: FeedProps) => {
     return (
         <ScrollView style={{ flex: 1, backgroundColor: COLORS.node.bg }} contentContainerStyle={{ paddingBottom: 80, padding: 8 }}>
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} globalNodeId={globalNodeId} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} globalNodeId={globalNodeId} />)}
         </ScrollView>
     );
 };

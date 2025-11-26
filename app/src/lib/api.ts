@@ -266,7 +266,13 @@ export function register(
   });
 }
 
-export function updateProfile(data: { bio?: string; avatar?: string; theme?: string }) {
+export function updateProfile(data: {
+  bio?: string;
+  avatar?: string;
+  theme?: string;
+  era?: string;
+  customCss?: string;
+}) {
   return request<{ user: AuthResponse["user"] }>("/users/me", {
     method: "PUT",
     body: JSON.stringify(data),
@@ -642,7 +648,6 @@ export const searchPosts = async (query: string, limit = 20, offset = 0) => {
   });
 };
 // Saved Posts
-// Saved Posts
 export function savePost(postId: string) {
   return request<{ saved: boolean }>(`/posts/${postId}/save`, {
     method: "POST",
@@ -652,6 +657,20 @@ export function savePost(postId: string) {
 export function getSavedPosts() {
   return request<{ posts: Post[] }>("/posts/saved", {
     method: "GET",
+  });
+}
+
+// Post Management
+export function deletePost(postId: string) {
+  return request<{ message: string }>(`/posts/${postId}`, {
+    method: "DELETE",
+  });
+}
+
+export function editPost(postId: string, data: { content?: string; title?: string }) {
+  return request<Post>(`/posts/${postId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
   });
 }
 
