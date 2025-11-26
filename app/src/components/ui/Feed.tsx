@@ -4,6 +4,7 @@ import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHoriz
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api } from '../../lib/api';
 import { VibeRadialWheel } from '../VibeRadialWheel';
+import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { socketManager } from '../../lib/socket';
 
 export interface UIAuthor {
@@ -63,6 +64,7 @@ export interface UIPost {
         votes?: { optionId: string }[];
     };
     myReaction?: { [key: string]: number } | null;
+    vibeAggregate?: VibeAggregateData | null;
 }
 
 interface CommentNodeProps {
@@ -79,11 +81,8 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
     const connectorColor = SCOPE_COLORS[comment.depth % SCOPE_COLORS.length];
     const eraStyle = ERAS[comment.author.era] || ERAS['Default'];
 
-    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       !!! GOD MATH - DO NOT TOUCH UNDER ANY CIRCUMSTANCES WITHOUT PERMISSION !!!
-       !!! THIS GEOMETRY IS FIXED AND DIVINE. DO NOT REFACTOR.                !!!
-       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! */
-    const lastChildHeight = isFirst ? 11 : 7; // *** THIS HAS TO BE FUCKING 7PX ***
+
+    const lastChildHeight = isFirst ? 11 : 7;
 
     return (
         <View style={{ position: 'relative' }}>
@@ -106,7 +105,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
                             top: isFirst ? 0 : -2,
                             height: isLast ? lastChildHeight : '100%',
                             // Ensure full connectivity for non-last items
-                            bottom: isLast ? undefined : -8
+                            bottom: isLast ? undefined : -7
                         }
                     ]} />
                 </>
@@ -190,9 +189,10 @@ interface PostCardProps {
     onPostAction?: (postId: string, action: 'mute' | 'block') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPress?: (post: UIPost) => void;
+    globalNodeId?: string;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, globalNodeId }: PostCardProps) => {
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -514,9 +514,33 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 <View style={styles.cardActions}>
                     <VibeRadialWheel
                         postId={post.id}
-                        nodeId={post.node.id || 'global'}
+                        nodeId={post.node.id || globalNodeId}
                         initialReaction={post.myReaction}
                         buttonLabel="Vibe"
+                        onComplete={(intensities) => {
+                            // Update local vibeAggregate optimistically
+                            // Convert 0-100 intensities to sum format for display
+                            setPost(prev => ({
+                                ...prev,
+                                myReaction: {
+                                    insightful: intensities.Insightful / 100,
+                                    joy: intensities.Joy / 100,
+                                    fire: intensities.Fire / 100,
+                                    support: intensities.Support / 100,
+                                    shock: intensities.Shock / 100,
+                                    questionable: intensities.Questionable / 100,
+                                },
+                                vibeAggregate: {
+                                    ...prev.vibeAggregate,
+                                    insightfulSum: (prev.vibeAggregate?.insightfulSum || 0) + intensities.Insightful / 100,
+                                    joySum: (prev.vibeAggregate?.joySum || 0) + intensities.Joy / 100,
+                                    fireSum: (prev.vibeAggregate?.fireSum || 0) + intensities.Fire / 100,
+                                    supportSum: (prev.vibeAggregate?.supportSum || 0) + intensities.Support / 100,
+                                    shockSum: (prev.vibeAggregate?.shockSum || 0) + intensities.Shock / 100,
+                                    questionableSum: (prev.vibeAggregate?.questionableSum || 0) + intensities.Questionable / 100,
+                                }
+                            }));
+                        }}
                     />
 
                     <TouchableOpacity
@@ -538,6 +562,9 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     </TouchableOpacity>
                 </View>
             </TouchableOpacity>
+
+            {/* Vibe Bar - Hugs bottom of card, shows aggregate reactions */}
+            <VibeBar vibeAggregate={post.vibeAggregate} height={5} />
 
             {showComments && (
                 <View style={styles.commentsSection}>
@@ -625,12 +652,13 @@ interface FeedProps {
     onPostAction?: (postId: string, action: 'mute' | 'block') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPostClick?: (post: UIPost) => void;
+    globalNodeId?: string;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, globalNodeId }: FeedProps) => {
     return (
         <ScrollView style={{ flex: 1, backgroundColor: COLORS.node.bg }} contentContainerStyle={{ paddingBottom: 80, padding: 8 }}>
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} globalNodeId={globalNodeId} />)}
         </ScrollView>
     );
 };

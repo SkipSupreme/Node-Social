@@ -108,22 +108,24 @@ const MainApp = () => {
       const data = await getFeed(params);
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
-        node: { name: p.node?.name || 'Global', color: '#6366f1' },
+        node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
         author: {
           id: p.author.id,
           username: p.author.username || 'User',
-          avatar: p.author.avatar, // Use backend avatar
+          avatar: p.author.avatar,
           era: p.author.era || 'Lurker Era',
           connoisseurCred: p.author.connoisseurCred || 0
         },
         title: p.title || 'Untitled Post',
         content: p.content,
         commentCount: p.commentCount,
-        createdAt: p.createdAt, // Pass original createdAt
+        createdAt: p.createdAt,
         expertGated: false,
         vibes: [],
-        linkMeta: p.linkMeta, // Pass link metadata
-        poll: p.poll, // Pass poll data
+        linkMeta: p.linkMeta,
+        poll: p.poll,
+        myReaction: p.myReaction,
+        vibeAggregate: p.vibeAggregate,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -193,7 +195,7 @@ const MainApp = () => {
       const data = await searchPosts(searchQuery);
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
-        node: { name: p.node?.name || 'Global', color: '#6366f1' },
+        node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
         author: {
           id: p.author.id,
           username: p.author.username || 'User',
@@ -209,6 +211,8 @@ const MainApp = () => {
         vibes: [],
         linkMeta: p.linkMeta,
         poll: p.poll,
+        myReaction: p.myReaction,
+        vibeAggregate: p.vibeAggregate,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -247,7 +251,7 @@ const MainApp = () => {
       // We need to map the raw post to the UI format
       const mappedPost = {
         id: newPost.id,
-        node: { name: newPost.node?.name || 'Global', color: '#6366f1' },
+        node: { id: newPost.node?.id, name: newPost.node?.name || 'Global', color: '#6366f1' },
         author: {
           id: newPost.author.id,
           username: newPost.author.username || 'User',
@@ -263,6 +267,8 @@ const MainApp = () => {
         vibes: [],
         linkMeta: newPost.linkMeta,
         poll: newPost.poll,
+        myReaction: null,
+        vibeAggregate: null, // New posts start with no aggregate
         comments: []
       };
 
@@ -369,6 +375,7 @@ const MainApp = () => {
                   setPosts(prev => prev.filter(p => p.id !== postId));
                 }}
                 onPostClick={handlePostClick}
+                globalNodeId={nodes.find(n => n.slug === 'global')?.id}
               />
             ) : currentView === 'profile' ? (
               <ProfileScreen

@@ -38,8 +38,17 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, nodeId, title, linkUrl, poll } = parsed.data;
+      const { content, nodeId: providedNodeId, title, linkUrl, poll } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
+
+      // Default to global node if no nodeId provided
+      let nodeId = providedNodeId;
+      if (!nodeId) {
+        const globalNode = await fastify.prisma.node.findUnique({ where: { slug: 'global' } });
+        if (globalNode) {
+          nodeId = globalNode.id;
+        }
+      }
 
       // Check if node exists if nodeId is provided
       if (nodeId) {

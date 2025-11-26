@@ -70,13 +70,15 @@ export const VibeRadialWheel = ({
     const [drag, setDrag] = useState({ x: 0, y: 0 });
     const [intensities, setIntensities] = useState<Record<string, number>>(() => {
         if (initialReaction) {
+            // Convert from 0-1 (API) to 0-100 (display) if values are small
+            const scale = (v: number) => v <= 1 ? v * 100 : v;
             return {
-                Insightful: initialReaction.insightful || 0,
-                Joy: initialReaction.joy || 0,
-                Fire: initialReaction.fire || 0,
-                Support: initialReaction.support || 0,
-                Shock: initialReaction.shock || 0,
-                Questionable: initialReaction.questionable || 0,
+                Insightful: scale(initialReaction.insightful || 0),
+                Joy: scale(initialReaction.joy || 0),
+                Fire: scale(initialReaction.fire || 0),
+                Support: scale(initialReaction.support || 0),
+                Shock: scale(initialReaction.shock || 0),
+                Questionable: scale(initialReaction.questionable || 0),
             };
         }
         return { Insightful: 0, Joy: 0, Fire: 0, Support: 0, Shock: 0, Questionable: 0 };
@@ -116,16 +118,25 @@ export const VibeRadialWheel = ({
         const hasAnyReaction = Object.values(finalIntensities).some(v => v > 0);
         if (!hasAnyReaction) return;
 
+        // nodeId must be a valid UUID, skip if 'global' or missing
+        const isValidUUID = nodeId && nodeId !== 'global' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nodeId);
+        if (!isValidUUID) {
+            console.warn('Skipping reaction: no valid nodeId for post', postId);
+            onComplete?.(finalIntensities);
+            return;
+        }
+
         try {
+            // Convert intensities from 0-100 to 0-1 range for API
             await createPostReaction(postId, {
                 nodeId: nodeId,
                 intensities: {
-                    insightful: finalIntensities.Insightful,
-                    joy: finalIntensities.Joy,
-                    fire: finalIntensities.Fire,
-                    support: finalIntensities.Support,
-                    shock: finalIntensities.Shock,
-                    questionable: finalIntensities.Questionable,
+                    insightful: finalIntensities.Insightful / 100,
+                    joy: finalIntensities.Joy / 100,
+                    fire: finalIntensities.Fire / 100,
+                    support: finalIntensities.Support / 100,
+                    shock: finalIntensities.Shock / 100,
+                    questionable: finalIntensities.Questionable / 100,
                 }
             });
             onComplete?.(finalIntensities);
@@ -134,70 +145,114 @@ export const VibeRadialWheel = ({
         }
     };
 
+    // Shared logic for handling move events
+    const handleMoveLogic = (pageX: number, pageY: number) => {
+        setDrag({ x: pageX, y: pageY });
+
+        const dx = pageX - centerRef.current.x;
+        const dy = pageY - centerRef.current.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        let angle = Math.atan2(dy, dx);
+        if (angle < 0) angle += 2 * Math.PI;
+
+        const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+        const startOffset = -Math.PI / 2 - sliceAngle / 2;
+
+        let relativeAngle = angle - startOffset;
+        if (relativeAngle < 0) relativeAngle += 2 * Math.PI;
+
+        const activeIndex = Math.floor(relativeAngle / sliceAngle) % NUM_REACTIONS;
+        const activeVibeId = VIBES[activeIndex].id;
+
+        let newIntensity = 0;
+        if (distance > MIN_RADIUS) {
+            const rawIntensity = (distance - MIN_RADIUS) / (MAX_RADIUS - MIN_RADIUS);
+            newIntensity = Math.max(0, Math.min(rawIntensity * 100, 100));
+        }
+
+        setIntensities(prev => ({
+            ...prev,
+            [activeVibeId]: newIntensity
+        }));
+    };
+
+    // Track if we're currently dragging (for web mouse events)
+    const isDraggingRef = useRef(false);
+    const latestIntensitiesRef = useRef(intensities);
+
+    // Keep ref in sync with state
+    useEffect(() => {
+        latestIntensitiesRef.current = intensities;
+    }, [intensities]);
+
+    // Web-specific mouse event handlers
+    useEffect(() => {
+        if (Platform.OS !== 'web') return;
+
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDraggingRef.current) return;
+            handleMoveLogic(e.pageX, e.pageY);
+        };
+
+        const handleMouseUp = () => {
+            if (!isDraggingRef.current) return;
+            isDraggingRef.current = false;
+            setIsActive(false);
+            handleSubmit(latestIntensitiesRef.current);
+        };
+
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+
+        return () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, []);
+
+    const handleWebMouseDown = (e: any) => {
+        if (Platform.OS !== 'web') return;
+        e.preventDefault();
+        const pageX = e.nativeEvent?.pageX ?? e.pageX;
+        const pageY = e.nativeEvent?.pageY ?? e.pageY;
+
+        centerRef.current = { x: pageX, y: pageY };
+        setCenter({ x: pageX, y: pageY });
+        setDrag({ x: pageX, y: pageY });
+        setIsActive(true);
+        isDraggingRef.current = true;
+    };
+
     const panResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: () => true,
+            onStartShouldSetPanResponder: () => Platform.OS !== 'web',
+            onMoveShouldSetPanResponder: () => Platform.OS !== 'web',
             onPanResponderGrant: (evt) => {
+                if (Platform.OS === 'web') return;
                 const { pageX, pageY } = evt.nativeEvent;
 
-                let localX = pageX;
-                let localY = pageY;
-
-                if (Platform.OS !== 'web') {
-                    localX = pageX - offset.x;
-                    localY = pageY - offset.y;
-                }
+                const localX = pageX - offset.x;
+                const localY = pageY - offset.y;
 
                 centerRef.current = { x: localX, y: localY };
                 setCenter({ x: localX, y: localY });
                 setDrag({ x: localX, y: localY });
                 setIsActive(true);
-                // Don't reset intensities - keep previous reactions
             },
             onPanResponderMove: (evt) => {
+                if (Platform.OS === 'web') return;
                 const { pageX, pageY } = evt.nativeEvent;
 
-                let localX = pageX;
-                let localY = pageY;
+                const localX = pageX - offset.x;
+                const localY = pageY - offset.y;
 
-                if (Platform.OS !== 'web') {
-                    localX = pageX - offset.x;
-                    localY = pageY - offset.y;
-                }
-
-                setDrag({ x: localX, y: localY });
-
-                const dx = localX - centerRef.current.x;
-                const dy = localY - centerRef.current.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
-
-                let angle = Math.atan2(dy, dx);
-                if (angle < 0) angle += 2 * Math.PI;
-
-                const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
-                const startOffset = -Math.PI / 2 - sliceAngle / 2;
-
-                let relativeAngle = angle - startOffset;
-                if (relativeAngle < 0) relativeAngle += 2 * Math.PI;
-
-                const activeIndex = Math.floor(relativeAngle / sliceAngle) % NUM_REACTIONS;
-                const activeVibeId = VIBES[activeIndex].id;
-
-                let newIntensity = 0;
-                if (distance > MIN_RADIUS) {
-                    const rawIntensity = (distance - MIN_RADIUS) / (MAX_RADIUS - MIN_RADIUS);
-                    newIntensity = Math.max(0, Math.min(rawIntensity * 100, 100));
-                }
-
-                setIntensities(prev => ({
-                    ...prev,
-                    [activeVibeId]: newIntensity
-                }));
+                handleMoveLogic(localX, localY);
             },
             onPanResponderRelease: () => {
+                if (Platform.OS === 'web') return;
                 setIsActive(false);
-                handleSubmit(intensities);
+                handleSubmit(latestIntensitiesRef.current);
             },
             onPanResponderTerminate: () => {
                 setIsActive(false);
@@ -212,7 +267,11 @@ export const VibeRadialWheel = ({
             collapsable={false}
         >
             {/* Trigger Button */}
-            <View {...panResponder.panHandlers}>
+            <View
+                {...panResponder.panHandlers}
+                // @ts-ignore - web-specific prop
+                onMouseDown={Platform.OS === 'web' ? handleWebMouseDown : undefined}
+            >
                 <TouchableOpacity
                     activeOpacity={0.8}
                     style={[
@@ -239,9 +298,6 @@ export const VibeRadialWheel = ({
                 <Modal transparent visible={isActive} animationType="none">
                     <View style={styles.overlay} pointerEvents="box-none">
                         <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-                            {/* Background Dimmer */}
-                            <Circle cx={center.x} cy={center.y} r={MAX_RADIUS + 40} fill="black" fillOpacity={0.5} />
-
                             {/* Connection Line */}
                             <Line
                                 x1={center.x}
