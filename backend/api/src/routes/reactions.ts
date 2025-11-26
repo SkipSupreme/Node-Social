@@ -44,7 +44,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const schema = z.object({
-        nodeId: z.string().uuid(), // Required: which Node's context
+        nodeId: z.string().uuid().optional(), // Optional: defaults to global node
         intensities: z.record(z.string(), z.number().min(0).max(1)), // Vibe Vector intensities
       });
 
@@ -54,7 +54,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { postId } = request.params as { postId: string };
-      const { nodeId, intensities } = parsed.data;
+      let { nodeId, intensities } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Validate intensities
@@ -69,6 +69,15 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!post || post.deletedAt) {
         return reply.status(404).send({ error: 'Post not found' });
+      }
+
+      // If no nodeId provided, use global node
+      if (!nodeId) {
+        const globalNode = await fastify.prisma.node.findUnique({ where: { slug: 'global' } });
+        if (!globalNode) {
+          return reply.status(500).send({ error: 'Global node not configured' });
+        }
+        nodeId = globalNode.id;
       }
 
       // Verify node exists
@@ -126,7 +135,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const schema = z.object({
-        nodeId: z.string().uuid(),
+        nodeId: z.string().uuid().optional(), // Optional: defaults to global node
         intensities: z.record(z.string(), z.number().min(0).max(1)),
       });
 
@@ -136,7 +145,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { commentId } = request.params as { commentId: string };
-      const { nodeId, intensities } = parsed.data;
+      let { nodeId, intensities } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Validate intensities
@@ -151,6 +160,15 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
 
       if (!comment || comment.deletedAt) {
         return reply.status(404).send({ error: 'Comment not found' });
+      }
+
+      // If no nodeId provided, use global node
+      if (!nodeId) {
+        const globalNode = await fastify.prisma.node.findUnique({ where: { slug: 'global' } });
+        if (!globalNode) {
+          return reply.status(500).send({ error: 'Global node not configured' });
+        }
+        nodeId = globalNode.id;
       }
 
       // Verify node exists

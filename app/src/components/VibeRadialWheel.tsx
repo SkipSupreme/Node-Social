@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Hexagon, Lightbulb, Smile, Flame, Heart, Zap, HelpCircle } from './ui/Icons';
 import { COLORS } from '../constants/theme';
-import { createPostReaction } from '../lib/api';
+import { createPostReaction, createCommentReaction } from '../lib/api';
 
 // --- Config ---
 const BUTTON_RADIUS = 30;
@@ -55,6 +55,7 @@ interface VibeRadialWheelProps {
     onComplete?: (intensities: Record<string, number>) => void;
     buttonLabel?: string;
     compact?: boolean;
+    contentType?: 'post' | 'comment';
 }
 
 export const VibeRadialWheel = ({
@@ -63,7 +64,8 @@ export const VibeRadialWheel = ({
     initialReaction,
     onComplete,
     buttonLabel = 'Vibe Check',
-    compact = false
+    compact = false,
+    contentType = 'post'
 }: VibeRadialWheelProps) => {
     const [isActive, setIsActive] = useState(false);
     const [center, setCenter] = useState({ x: 0, y: 0 });
@@ -116,20 +118,16 @@ export const VibeRadialWheel = ({
     const handleSubmit = async (finalIntensities: Record<string, number>) => {
         // Only submit if there's at least one reaction
         const hasAnyReaction = Object.values(finalIntensities).some(v => v > 0);
-        if (!hasAnyReaction) return;
-
-        // nodeId must be a valid UUID, skip if 'global' or missing
-        const isValidUUID = nodeId && nodeId !== 'global' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nodeId);
-        if (!isValidUUID) {
-            console.warn('Skipping reaction: no valid nodeId for post', postId);
-            onComplete?.(finalIntensities);
+        if (!hasAnyReaction) {
+            console.log('[VibeRadialWheel] No reaction to submit');
             return;
         }
 
         try {
             // Convert intensities from 0-100 to 0-1 range for API
-            await createPostReaction(postId, {
-                nodeId: nodeId,
+            // Only include nodeId if it's a valid UUID (backend will default to global otherwise)
+            const isValidUUID = nodeId && nodeId !== 'global' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nodeId);
+            const intensityData: any = {
                 intensities: {
                     insightful: finalIntensities.Insightful / 100,
                     joy: finalIntensities.Joy / 100,
@@ -138,10 +136,33 @@ export const VibeRadialWheel = ({
                     shock: finalIntensities.Shock / 100,
                     questionable: finalIntensities.Questionable / 100,
                 }
+            };
+
+            // Only include nodeId if valid, otherwise backend defaults to global
+            if (isValidUUID) {
+                intensityData.nodeId = nodeId;
+            }
+
+            console.log(`[VibeRadialWheel] Submitting ${contentType} reaction:`, {
+                postId,
+                nodeId: intensityData.nodeId || '(will default to global)',
+                intensities: intensityData.intensities
             });
+
+            let result;
+            if (contentType === 'comment') {
+                result = await createCommentReaction(postId, intensityData);
+            } else {
+                result = await createPostReaction(postId, intensityData);
+            }
+            console.log(`[VibeRadialWheel] Reaction submitted successfully:`, result);
             onComplete?.(finalIntensities);
-        } catch (error) {
-            console.error('Failed to submit reaction:', error);
+        } catch (error: any) {
+            console.error(`[VibeRadialWheel] FAILED to submit ${contentType} reaction:`, error);
+            // Show alert so user sees the error on mobile
+            if (typeof alert !== 'undefined') {
+                alert(`Failed to save reaction: ${error?.message || error}`);
+            }
         }
     };
 
@@ -226,14 +247,21 @@ export const VibeRadialWheel = ({
 
     const panResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => Platform.OS !== 'web',
-            onMoveShouldSetPanResponder: () => Platform.OS !== 'web',
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: () => true,
             onPanResponderGrant: (evt) => {
-                if (Platform.OS === 'web') return;
+                // Skip if already dragging via mouse (desktop web)
+                if (isDraggingRef.current) return;
+
                 const { pageX, pageY } = evt.nativeEvent;
 
-                const localX = pageX - offset.x;
-                const localY = pageY - offset.y;
+                // On native, adjust for container offset
+                let localX = pageX;
+                let localY = pageY;
+                if (Platform.OS !== 'web') {
+                    localX = pageX - offset.x;
+                    localY = pageY - offset.y;
+                }
 
                 centerRef.current = { x: localX, y: localY };
                 setCenter({ x: localX, y: localY });
@@ -241,16 +269,21 @@ export const VibeRadialWheel = ({
                 setIsActive(true);
             },
             onPanResponderMove: (evt) => {
-                if (Platform.OS === 'web') return;
+                if (isDraggingRef.current) return;
+
                 const { pageX, pageY } = evt.nativeEvent;
 
-                const localX = pageX - offset.x;
-                const localY = pageY - offset.y;
+                let localX = pageX;
+                let localY = pageY;
+                if (Platform.OS !== 'web') {
+                    localX = pageX - offset.x;
+                    localY = pageY - offset.y;
+                }
 
                 handleMoveLogic(localX, localY);
             },
             onPanResponderRelease: () => {
-                if (Platform.OS === 'web') return;
+                if (isDraggingRef.current) return;
                 setIsActive(false);
                 handleSubmit(latestIntensitiesRef.current);
             },

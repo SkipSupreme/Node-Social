@@ -72,9 +72,10 @@ interface CommentNodeProps {
     isLast?: boolean;
     isFirst?: boolean;
     onReply?: (comment: UIComment) => void;
+    globalNodeId?: string;
 }
 
-const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: CommentNodeProps) => {
+const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, globalNodeId }: CommentNodeProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const incomingColor = SCOPE_COLORS[(comment.depth - 1) % SCOPE_COLORS.length];
@@ -82,41 +83,30 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
     const eraStyle = ERAS[comment.author.era] || ERAS['Default'];
 
 
-    const lastChildHeight = isFirst ? 11 : 7;
+    const lastChildHeight = isFirst ? 14 : 10;
 
     return (
         <View style={{ position: 'relative' }}>
 
-            {/* --- CHILD CONNECTORS --- */}
+            {/* Child Connectors */}
             {comment.depth > 0 && (
                 <>
-                    {/* 
-             !!! GOD MATH: ELBOW LEFT -21 !!! 
-          */}
                     <View style={[styles.connectorElbow, { borderColor: incomingColor }]} />
-
-                    {/* 
-             !!! GOD MATH: SPINE LEFT -21 !!! 
-          */}
                     <View style={[
                         styles.connectorSpine,
                         {
                             backgroundColor: incomingColor,
-                            top: isFirst ? 0 : -2,
+                            top: isFirst ? -3 : -5,
                             height: isLast ? lastChildHeight : '100%',
-                            // Ensure full connectivity for non-last items
-                            bottom: isLast ? undefined : -7
+                            bottom: isLast ? undefined : -5
                         }
                     ]} />
                 </>
             )}
 
-            {/* --- CONTENT CONTAINER --- */}
+            {/* Content Container */}
             <View style={{ position: 'relative', zIndex: 10 }}>
-
-                {/* 
-            !!! GOD MATH: BRIDGE LEFT 7 !!! 
-        */}
+                {/* Bridge line connecting to replies */}
                 {!isCollapsed && comment.replies && comment.replies.length > 0 && (
                     <View style={[styles.bridgeLine, { backgroundColor: connectorColor }]} />
                 )}
@@ -124,7 +114,15 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
                 {/* Header */}
                 <View style={styles.headerRow}>
                     <View style={styles.avatarSmallContainer}>
-                        <Image source={{ uri: comment.author.avatar }} style={styles.avatarImage} />
+                        {comment.author.avatar ? (
+                            <Image source={{ uri: comment.author.avatar }} style={styles.avatarImage} />
+                        ) : (
+                            <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
+                                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+                                    {comment.author.username?.[0]?.toUpperCase() || '?'}
+                                </Text>
+                            </View>
+                        )}
                     </View>
 
                     <View style={styles.userInfoRow}>
@@ -152,10 +150,13 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
                         <Text style={styles.commentText}>{comment.content}</Text>
 
                         <View style={styles.actionRow}>
-                            <TouchableOpacity style={styles.actionBtnText}>
-                                <Zap size={12} color={COLORS.node.muted} />
-                                <Text style={styles.actionLabel}>Vibe</Text>
-                            </TouchableOpacity>
+                            <VibeRadialWheel
+                                postId={comment.id}
+                                nodeId={globalNodeId}
+                                buttonLabel=""
+                                compact={true}
+                                contentType="comment"
+                            />
                             <TouchableOpacity style={styles.actionBtnText} onPress={() => onReply && onReply(comment)}>
                                 <Text style={styles.actionLabel}>Reply</Text>
                             </TouchableOpacity>
@@ -164,7 +165,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
                 )}
             </View>
 
-            {/* REPLIES: Padding Left 32 (Matches Web: pl-8) */}
+            {/* Replies */}
             {!isCollapsed && comment.replies && comment.replies.length > 0 && (
                 <View style={{ paddingLeft: 32, gap: 8 }}>
                     {comment.replies.map((reply, idx) => (
@@ -174,6 +175,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply }: Comm
                             isFirst={idx === 0}
                             isLast={idx === (comment.replies?.length || 0) - 1}
                             onReply={onReply}
+                            globalNodeId={globalNodeId}
                         />
                     ))}
                 </View>
@@ -230,22 +232,32 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     },
                     content: c.content,
                     timestamp: new Date(c.createdAt),
-                    depth: 0, // Will set later
+                    depth: 0,
                     replies: [],
                     parentId: c.parentId
                 });
             });
 
-            // Second pass: link children
+            // Second pass: link children to parents (don't set depth yet)
             commentMap.forEach(node => {
                 if (node.parentId && commentMap.has(node.parentId)) {
                     const parent = commentMap.get(node.parentId);
-                    node.depth = parent.depth + 1;
                     parent.replies.push(node);
                 } else {
                     roots.push(node);
                 }
             });
+
+            // Third pass: recursively calculate correct depths
+            const setDepths = (nodes: UIComment[], depth: number) => {
+                nodes.forEach(node => {
+                    node.depth = depth;
+                    if (node.replies && node.replies.length > 0) {
+                        setDepths(node.replies, depth + 1);
+                    }
+                });
+            };
+            setDepths(roots, 0);
 
             // Sort by timestamp ONLY if sort is newest
             const sortComments = (nodes: UIComment[]) => {
@@ -385,7 +397,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 author: {
                     id: currentUser?.id || 'temp',
                     username: currentUser?.username || 'You',
-                    avatar: currentUser?.avatar || 'https://picsum.photos/200',
+                    avatar: currentUser?.avatar || undefined,
                     era: currentUser?.era || 'Builder Era',
                     connoisseurCred: currentUser?.connoisseurCred || 0
                 },
@@ -432,7 +444,15 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 <View style={styles.postHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                         <View style={styles.avatarContainer}>
-                            <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
+                            {post.author.avatar ? (
+                                <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
+                            ) : (
+                                <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+                                        {post.author.username?.[0]?.toUpperCase() || '?'}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                         <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -586,7 +606,15 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     {/* Comment Input */}
                     <View style={styles.commentInputRow}>
                         <View style={styles.avatarSmallContainer}>
-                            <Image source={{ uri: currentUser?.avatar || 'https://picsum.photos/200' }} style={styles.avatarImage} />
+                            {currentUser?.avatar ? (
+                                <Image source={{ uri: currentUser.avatar }} style={styles.avatarImage} />
+                            ) : (
+                                <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+                                        {currentUser?.username?.[0]?.toUpperCase() || '?'}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                         <View style={{ flex: 1 }}>
                             {replyingTo && (
@@ -618,6 +646,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             isFirst={i === 0}
                             isLast={i === localComments.length - 1}
                             onReply={(comment) => setReplyingTo(comment)}
+                            globalNodeId={globalNodeId}
                         />
                     ))}
                 </View>
@@ -664,16 +693,12 @@ export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClic
 };
 
 const styles = StyleSheet.create({
-    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-       !!! GOD MATH STYLES - DO NOT TOUCH                           !!! 
-       !!! ELBOW: LEFT -21 | SPINE: LEFT -21 | BRIDGE: LEFT 7       !!!
-       !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! */
     connectorElbow: {
         position: 'absolute',
-        left: -21, // *** GOD MATH: 21PX FROM LEFT ***
-        top: 0,
-        width: 24,
-        height: 11,
+        left: -22,
+        top: -3,
+        width: 25,
+        height: 14,
         borderLeftWidth: 2,
         borderBottomWidth: 2,
         borderBottomLeftRadius: 12,
@@ -681,20 +706,19 @@ const styles = StyleSheet.create({
     },
     connectorSpine: {
         position: 'absolute',
-        left: -21, // *** GOD MATH: 21PX FROM LEFT ***
+        left: -22,
         width: 2,
         zIndex: 0
     },
     bridgeLine: {
         position: 'absolute',
-        left: 7, // *** GOD MATH: 7PX FROM LEFT ***
+        left: 10,
         top: 0,
         bottom: 0,
         width: 2,
         zIndex: 0,
-        opacity: 0.5
+        opacity: 1
     },
-    /* !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! */
 
     avatarSmallContainer: {
         width: 20,

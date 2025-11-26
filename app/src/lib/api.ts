@@ -564,7 +564,7 @@ export type AggregatedVibeReaction = {
 };
 
 export function getVibeVectors() {
-  return request<{ vectors: VibeVector[] }>("/reactions/vectors", {
+  return request<{ vectors: VibeVector[] }>("/api/v1/vectors", {
     method: "GET",
   });
 }
@@ -578,9 +578,9 @@ export function getVibeVectorsForNode(nodeId: string) {
 
 export function createPostReaction(
   postId: string,
-  data: { nodeId: string; intensities: VibeIntensities }
+  data: { nodeId?: string; intensities: VibeIntensities }
 ) {
-  return request<VibeReaction>(`/reactions/posts/${postId}`, {
+  return request<VibeReaction>(`/api/v1/posts/${postId}`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -588,9 +588,9 @@ export function createPostReaction(
 
 export function createCommentReaction(
   commentId: string,
-  data: { nodeId: string; intensities: VibeIntensities }
+  data: { nodeId?: string; intensities: VibeIntensities }
 ) {
-  return request<VibeReaction>(`/reactions/comments/${commentId}`, {
+  return request<VibeReaction>(`/api/v1/comments/${commentId}`, {
     method: "POST",
     body: JSON.stringify(data),
   });
@@ -600,7 +600,7 @@ export function getPostReactions(postId: string) {
   return request<{
     reactions: VibeReaction[];
     aggregated: AggregatedVibeReaction[];
-  }>(`/reactions/posts/${postId}`, {
+  }>(`/api/v1/posts/${postId}`, {
     method: "GET",
   });
 }
@@ -609,7 +609,7 @@ export function getCommentReactions(commentId: string) {
   return request<{
     reactions: VibeReaction[];
     aggregated: AggregatedVibeReaction[];
-  }>(`/reactions/comments/${commentId}`, {
+  }>(`/api/v1/comments/${commentId}`, {
     method: "GET",
   });
 }
@@ -617,7 +617,7 @@ export function getCommentReactions(commentId: string) {
 export function deletePostReaction(postId: string, nodeId?: string) {
   const searchParams = new URLSearchParams();
   if (nodeId) searchParams.append("nodeId", nodeId);
-  return request<{ message: string }>(`/reactions/posts/${postId}?${searchParams.toString()}`, {
+  return request<{ message: string }>(`/api/v1/posts/${postId}?${searchParams.toString()}`, {
     method: "DELETE",
   });
 }
@@ -625,7 +625,7 @@ export function deletePostReaction(postId: string, nodeId?: string) {
 export function deleteCommentReaction(commentId: string, nodeId?: string) {
   const searchParams = new URLSearchParams();
   if (nodeId) searchParams.append("nodeId", nodeId);
-  return request<{ message: string }>(`/reactions/comments/${commentId}?${searchParams.toString()}`, {
+  return request<{ message: string }>(`/api/v1/comments/${commentId}?${searchParams.toString()}`, {
     method: "DELETE",
   });
 }

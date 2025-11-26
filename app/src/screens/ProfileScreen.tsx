@@ -79,29 +79,30 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
                 <View style={styles.avatarSection}>
                     {/* Avatar Display/Edit */}
                     {isEditing ? (
-                        <View style={{ alignItems: 'center', gap: 12, marginBottom: 16 }}>
-                            <TouchableOpacity
-                                onPress={() => setFormData(prev => ({ ...prev, avatar: `https://picsum.photos/seed/${Math.random()}/200` }))}
-                            >
+                        <View style={{ alignItems: 'center', gap: 12, marginBottom: 16, width: '100%' }}>
+                            <View style={[styles.avatar, { backgroundColor: user.era === 'Builder Era' ? '#6366f1' : '#10B981', overflow: 'hidden' }]}>
                                 {formData.avatar ? (
-                                    <Image source={{ uri: formData.avatar }} style={styles.avatar} />
+                                    <Image source={{ uri: formData.avatar }} style={{ width: '100%', height: '100%' }} />
                                 ) : (
-                                    <View style={[styles.avatar, { backgroundColor: user.era === 'Builder Era' ? '#6366f1' : '#10B981' }]}>
-                                        <Text style={styles.avatarText}>
-                                            {user.firstName?.[0]}{user.lastName?.[0]}
-                                        </Text>
-                                    </View>
+                                    <Text style={styles.avatarText}>
+                                        {user.firstName?.[0]}{user.lastName?.[0]}
+                                    </Text>
                                 )}
-                                <View style={{ position: 'absolute', bottom: 0, right: 0, backgroundColor: '#2563EB', padding: 8, borderRadius: 20 }}>
-                                    <Edit2 size={16} color="#fff" />
-                                </View>
-                            </TouchableOpacity>
-                            <TextInput
-                                style={[styles.bioInput, { minHeight: 40, height: 40, width: '100%' }]}
-                                placeholder="Avatar URL"
-                                value={formData.avatar}
-                                onChangeText={(t) => setFormData(prev => ({ ...prev, avatar: t }))}
-                            />
+                            </View>
+                            <View style={{ width: '100%' }}>
+                                <Text style={{ color: COLORS.node.muted, fontSize: 12, marginBottom: 4 }}>
+                                    Avatar URL (use Gravatar, Discord CDN, etc.)
+                                </Text>
+                                <TextInput
+                                    style={[styles.bioInput, { minHeight: 40, height: 40 }]}
+                                    placeholder="https://example.com/your-avatar.jpg"
+                                    placeholderTextColor={COLORS.node.muted}
+                                    value={formData.avatar}
+                                    onChangeText={(t) => setFormData(prev => ({ ...prev, avatar: t }))}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                />
+                            </View>
                         </View>
                     ) : (
                         <View style={[styles.avatar, { backgroundColor: user.era === 'Builder Era' ? '#6366f1' : '#10B981', overflow: 'hidden' }]}>

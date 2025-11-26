@@ -41,8 +41,9 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     }, async (request, reply) => {
         const schema = z.object({
             bio: z.string().max(500).optional(),
-            avatar: z.string().url().optional(),
+            avatar: z.string().url().optional().or(z.literal('')),
             theme: z.string().optional(),
+            era: z.string().optional(),
             customCss: z.string().max(5000).optional(),
         });
 
@@ -51,12 +52,13 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
         }
 
-        const { bio, avatar, theme, customCss } = parsed.data;
+        const { bio, avatar, theme, era, customCss } = parsed.data;
         const userId = (request.user as { sub: string }).sub;
         const updateData = {
             ...(bio !== undefined ? { bio } : {}),
-            ...(avatar !== undefined ? { avatar } : {}),
+            ...(avatar !== undefined ? { avatar: avatar || null } : {}),
             ...(theme !== undefined ? { theme } : {}),
+            ...(era !== undefined ? { era } : {}),
             ...(customCss !== undefined ? { customCss } : {}),
         };
 

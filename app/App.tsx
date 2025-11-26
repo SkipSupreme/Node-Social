@@ -106,6 +106,15 @@ const MainApp = () => {
       }
 
       const data = await getFeed(params);
+
+      // Debug: Log what the backend returns for reactions
+      console.log('[Feed] Raw posts from API:', data.posts.map((p: any) => ({
+        id: p.id,
+        title: p.title?.substring(0, 30),
+        myReaction: p.myReaction,
+        vibeAggregate: p.vibeAggregate
+      })));
+
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
         node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
@@ -314,6 +323,7 @@ const MainApp = () => {
               onBetaClick={() => setCurrentView('beta')}
               onNewPostClick={() => setIsCreatePostOpen(true)}
               onModerationClick={() => setCurrentView('moderation')}
+              currentView={currentView}
             />
           </View>
         )}
@@ -472,6 +482,7 @@ const MainApp = () => {
                   setMenuVisible(false);
                   setCurrentView('moderation');
                 }}
+                currentView={currentView}
               />
             </View>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setMenuVisible(false)} />

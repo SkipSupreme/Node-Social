@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark } from './Icons';
 import { COLORS } from '../../constants/theme';
@@ -20,6 +20,7 @@ interface SidebarProps {
     onBetaClick?: () => void;
     onNewPostClick?: () => void;
     onModerationClick?: () => void;
+    currentView?: string;
 }
 
 export const Sidebar = ({
@@ -36,7 +37,8 @@ export const Sidebar = ({
     onSavedClick,
     onBetaClick,
     onNewPostClick,
-    onModerationClick
+    onModerationClick,
+    currentView
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
@@ -123,16 +125,19 @@ export const Sidebar = ({
                     <NavItem
                         icon={Palette}
                         label="Themes"
+                        active={currentView === 'themes'}
                         onPress={onThemesClick}
                     />
                     <NavItem
                         icon={Bookmark}
                         label="Saved Posts"
+                        active={currentView === 'saved'}
                         onPress={onSavedClick}
                     />
                     <NavItem
                         icon={Shield}
                         label="Moderation"
+                        active={currentView === 'moderation'}
                         onPress={() => {
                             if (onClose && !isDesktop) onClose();
                             if (onModerationClick) onModerationClick();
@@ -141,6 +146,7 @@ export const Sidebar = ({
                     <NavItem
                         icon={Zap}
                         label="Beta Features"
+                        active={currentView === 'beta'}
                         onPress={() => {
                             if (onClose && !isDesktop) onClose();
                             if (onBetaClick) onBetaClick();
@@ -169,10 +175,14 @@ export const Sidebar = ({
 
             {/* User Footer */}
             <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
-                <View style={[styles.avatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981', justifyContent: 'center', alignItems: 'center' }]}>
-                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                        {user?.firstName?.[0] || 'U'}{user?.lastName?.[0]}
-                    </Text>
+                <View style={[styles.avatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }]}>
+                    {user?.avatar ? (
+                        <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                            {user?.firstName?.[0] || 'U'}{user?.lastName?.[0]}
+                        </Text>
+                    )}
                 </View>
                 <View>
                     <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
