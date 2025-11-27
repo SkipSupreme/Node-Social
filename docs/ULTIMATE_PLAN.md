@@ -44,7 +44,7 @@ This plan reflects the current repository state (`backend/api`, `app/`, `docs/`)
 - **Phase B: Curation foundation (2–6 wks)**  
   PostMetric enrichment (views/likes/shares), per-node vibe weighting in scoring, search UI, feed presets (latest/popular/expert/personal), empty/error/skeleton states, comment threading polish, node-aware reactions.
 - **Phase C: Moderation & trust (6–10 wks)**  
-  Mod endpoints + dashboard (log actions, soft-delete with reason), report/block/mute in app, ConnoisseurCred scaffolding, Node proposals/dormancy rules draft, audit logging.
+  Mod endpoints + dashboard (log actions, soft-delete with reason), report/block/mute in app, Cred scaffolding, Node proposals/dormancy rules draft, audit logging.
 - **Phase D: Growth & ecosystem (10+ wks)**  
   Notifications, DMs, Starter Packs, theme marketplace, ActivityPub/AT exploration, analytics dashboards, waitlist/feature flags, monetization experiments (creator subs, premium analytics).
 

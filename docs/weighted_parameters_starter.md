@@ -20,7 +20,7 @@
 - Recency: 15%
 - Personalization: 10%
 
-**Expert Voices** - ConnoisseurCred-focused
+**Expert Voices** - Cred-focused
 - Quality: 60%
 - Personalization: 20%
 - Engagement: 15%
@@ -61,7 +61,7 @@
 
 ### A. Quality Signals (35% total weight)
 
-#### 1. **ConnoisseurCred Score** (60% of quality)
+#### 1. **Cred Score** (60% of quality)
 - Formula: User's NodeCred * Active Seat multiplier
 - Range: 0-100 normalized per Node
 
@@ -153,7 +153,7 @@ Adjust each Vibe type independently:
 - **Chaos Node Injection**: % of feed from n/chaos (0-10%)
 
 ### Filters & Constraints
-- **Minimum ConnoisseurCred**: Threshold to appear in feed
+- **Minimum Cred**: Threshold to appear in feed
 - **Expert Gate Filter**: Show only Expert-Gated posts toggle
 - **Content Types**: Text / Images / Video / Links checkboxes
 - **Node Subscriptions**: Include/exclude specific Nodes
@@ -168,7 +168,7 @@ Adjust each Vibe type independently:
 3. **Personalization Weight** - Essential for retention
 4. **Engagement Weight** - Important but less unique
 5. **Vibe Vector Intensity** - Unique to Node Social
-6. **ConnoisseurCred Score** - Powers quality weight
+6. **Cred Score** - Powers quality weight
 7. **Comment Depth** - Quality engagement signal
 8. **Wilson Confidence** - Prevents gaming
 9. **Following Relationship** - Simple personalization
@@ -211,7 +211,7 @@ Adjust each Vibe type independently:
 │  [WHEN ADVANCED EXPANDED]           │
 │                                     │
 │  Quality Signals:                   │
-│    ConnoisseurCred  [━━━━━━░░░░]   │
+│    Cred  [━━━━━━░░░░]   │
 │    Vibe Diversity   [━━━░░░░░░░]   │
 │    Confidence       [━━░░░░░░░░]   │
 │                                     │

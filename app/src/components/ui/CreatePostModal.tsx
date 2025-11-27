@@ -129,20 +129,30 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             // Validate Poll
             let pollData;
             if (showPoll) {
+                const trimmedQuestion = pollQuestion.trim();
+                if (!trimmedQuestion) {
+                    throw new Error('Poll question is required');
+                }
                 const validOptions = pollOptions.filter(o => o.trim().length > 0);
                 if (validOptions.length < 2) {
                     throw new Error('Poll must have at least 2 options');
                 }
                 pollData = {
-                    question: pollQuestion.trim() || title.trim() || 'Poll',
+                    question: trimmedQuestion,
                     options: validOptions,
                     duration: 3
                 };
             }
 
+            // For polls, use the poll question as title if no title provided
+            const finalTitle = title.trim() || (showPoll && pollData ? pollData.question : undefined);
+            if (!finalTitle) {
+                throw new Error('Title is required');
+            }
+
             await createPost({
                 content,
-                title: title.trim() || undefined,
+                title: finalTitle,
                 nodeId: selectedNodeId || undefined,
                 linkUrl: linkUrl || imageUrl || undefined, // Use image URL as link URL if present
                 poll: pollData
@@ -241,7 +251,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                                 <TextInput
                                     style={styles.pollQuestionInput}
-                                    placeholder="Poll Question (optional)"
+                                    placeholder="What do you want to ask?"
                                     placeholderTextColor={COLORS.node.muted}
                                     value={pollQuestion}
                                     onChangeText={setPollQuestion}

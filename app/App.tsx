@@ -123,7 +123,7 @@ const MainApp = () => {
           username: p.author.username || 'User',
           avatar: p.author.avatar,
           era: p.author.era || 'Lurker Era',
-          connoisseurCred: p.author.connoisseurCred || 0
+          cred: p.author.cred || 0
         },
         title: p.title || 'Untitled Post',
         content: p.content,
@@ -141,7 +141,7 @@ const MainApp = () => {
             username: c.author.username || 'User',
             avatar: c.author.avatar,
             era: c.author.era || 'Lurker Era',
-            connoisseurCred: c.author.connoisseurCred || 0
+            cred: c.author.cred || 0
           },
           content: c.content,
           timestamp: new Date(c.createdAt),
@@ -210,7 +210,7 @@ const MainApp = () => {
           username: p.author.username || 'User',
           avatar: p.author.avatar,
           era: p.author.era || 'Lurker Era',
-          connoisseurCred: p.author.connoisseurCred || 0
+          cred: p.author.cred || 0
         },
         title: p.title || 'Untitled Post',
         content: p.content,
@@ -228,7 +228,7 @@ const MainApp = () => {
             username: c.author.username || 'User',
             avatar: c.author.avatar,
             era: c.author.era || 'Lurker Era',
-            connoisseurCred: c.author.connoisseurCred || 0
+            cred: c.author.cred || 0
           },
           content: c.content,
           timestamp: new Date(c.createdAt),
@@ -266,7 +266,7 @@ const MainApp = () => {
           username: newPost.author.username || 'User',
           avatar: newPost.author.avatar,
           era: newPost.author.era || 'Lurker Era',
-          connoisseurCred: newPost.author.connoisseurCred || 0
+          cred: newPost.author.cred || 0
         },
         title: newPost.title || 'Untitled Post',
         content: newPost.content,

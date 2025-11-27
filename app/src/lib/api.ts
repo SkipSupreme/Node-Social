@@ -16,7 +16,7 @@ export type AuthResponse = {
     dateOfBirth?: string;
     bio?: string;
     avatar?: string;
-    connoisseurCred?: number;
+    cred?: number;
     era?: string;
     theme?: string;
   };
@@ -34,6 +34,10 @@ export type Node = {
   name: string;
   slug: string;
   description: string | null;
+  color?: string | null;
+  subscriberCount?: number;
+  isSubscribed?: boolean;
+  myRole?: string | null;
 };
 
 export type Post = {
@@ -71,6 +75,7 @@ export type Post = {
     votes?: { optionId: string }[]; // Current user's vote
   } | null;
   myReaction?: { [key: string]: number } | null;
+  expertGateCred?: number | null; // Minimum cred required to comment (Expert Gate)
 };
 
 export type PollCreate = {
@@ -387,6 +392,27 @@ export function createNode(data: { name: string; slug: string; description?: str
   });
 }
 
+export function getSubscribedNodes() {
+  return request<Node[]>("/nodes/subscribed", {
+    method: "GET",
+  });
+}
+
+export function toggleNodeSubscription(nodeId: string) {
+  return request<{ subscribed: boolean; subscriberCount: number }>(`/nodes/${nodeId}/subscribe`, {
+    method: "POST",
+  });
+}
+
+export function getNodeMembers(nodeId: string, limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.append("cursor", cursor);
+  return request<{ members: any[]; nextCursor: string | null; hasMore: boolean }>(
+    `/nodes/${nodeId}/members?${params}`,
+    { method: "GET" }
+  );
+}
+
 // --- Post Endpoints ---
 
 export function createPost(data: {
@@ -395,6 +421,7 @@ export function createPost(data: {
   title?: string;
   linkUrl?: string;
   poll?: PollCreate;
+  expertGateCred?: number; // Minimum cred required to comment (Expert Gate)
 }) {
   return request<Post>("/posts", {
     method: "POST",
@@ -495,7 +522,7 @@ export type FeedPreference = {
   presetMode: string | null;
   recencyHalfLife: string;
   followingOnly: boolean;
-  minConnoisseurCred: number | null;
+  minCred: number | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -508,7 +535,7 @@ export type FeedPreferenceUpdate = {
   personalizationWeight?: number;
   recencyHalfLife?: "1h" | "6h" | "12h" | "24h" | "7d";
   followingOnly?: boolean;
-  minConnoisseurCred?: number | null;
+  minCred?: number | null;
 };
 
 export function getFeedPreferences() {
@@ -714,7 +741,254 @@ export function getCredHistory() {
   });
 }
 
+// --- Web of Trust (Vouching) ---
 
+export type Vouch = {
+  id: string;
+  voucherId: string;
+  voucheeId: string;
+  stake: number;
+  active: boolean;
+  createdAt: string;
+  voucher?: {
+    id: string;
+    username: string;
+    avatar: string | null;
+    cred: number;
+  };
+  vouchee?: {
+    id: string;
+    username: string;
+    avatar: string | null;
+    cred: number;
+  };
+};
+
+export type VouchStats = {
+  vouchesGivenCount: number;
+  vouchesReceivedCount: number;
+  totalStakeReceived: number;
+  topVouchers: Vouch[];
+  hasVouched: boolean;
+  myVouchStake: number | null;
+};
+
+export function vouchForUser(userId: string, stake?: number) {
+  return request<Vouch>(`/api/v1/vouch/${userId}`, {
+    method: "POST",
+    body: JSON.stringify({ stake }),
+  });
+}
+
+export function revokeVouch(userId: string) {
+  return request<{ success: boolean; vouch: Vouch }>(`/api/v1/vouch/${userId}`, {
+    method: "DELETE",
+  });
+}
+
+export function getVouchesGiven() {
+  return request<Vouch[]>("/api/v1/vouch/given", {
+    method: "GET",
+  });
+}
+
+export function getVouchesReceived() {
+  return request<Vouch[]>("/api/v1/vouch/received", {
+    method: "GET",
+  });
+}
+
+export function getVouchStats(userId: string) {
+  return request<VouchStats>(`/api/v1/vouch/user/${userId}`, {
+    method: "GET",
+  });
+}
+
+// --- Council of Node ---
+
+export type CouncilMember = {
+  id: string;
+  username: string;
+  avatar: string | null;
+  cred: number;
+  nodeCred: number;
+  role: string;
+  joinedAt: string;
+  activityMultiplier: number;
+  governanceWeight: number;
+};
+
+export type CouncilInfo = {
+  nodeId: string;
+  councilSize: number;
+  activityThresholdDays: number;
+  members: CouncilMember[];
+  totalGovernanceWeight: number;
+};
+
+export type CouncilEligibility = {
+  isSubscribed: boolean;
+  isActive: boolean;
+  nodeCred: number;
+  activityMultiplier: number;
+  governanceWeight: number;
+  rank: number | null;
+  totalMembers: number;
+  isOnCouncil: boolean;
+  credNeededForCouncil: number;
+};
+
+export function getNodeCouncil(nodeId: string) {
+  return request<CouncilInfo>(`/api/v1/council/${nodeId}`, {
+    method: "GET",
+  });
+}
+
+export function getCouncilEligibility(nodeId: string) {
+  return request<CouncilEligibility>(`/api/v1/council/${nodeId}/eligibility`, {
+    method: "GET",
+  });
+}
+
+// --- Node Court (Appeals) ---
+
+export type AppealStatus = 'pending' | 'voting' | 'upheld' | 'overturned' | 'expired';
+
+export type Appeal = {
+  id: string;
+  targetType: 'post' | 'comment' | 'mod_action';
+  targetId: string;
+  nodeId: string | null;
+  appellantId: string;
+  appellant?: {
+    id: string;
+    username: string;
+    avatar: string | null;
+    cred?: number;
+  };
+  reason: string;
+  stake: number;
+  jurySize: number;
+  juryDeadline: string;
+  status: AppealStatus;
+  verdict: 'upheld' | 'overturned' | null;
+  verdictReason: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  _count?: {
+    votes: number;
+    jurors: number;
+  };
+  isJuror?: boolean;
+  hasVoted?: boolean;
+  canVote?: boolean;
+};
+
+export type AppealJuror = {
+  id: string;
+  appealId: string;
+  userId: string;
+  user?: {
+    id: string;
+    username: string;
+    avatar: string | null;
+  };
+  notifiedAt: string;
+  hasVoted: boolean;
+};
+
+export type AppealVote = {
+  id: string;
+  appealId: string;
+  jurorId: string;
+  juror?: {
+    id: string;
+    username: string;
+  };
+  vote: 'uphold' | 'overturn';
+  reason: string | null;
+  weight: number;
+  createdAt: string;
+};
+
+export type JuryDuty = {
+  pending: Array<AppealJuror & { appeal: Appeal }>;
+  completed: Array<AppealJuror & { appeal: Appeal }>;
+  total: number;
+};
+
+export function createAppeal(data: {
+  targetType: 'post' | 'comment' | 'mod_action';
+  targetId: string;
+  nodeId?: string;
+  reason: string;
+  stake: number;
+}) {
+  return request<Appeal>("/api/v1/appeals", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function listAppeals(params?: {
+  status?: AppealStatus;
+  targetType?: 'post' | 'comment' | 'mod_action';
+  targetId?: string;
+  limit?: number;
+  cursor?: string;
+}) {
+  const searchParams = new URLSearchParams();
+  if (params?.status) searchParams.set("status", params.status);
+  if (params?.targetType) searchParams.set("targetType", params.targetType);
+  if (params?.targetId) searchParams.set("targetId", params.targetId);
+  if (params?.limit) searchParams.set("limit", params.limit.toString());
+  if (params?.cursor) searchParams.set("cursor", params.cursor);
+
+  const query = searchParams.toString();
+  return request<{ appeals: Appeal[]; nextCursor: string | null }>(
+    `/api/v1/appeals${query ? `?${query}` : ""}`,
+    { method: "GET" }
+  );
+}
+
+export function getAppeal(appealId: string) {
+  return request<Appeal & { jurors: AppealJuror[]; votes: AppealVote[] }>(
+    `/api/v1/appeals/${appealId}`,
+    { method: "GET" }
+  );
+}
+
+export function voteOnAppeal(appealId: string, vote: 'uphold' | 'overturn', reason?: string) {
+  return request<{ success: boolean; votesIn: number; totalJurors: number; allVotesIn: boolean }>(
+    `/api/v1/appeals/${appealId}/vote`,
+    {
+      method: "POST",
+      body: JSON.stringify({ vote, reason }),
+    }
+  );
+}
+
+export function getMyJuryDuties() {
+  return request<JuryDuty>("/api/v1/appeals/my-duties", {
+    method: "GET",
+  });
+}
+
+export function getMyAppeals() {
+  return request<Appeal[]>("/api/v1/appeals/my-appeals", {
+    method: "GET",
+  });
+}
+
+// Appeal constants (match backend)
+export const APPEAL_CONSTANTS = {
+  MIN_CRED_TO_APPEAL: 50,
+  MIN_STAKE: 25,
+  MAX_STAKE: 500,
+  JURY_SIZE: 5,
+  VOTING_PERIOD_HOURS: 48,
+  MIN_JUROR_CRED: 100,
+};
 
 export const api = {
   get: <T>(url: string) => request<T>(url, { method: "GET" }),

@@ -1,5 +1,5 @@
 
-import { PrismaClient } from '../generated/prisma/client.js';
+import { PrismaClient } from '@prisma/client';
 import { MeiliSearch } from 'meilisearch';
 import dotenv from 'dotenv';
 

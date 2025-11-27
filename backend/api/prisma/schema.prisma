@@ -25,10 +25,11 @@ model User {
   dateOfBirth     DateTime?
   bio             String?
   avatar          String?
-  connoisseurCred Int       @default(0)
+  cred            Int       @default(0)
   era             String    @default("Lurker Era")
   theme           String?
   nodeCredScores  Json      @default("{}") // Map<NodeId, number>
+  lastActiveAt    DateTime  @default(now()) // For activity multiplier calculation
 
   // Relations
   posts               Post[]
@@ -68,6 +69,21 @@ model User {
   
   // Phase 5: Community
   createdPresets FeedPreset[] @relation("PresetCreator")
+
+  // Node Subscriptions
+  nodeSubscriptions NodeSubscription[]
+
+  // Reports
+  reports Report[]
+
+  // Web of Trust (Vouching)
+  vouchesGiven    Vouch[]   @relation("VouchGiver")
+  vouchesReceived Vouch[]   @relation("VouchReceiver")
+
+  // Appeals System (Node Court)
+  appealsCreated  Appeal[]      @relation("AppealAppellant")
+  jurorDuties     AppealJuror[] @relation("AppealJuror")
+  appealVotes     AppealVote[]  @relation("AppealVoter")
 }
 
 model Notification {
@@ -92,7 +108,9 @@ model CredTransaction {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   amount      Int
-  reason      String   // 'post_reaction', 'daily_login', 'manual_award', etc.
+  reason      String   // 'post_reaction_earned', 'post_reaction_lost', 'daily_login', 'manual_award', etc.
+  sourceType  String?  // 'post', 'comment', null for system awards
+  sourceId    String?  // ID of the source content
   createdAt   DateTime @default(now())
 
   @@index([userId, createdAt(sort: Desc)])
@@ -115,8 +133,25 @@ model Node {
   reactions   VibeReaction[]   // Reactions in this Node's context
   modQueueItems ModQueueItem[]
   vectorConfig  NodeVectorConfig?
+  subscriptions NodeSubscription[] // Users subscribed to this node
 
   @@map("nodes")
+}
+
+// Node Subscriptions - Users joining communities
+model NodeSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  nodeId    String
+  role      String   @default("member") // member, moderator, admin
+  joinedAt  DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node      Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([nodeId])
+  @@map("node_subscriptions")
 }
 
 model Post {
@@ -133,6 +168,7 @@ model Post {
   title      String?
   postType   String    @default("text") // text, image, link
   visibility String    @default("public")
+  expertGateCred Int?  // Minimum cred required to comment (null = open to all)
 
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   node      Node?    @relation(fields: [nodeId], references: [id])
@@ -352,7 +388,7 @@ model UserFeedPreference {
 
   // Advanced settings (optional, defaults used if null)
   followingOnly      Boolean @default(false)
-  minConnoisseurCred Float? // Optional threshold
+  minCred            Float?  // Optional minimum cred threshold
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -594,6 +630,45 @@ model ModQueueItem {
   @@map("mod_queue_items")
 }
 
+// User Reports
+model Report {
+  id          String   @id @default(uuid())
+  reporterId  String
+  reporter    User     @relation(fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType  String   // 'post', 'comment', 'user'
+  targetId    String
+  reason      String   // 'spam', 'harassment', 'hate_speech', 'misinformation', 'violence', 'other'
+  details     String?  // Optional additional context
+  status      String   @default("pending") // 'pending', 'reviewed', 'actioned', 'dismissed'
+  createdAt   DateTime @default(now())
+  reviewedAt  DateTime?
+  reviewedBy  String?
+
+  @@index([targetType, targetId])
+  @@index([reporterId])
+  @@index([status, createdAt])
+  @@map("reports")
+}
+
+// Web of Trust - Vouching System
+// Per master_plan.md - Build trust through stake-based vouching
+model Vouch {
+  id          String   @id @default(uuid())
+  voucherId   String   // User giving the vouch
+  voucher     User     @relation("VouchGiver", fields: [voucherId], references: [id], onDelete: Cascade)
+  voucheeId   String   // User receiving the vouch
+  vouchee     User     @relation("VouchReceiver", fields: [voucheeId], references: [id], onDelete: Cascade)
+  stake       Int      @default(100) // Cred staked on this vouch
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  revokedAt   DateTime?
+
+  @@unique([voucherId, voucheeId])
+  @@index([voucheeId])
+  @@index([voucherId, active])
+  @@map("vouches")
+}
+
 // Node Vector Customization
 model NodeVectorConfig {
   nodeId String @id
@@ -631,4 +706,85 @@ model FeedPreset {
   @@index([isPublic, downloads(sort: Desc)])
   @@index([creatorId])
   @@map("feed_presets")
+}
+
+// Node Court - Appeals System
+// Per master_plan.md - Three-tier court system with stake-based appeals
+model Appeal {
+  id            String   @id @default(uuid())
+
+  // What's being appealed
+  targetType    String   // 'post', 'comment', 'user_action'
+  targetId      String   // ID of the target content/action
+  nodeId        String?  // Node context for the appeal
+
+  // Who's appealing
+  appellantId   String
+  appellant     User     @relation("AppealAppellant", fields: [appellantId], references: [id], onDelete: Cascade)
+
+  // Appeal details
+  reason        String   // Why appellant believes action was wrong
+  stake         Int      // Cred staked on this appeal
+
+  // Jury
+  jurySize      Int      @default(5) // Number of jurors
+  juryDeadline  DateTime // When voting ends
+
+  // Status tracking
+  status        String   @default("pending") // pending, voting, upheld, overturned, expired
+
+  // Verdict
+  verdict       String?  // 'upheld' or 'overturned'
+  verdictReason String?  // Explanation of verdict
+  resolvedAt    DateTime?
+
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  votes         AppealVote[]
+  jurors        AppealJuror[]
+
+  @@index([status, createdAt])
+  @@index([appellantId])
+  @@index([targetType, targetId])
+  @@map("appeals")
+}
+
+// Jurors assigned to an appeal
+model AppealJuror {
+  id        String   @id @default(uuid())
+  appealId  String
+  appeal    Appeal   @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("AppealJuror", fields: [userId], references: [id], onDelete: Cascade)
+
+  // Juror status
+  notifiedAt DateTime @default(now())
+  hasVoted   Boolean  @default(false)
+
+  @@unique([appealId, userId])
+  @@index([userId, hasVoted])
+  @@map("appeal_jurors")
+}
+
+// Votes cast by jurors on appeals
+model AppealVote {
+  id        String   @id @default(uuid())
+  appealId  String
+  appeal    Appeal   @relation(fields: [appealId], references: [id], onDelete: Cascade)
+  jurorId   String
+  juror     User     @relation("AppealVoter", fields: [jurorId], references: [id], onDelete: Cascade)
+
+  // The vote
+  vote      String   // 'uphold' or 'overturn'
+  reason    String?  // Optional explanation
+  weight    Float    // Cred-weighted vote power
+
+  createdAt DateTime @default(now())
+
+  @@unique([appealId, jurorId])
+  @@index([appealId])
+  @@map("appeal_votes")
 }

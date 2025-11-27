@@ -64,7 +64,7 @@ export class PresetService {
                         id: true,
                         username: true,
                         avatar: true,
-                        connoisseurCred: true,
+                        cred: true,
                     },
                 },
             },

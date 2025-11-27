@@ -239,9 +239,14 @@ export const Sidebar = ({
                             style={[styles.nodeItem, selectedNodeId === node.id && styles.nodeItemActive]}
                             onPress={() => handleNodeClick(node.id)}
                         >
-                            <View style={[styles.nodeDot, { backgroundColor: node.color || '#2a2d35' }]} />
-                            <Text style={[styles.nodeName, selectedNodeId === node.id && styles.nodeNameActive]}>{node.name}</Text>
-                            {node.vibeVelocity > 80 && <Zap size={12} color="#eab308" />}
+                            <View style={[styles.nodeDot, { backgroundColor: node.color || '#6366f1' }]} />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.nodeName, selectedNodeId === node.id && styles.nodeNameActive]}>{node.name}</Text>
+                                {node.subscriberCount !== undefined && (
+                                    <Text style={styles.nodeSubscribers}>{node.subscriberCount} {node.subscriberCount === 1 ? 'member' : 'members'}</Text>
+                                )}
+                            </View>
+                            {node.isSubscribed && <Users size={12} color={COLORS.node.accent} />}
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -318,8 +323,9 @@ const styles = StyleSheet.create({
     nodeItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
     nodeItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
     nodeDot: { width: 8, height: 8, borderRadius: 4 },
-    nodeName: { fontSize: 14, fontWeight: '500', color: COLORS.node.text, flex: 1 },
+    nodeName: { fontSize: 14, fontWeight: '500', color: COLORS.node.text },
     nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
+    nodeSubscribers: { fontSize: 11, color: COLORS.node.muted, marginTop: 2 },
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
     avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#374151' },
     footerUser: { color: '#fff', fontWeight: 'bold' },

@@ -10,7 +10,7 @@ interface Preset {
     description: string;
     creator: {
         username: string;
-        connoisseurCred: number;
+        cred: number;
     };
     downloads: number;
     config: any;
@@ -74,7 +74,7 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
             <Text style={styles.description} numberOfLines={2}>{item.description || 'No description'}</Text>
 
             <View style={styles.footer}>
-                <Text style={styles.creator}>by @{item.creator.username} (Cred: {item.creator.connoisseurCred})</Text>
+                <Text style={styles.creator}>by @{item.creator.username} (Cred: {item.creator.cred})</Text>
                 <TouchableOpacity
                     style={styles.installButton}
                     onPress={() => handleInstall(item)}

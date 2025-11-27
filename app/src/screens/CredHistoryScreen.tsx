@@ -60,7 +60,7 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
 
             <View style={styles.summary}>
                 <Text style={styles.totalLabel}>Total Cred</Text>
-                <Text style={styles.totalValue}>{user?.connoisseurCred || 0}</Text>
+                <Text style={styles.totalValue}>{user?.cred || 0}</Text>
             </View>
 
             {loading ? (

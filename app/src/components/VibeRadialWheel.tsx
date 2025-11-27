@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal } from 'react-native';
+import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal, Pressable } from 'react-native';
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Hexagon, Lightbulb, Smile, Flame, Heart, Zap, HelpCircle } from './ui/Icons';
 import { COLORS } from '../constants/theme';
@@ -320,114 +320,228 @@ export const VibeRadialWheel = ({
 
             {/* Radial Wheel Overlay */}
             {isActive && (
-                <Modal transparent visible={isActive} animationType="none">
-                    <View style={styles.overlay} pointerEvents="box-none">
-                        <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-                            {/* Connection Line */}
-                            <Line
-                                x1={center.x}
-                                y1={center.y}
-                                x2={drag.x}
-                                y2={drag.y}
-                                stroke="#6366f1"
-                                strokeWidth="2"
-                                strokeDasharray="4, 4"
-                                opacity="0.5"
-                            />
+                Platform.OS === 'web' ? (
+                    // Web: Use fixed positioning to avoid scroll jump from Modal
+                    <View style={styles.webOverlay} pointerEvents="box-none">
+                        <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsActive(false)} />
+                        <View style={styles.overlay} pointerEvents="box-none">
+                            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+                                {/* Connection Line */}
+                                <Line
+                                    x1={center.x}
+                                    y1={center.y}
+                                    x2={drag.x}
+                                    y2={drag.y}
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    strokeDasharray="4, 4"
+                                    opacity="0.5"
+                                />
 
-                            {/* Wedges */}
-                            {VIBES.map((vibe, index) => {
-                                const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
-                                const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
-                                const startAngle = index * sliceAngle + startOffsetAngle;
-                                const endAngle = startAngle + sliceAngle;
+                                {/* Wedges */}
+                                {VIBES.map((vibe, index) => {
+                                    const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+                                    const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
+                                    const startAngle = index * sliceAngle + startOffsetAngle;
+                                    const endAngle = startAngle + sliceAngle;
 
-                                const intensity = intensities[vibe.id];
-                                const isActiveWedge = intensity > 0;
-                                const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
+                                    const intensity = intensities[vibe.id];
+                                    const isActiveWedge = intensity > 0;
+                                    const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
 
-                                const trackPath = describeWedge(center.x, center.y, MIN_RADIUS, MAX_RADIUS, startAngle, endAngle);
-                                const activePath = describeWedge(center.x, center.y, MIN_RADIUS, currentOuterRadius, startAngle, endAngle);
+                                    const trackPath = describeWedge(center.x, center.y, MIN_RADIUS, MAX_RADIUS, startAngle, endAngle);
+                                    const activePath = describeWedge(center.x, center.y, MIN_RADIUS, currentOuterRadius, startAngle, endAngle);
 
-                                return (
-                                    <G key={vibe.id}>
-                                        <Path d={trackPath} fill="#1e2128" stroke="#2a2d35" strokeWidth="1" />
-                                        <Path d={activePath} fill={vibe.color} fillOpacity={0.9} stroke={vibe.color} strokeWidth={isActiveWedge ? 2 : 0} />
-                                    </G>
-                                );
-                            })}
+                                    return (
+                                        <G key={vibe.id}>
+                                            <Path d={trackPath} fill="#1e2128" stroke="#2a2d35" strokeWidth="1" />
+                                            <Path d={activePath} fill={vibe.color} fillOpacity={0.9} stroke={vibe.color} strokeWidth={isActiveWedge ? 2 : 0} />
+                                        </G>
+                                    );
+                                })}
 
-                            {/* Center Hub */}
-                            <Circle cx={center.x} cy={center.y} r={BUTTON_RADIUS} fill="#181a20" stroke="#2a2d35" strokeWidth="2" />
+                                {/* Center Hub */}
+                                <Circle cx={center.x} cy={center.y} r={BUTTON_RADIUS} fill="#181a20" stroke="#2a2d35" strokeWidth="2" />
 
-                            {/* Percentage Text */}
+                                {/* Percentage Text */}
+                                {VIBES.map((vibe, index) => {
+                                    const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+                                    const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
+                                    const startAngle = index * sliceAngle + startOffsetAngle;
+                                    const midAngle = startAngle + sliceAngle / 2;
+                                    const intensity = intensities[vibe.id];
+                                    const isActiveWedge = intensity > 0;
+                                    const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
+                                    const textPos = polarToCartesian(center.x, center.y, currentOuterRadius + 20, midAngle);
+
+                                    if (!isActiveWedge) return null;
+
+                                    return (
+                                        <SvgText
+                                            key={`text-${vibe.id}`}
+                                            x={textPos.x}
+                                            y={textPos.y}
+                                            fill="white"
+                                            fontSize="12"
+                                            fontWeight="bold"
+                                            textAnchor="middle"
+                                            alignmentBaseline="middle"
+                                        >
+                                            {Math.round(intensity)}%
+                                        </SvgText>
+                                    );
+                                })}
+                            </Svg>
+
+                            {/* Icons Layer */}
                             {VIBES.map((vibe, index) => {
                                 const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
                                 const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
                                 const startAngle = index * sliceAngle + startOffsetAngle;
                                 const midAngle = startAngle + sliceAngle / 2;
-                                const intensity = intensities[vibe.id];
-                                const isActiveWedge = intensity > 0;
-                                const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
-                                const textPos = polarToCartesian(center.x, center.y, currentOuterRadius + 20, midAngle);
 
-                                if (!isActiveWedge) return null;
+                                const intensity = intensities[vibe.id];
+                                const currentIconRadius = (MIN_RADIUS + MAX_RADIUS) / 2;
+                                const iconPos = polarToCartesian(center.x, center.y, currentIconRadius, midAngle);
+                                const IconComponent = vibe.icon;
 
                                 return (
-                                    <SvgText
-                                        key={`text-${vibe.id}`}
-                                        x={textPos.x}
-                                        y={textPos.y}
-                                        fill="white"
-                                        fontSize="12"
-                                        fontWeight="bold"
-                                        textAnchor="middle"
-                                        alignmentBaseline="middle"
+                                    <View
+                                        key={`icon-${vibe.id}`}
+                                        style={{
+                                            position: 'absolute',
+                                            left: iconPos.x - 12,
+                                            top: iconPos.y - 12,
+                                            width: 24,
+                                            height: 24,
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            transform: [{ scale: intensity > 0 ? 1.2 : 1 }],
+                                            pointerEvents: 'none',
+                                        }}
                                     >
-                                        {Math.round(intensity)}%
-                                    </SvgText>
+                                        <IconComponent size={24} color={intensity > 0 ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                    </View>
                                 );
                             })}
-                        </Svg>
 
-                        {/* Icons Layer */}
-                        {VIBES.map((vibe, index) => {
-                            const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
-                            const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
-                            const startAngle = index * sliceAngle + startOffsetAngle;
-                            const midAngle = startAngle + sliceAngle / 2;
-
-                            const intensity = intensities[vibe.id];
-                            const currentIconRadius = (MIN_RADIUS + MAX_RADIUS) / 2;
-                            const iconPos = polarToCartesian(center.x, center.y, currentIconRadius, midAngle);
-                            const IconComponent = vibe.icon;
-
-                            return (
-                                <View
-                                    key={`icon-${vibe.id}`}
-                                    style={{
-                                        position: 'absolute',
-                                        left: iconPos.x - 12,
-                                        top: iconPos.y - 12,
-                                        width: 24,
-                                        height: 24,
-                                        justifyContent: 'center',
-                                        alignItems: 'center',
-                                        transform: [{ scale: intensity > 0 ? 1.2 : 1 }],
-                                        pointerEvents: 'none',
-                                    }}
-                                >
-                                    <IconComponent size={24} color={intensity > 0 ? '#fff' : 'rgba(255,255,255,0.5)'} />
-                                </View>
-                            );
-                        })}
-
-                        {/* Helper Text */}
-                        <View style={styles.helperTextContainer}>
-                            <Text style={styles.helperText}>Drag outward to intensify</Text>
+                            {/* Helper Text */}
+                            <View style={styles.helperTextContainer}>
+                                <Text style={styles.helperText}>Drag outward to intensify</Text>
+                            </View>
                         </View>
                     </View>
-                </Modal>
+                ) : (
+                    // Native: Use Modal for proper overlay behavior
+                    <Modal transparent visible={isActive} animationType="none">
+                        <View style={styles.overlay} pointerEvents="box-none">
+                            <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
+                                {/* Connection Line */}
+                                <Line
+                                    x1={center.x}
+                                    y1={center.y}
+                                    x2={drag.x}
+                                    y2={drag.y}
+                                    stroke="#6366f1"
+                                    strokeWidth="2"
+                                    strokeDasharray="4, 4"
+                                    opacity="0.5"
+                                />
+
+                                {/* Wedges */}
+                                {VIBES.map((vibe, index) => {
+                                    const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+                                    const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
+                                    const startAngle = index * sliceAngle + startOffsetAngle;
+                                    const endAngle = startAngle + sliceAngle;
+
+                                    const intensity = intensities[vibe.id];
+                                    const isActiveWedge = intensity > 0;
+                                    const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
+
+                                    const trackPath = describeWedge(center.x, center.y, MIN_RADIUS, MAX_RADIUS, startAngle, endAngle);
+                                    const activePath = describeWedge(center.x, center.y, MIN_RADIUS, currentOuterRadius, startAngle, endAngle);
+
+                                    return (
+                                        <G key={vibe.id}>
+                                            <Path d={trackPath} fill="#1e2128" stroke="#2a2d35" strokeWidth="1" />
+                                            <Path d={activePath} fill={vibe.color} fillOpacity={0.9} stroke={vibe.color} strokeWidth={isActiveWedge ? 2 : 0} />
+                                        </G>
+                                    );
+                                })}
+
+                                {/* Center Hub */}
+                                <Circle cx={center.x} cy={center.y} r={BUTTON_RADIUS} fill="#181a20" stroke="#2a2d35" strokeWidth="2" />
+
+                                {/* Percentage Text */}
+                                {VIBES.map((vibe, index) => {
+                                    const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+                                    const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
+                                    const startAngle = index * sliceAngle + startOffsetAngle;
+                                    const midAngle = startAngle + sliceAngle / 2;
+                                    const intensity = intensities[vibe.id];
+                                    const isActiveWedge = intensity > 0;
+                                    const currentOuterRadius = MIN_RADIUS + ((MAX_RADIUS - MIN_RADIUS) * (intensity / 100));
+                                    const textPos = polarToCartesian(center.x, center.y, currentOuterRadius + 20, midAngle);
+
+                                    if (!isActiveWedge) return null;
+
+                                    return (
+                                        <SvgText
+                                            key={`text-${vibe.id}`}
+                                            x={textPos.x}
+                                            y={textPos.y}
+                                            fill="white"
+                                            fontSize="12"
+                                            fontWeight="bold"
+                                            textAnchor="middle"
+                                            alignmentBaseline="middle"
+                                        >
+                                            {Math.round(intensity)}%
+                                        </SvgText>
+                                    );
+                                })}
+                            </Svg>
+
+                            {/* Icons Layer */}
+                            {VIBES.map((vibe, index) => {
+                                const sliceAngle = (2 * Math.PI) / NUM_REACTIONS;
+                                const startOffsetAngle = -Math.PI / 2 - sliceAngle / 2;
+                                const startAngle = index * sliceAngle + startOffsetAngle;
+                                const midAngle = startAngle + sliceAngle / 2;
+
+                                const intensity = intensities[vibe.id];
+                                const currentIconRadius = (MIN_RADIUS + MAX_RADIUS) / 2;
+                                const iconPos = polarToCartesian(center.x, center.y, currentIconRadius, midAngle);
+                                const IconComponent = vibe.icon;
+
+                                return (
+                                    <View
+                                        key={`icon-${vibe.id}`}
+                                        style={{
+                                            position: 'absolute',
+                                            left: iconPos.x - 12,
+                                            top: iconPos.y - 12,
+                                            width: 24,
+                                            height: 24,
+                                            justifyContent: 'center',
+                                            alignItems: 'center',
+                                            transform: [{ scale: intensity > 0 ? 1.2 : 1 }],
+                                            pointerEvents: 'none',
+                                        }}
+                                    >
+                                        <IconComponent size={24} color={intensity > 0 ? '#fff' : 'rgba(255,255,255,0.5)'} />
+                                    </View>
+                                );
+                            })}
+
+                            {/* Helper Text */}
+                            <View style={styles.helperTextContainer}>
+                                <Text style={styles.helperText}>Drag outward to intensify</Text>
+                            </View>
+                        </View>
+                    </Modal>
+                )
             )}
         </View>
     );
@@ -449,6 +563,15 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '500',
         color: COLORS.node.muted,
+    },
+    webOverlay: {
+        position: 'fixed' as any,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 9999,
+        backgroundColor: 'transparent',
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,

@@ -66,7 +66,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
           presetMode: 'balanced',
           recencyHalfLife: '12h',
           followingOnly: false,
-          minConnoisseurCred: null,
+          minCred: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         };
@@ -93,7 +93,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
         personalizationWeight: z.number().min(0).max(100).optional(),
         recencyHalfLife: z.enum(['1h', '6h', '12h', '24h', '7d']).optional(),
         followingOnly: z.boolean().optional(),
-        minConnoisseurCred: z.number().min(0).optional().nullable(),
+        minCred: z.number().min(0).optional().nullable(),
       });
 
       const parsed = schema.safeParse(request.body);
@@ -105,7 +105,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       const optionalFields = {
         ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
         ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
-        ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
+        ...(data.minCred !== undefined ? { minCred: data.minCred } : {}),
       };
 
       // If preset is provided, use preset values
@@ -123,7 +123,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
             ...preset,
             recencyHalfLife: data.recencyHalfLife ?? '12h',
             followingOnly: data.followingOnly ?? false,
-            minConnoisseurCred: data.minConnoisseurCred ?? null,
+            minCred: data.minCred ?? null,
           },
           update: presetUpdate,
         });
@@ -157,7 +157,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
             presetMode: 'custom',
             recencyHalfLife: data.recencyHalfLife ?? '12h',
             followingOnly: data.followingOnly ?? false,
-            minConnoisseurCred: data.minConnoisseurCred ?? null,
+            minCred: data.minCred ?? null,
           },
           update: {
             qualityWeight,
@@ -167,7 +167,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
             presetMode: 'custom',
             ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
             ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
-            ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
+            ...(data.minCred !== undefined ? { minCred: data.minCred } : {}),
           },
         });
 
@@ -182,7 +182,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
         ...(data.personalizationWeight !== undefined ? { personalizationWeight: data.personalizationWeight } : {}),
         ...(data.recencyHalfLife !== undefined ? { recencyHalfLife: data.recencyHalfLife } : {}),
         ...(data.followingOnly !== undefined ? { followingOnly: data.followingOnly } : {}),
-        ...(data.minConnoisseurCred !== undefined ? { minConnoisseurCred: data.minConnoisseurCred } : {}),
+        ...(data.minCred !== undefined ? { minCred: data.minCred } : {}),
         ...(data.preset ? { presetMode: data.preset } : {}),
       };
 
@@ -197,7 +197,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
           presetMode: data.preset ?? 'balanced',
           recencyHalfLife: data.recencyHalfLife ?? '12h',
           followingOnly: data.followingOnly ?? false,
-          minConnoisseurCred: data.minConnoisseurCred ?? null,
+          minCred: data.minCred ?? null,
         },
         update: partialUpdate,
       });

@@ -460,7 +460,7 @@ export async function getAllVibeVectors(prisma: PrismaClient) {
 }
 
 /**
- * Phase 3: ConnoisseurCred Logic
+ * Phase 3: Cred Logic
  */
 
 function calculateCredEarned(post: any): number {
@@ -545,7 +545,7 @@ async function updateUserCred(prisma: PrismaClient, post: any) {
   // And maybe we assume the User's `nodeCredScores` is the sum of all their posts' scores.
   // But we can't query all posts every time.
   //
-  // Let's modify `User` to just have `connoisseurCred` (global) and `nodeCredScores` (local).
+  // Let's modify `User` to just have `cred` (global) and `nodeCredScores` (local).
   // For this MVP, let's just increment/decrement based on the *delta* of the aggregate?
   //
   // Actually, `updatePostMetricsFromReactions` is called after *one* reaction change.
@@ -591,16 +591,30 @@ async function updateUserCred(prisma: PrismaClient, post: any) {
       [post.nodeId]: newNodeCred
     };
 
+    const newTotalCred = Math.round((Object.values(newNodeCreds) as number[]).reduce((a, b) => a + b, 0));
+
     // Update User
     await prisma.user.update({
       where: { id: author.id },
       data: {
         nodeCredScores: newNodeCreds,
-        // Also update global cred? Maybe average or sum?
-        // Roadmap says: "totalCred = Object.values(author.nodeCredScores).reduce((a, b) => a + b, 0);"
-        connoisseurCred: (Object.values(newNodeCreds) as number[]).reduce((a, b) => a + b, 0)
+        cred: newTotalCred
       }
     });
+
+    // Create CredTransaction for auditability
+    const roundedDiff = Math.round(diff * 10) / 10; // Round to 1 decimal
+    if (Math.abs(roundedDiff) >= 1) {
+      await prisma.credTransaction.create({
+        data: {
+          userId: author.id,
+          amount: Math.round(roundedDiff),
+          reason: roundedDiff > 0 ? 'post_reaction_earned' : 'post_reaction_lost',
+          sourceType: 'post',
+          sourceId: post.id,
+        },
+      });
+    }
 
     // Also update the aggregate's qualityScore so we have a baseline for next time
     await prisma.postVibeAggregate.update({

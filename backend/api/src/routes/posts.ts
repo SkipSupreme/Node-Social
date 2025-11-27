@@ -26,6 +26,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().min(1).max(300),
         linkUrl: z.string().url().optional(),
+        expertGateCred: z.number().int().min(0).max(10000).optional(), // Min cred to comment
         poll: z.object({
           question: z.string().min(1).max(300),
           options: z.array(z.string().min(1).max(100)).min(2).max(4),
@@ -38,7 +39,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, nodeId: providedNodeId, title, linkUrl, poll } = parsed.data;
+      const { content, nodeId: providedNodeId, title, linkUrl, poll, expertGateCred } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Default to global node if no nodeId provided
@@ -71,6 +72,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         title: title ?? null,
         author: { connect: { id: userId } },
         linkUrl: linkUrl ?? null,
+        expertGateCred: expertGateCred ?? null,
         ...(nodeId ? { node: { connect: { id: nodeId } } } : {}),
         ...(linkMetaId ? { linkMeta: { connect: { id: linkMetaId } } } : {}),
       };
@@ -102,7 +104,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               lastName: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           linkMeta: true,
@@ -117,7 +119,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       // Award Cred for posting
       await fastify.prisma.user.update({
         where: { id: userId },
-        data: { connoisseurCred: { increment: 1 } }
+        data: { cred: { increment: 1 } }
       });
 
       await fastify.prisma.credTransaction.create({
@@ -266,6 +268,51 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where.postType = { in: postTypeFilter };
       }
 
+      // Following-Only Feed Filter
+      if (preferences.followingOnly) {
+        const following = await fastify.prisma.userFollow.findMany({
+          where: { followerId: userId },
+          select: { followingId: true },
+        });
+        const followingIds = following.map((f) => f.followingId);
+        // Include user's own posts too
+        followingIds.push(userId);
+        where.authorId = { in: followingIds };
+      }
+
+      // Block/Mute Enforcement - Hide posts from blocked/muted users
+      const [blocks, mutes] = await Promise.all([
+        fastify.prisma.userBlock.findMany({
+          where: { blockerId: userId },
+          select: { blockedId: true },
+        }),
+        fastify.prisma.userMute.findMany({
+          where: { muterId: userId },
+          select: { mutedId: true },
+        }),
+      ]);
+
+      const excludedUserIds = [
+        ...blocks.map((b) => b.blockedId),
+        ...mutes.map((m) => m.mutedId),
+      ];
+
+      if (excludedUserIds.length > 0) {
+        if (where.authorId && typeof where.authorId === 'object') {
+          // Combine with existing filter (e.g., followingOnly `in` filter)
+          where.authorId = { ...where.authorId, notIn: excludedUserIds };
+        } else if (where.authorId && typeof where.authorId === 'string') {
+          // Single author filter - don't modify (they're viewing a specific user's posts)
+          // Only filter if that user isn't blocked/muted
+          if (excludedUserIds.includes(where.authorId)) {
+            // Return empty result - user is trying to view blocked/muted user's posts
+            return reply.send({ posts: [], nextCursor: undefined, hasMore: false });
+          }
+        } else {
+          where.authorId = { notIn: excludedUserIds };
+        }
+      }
+
       // Fetch posts with metrics for scoring
       const postInclude = {
         author: {
@@ -277,7 +324,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             lastName: true,
             avatar: true,
             era: true,
-            connoisseurCred: true,
+            cred: true,
           },
         },
         node: {
@@ -311,7 +358,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
                 lastName: true,
                 avatar: true,
                 era: true,
-                connoisseurCred: true,
+                cred: true,
               },
             },
           }
@@ -445,7 +492,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               lastName: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           node: {
@@ -582,7 +629,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               lastName: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           node: {

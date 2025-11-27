@@ -42,7 +42,7 @@ const baseUserSelect = {
   dateOfBirth: true,
   bio: true,
   avatar: true,
-  connoisseurCred: true,
+  cred: true,
   era: true,
   theme: true,
 } as const;
@@ -316,7 +316,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           dateOfBirth: user.dateOfBirth,
           bio: user.bio,
           avatar: user.avatar,
-          connoisseurCred: user.connoisseurCred,
+          cred: user.cred,
           era: user.era,
           theme: user.theme,
         },

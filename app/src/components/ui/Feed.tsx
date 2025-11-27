@@ -12,7 +12,7 @@ export interface UIAuthor {
     username: string;
     avatar: string;
     era: string;
-    connoisseurCred: number;
+    cred: number;
 }
 
 export interface UIComment {
@@ -129,7 +129,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
                         <Text style={styles.usernameSmall}>{comment.author.username}</Text>
 
                         <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
-                            <Text style={styles.badgeText}>{comment.author.connoisseurCred} Cred</Text>
+                            <Text style={styles.badgeText}>{comment.author.cred} Cred</Text>
                         </View>
 
                         <View style={[styles.badge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border, borderWidth: 1 }]}>
@@ -233,7 +233,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         username: c.author.username || 'User',
                         avatar: c.author.avatar,
                         era: c.author.era || 'Lurker Era',
-                        connoisseurCred: c.author.connoisseurCred || 0
+                        cred: c.author.cred || 0
                     },
                     content: c.content,
                     timestamp: new Date(c.createdAt),
@@ -419,7 +419,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     username: currentUser?.username || 'You',
                     avatar: currentUser?.avatar || undefined,
                     era: currentUser?.era || 'Builder Era',
-                    connoisseurCred: currentUser?.connoisseurCred || 0
+                    cred: currentUser?.cred || 0
                 },
                 content: newCommentData.content,
                 timestamp: new Date(newCommentData.createdAt),
@@ -478,7 +478,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                                 <Text style={styles.usernameLarge}>{post.author.username}</Text>
                                 <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
-                                    <Text style={styles.badgeText}>{post.author.connoisseurCred} Cred</Text>
+                                    <Text style={styles.badgeText}>{post.author.cred} Cred</Text>
                                 </View>
                                 <View style={[styles.badge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border, borderWidth: 1 }]}>
                                     <Text style={[styles.badgeText, { color: eraStyle.text }]}>{post.author.era}</Text>
@@ -526,6 +526,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     {/* Poll Rendering */}
                     {localPoll && (
                         <View style={styles.pollContainer}>
+                            <Text style={styles.pollQuestion}>{localPoll.question}</Text>
                             {localPoll.options.map((opt) => {
                                 const votes = opt._count?.votes || 0;
                                 const percent = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
@@ -812,30 +813,46 @@ const styles = StyleSheet.create({
         borderTopWidth: 1, borderTopColor: COLORS.node.border, backgroundColor: 'rgba(15, 17, 21, 0.3)',
         paddingHorizontal: 8, paddingTop: 16, paddingBottom: 16
     },
-    pollContainer: { marginTop: 12, gap: 8 },
+    pollContainer: {
+        marginTop: 12,
+        gap: 8,
+        maxWidth: Platform.OS === 'web' ? 400 : '100%',
+        backgroundColor: COLORS.node.panel,
+        padding: 16,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    pollQuestion: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.node.text,
+        marginBottom: 8,
+    },
     pollOption: {
         backgroundColor: COLORS.node.bg,
         borderRadius: 8,
         borderWidth: 1,
         borderColor: COLORS.node.border,
-        height: 40,
+        height: 44,
         justifyContent: 'center',
         overflow: 'hidden',
         position: 'relative'
     },
-    pollOptionSelected: { borderColor: COLORS.node.accent },
+    pollOptionSelected: { borderColor: COLORS.node.accent, borderWidth: 2 },
     pollBar: {
         position: 'absolute',
         top: 0, bottom: 0, left: 0,
-        backgroundColor: 'rgba(99, 102, 241, 0.2)'
+        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+        borderRadius: 6,
     },
     pollContent: {
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-        paddingHorizontal: 12
+        paddingHorizontal: 14
     },
     pollText: { fontSize: 14, color: COLORS.node.text, fontWeight: '500' },
-    pollPercent: { fontSize: 12, color: COLORS.node.muted, fontFamily: 'monospace' },
-    pollTotal: { fontSize: 11, color: COLORS.node.muted, marginTop: 4, textAlign: 'right' },
+    pollPercent: { fontSize: 13, color: COLORS.node.muted, fontWeight: '600', fontFamily: 'monospace' },
+    pollTotal: { fontSize: 12, color: COLORS.node.muted, marginTop: 8 },
     modalOverlay: {
         flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
     },

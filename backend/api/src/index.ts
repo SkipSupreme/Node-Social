@@ -25,7 +25,12 @@ import reactionRoutes from './routes/reactions.js';
 import usersRoutes from './routes/users.js';
 import metadataRoutes from './routes/metadata.js';
 import messagesRoutes from './routes/messages.js';
+import reportRoutes from './routes/reports.js';
+import vouchRoutes from './routes/vouch.js';
+import councilRoutes from './routes/council.js';
+import appealRoutes from './routes/appeals.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
+import { trackUserActivity } from './lib/activityTracker.js';
 
 const app = Fastify({ logger: true });
 const isProd = process.env.NODE_ENV === 'production';
@@ -108,6 +113,16 @@ app.decorate('authenticate', async function (request: any, reply: any) {
   }
 });
 
+// Activity tracking - update lastActiveAt for authenticated users
+app.addHook('onRequest', async (request) => {
+  if ((request as any).user?.id || (request as any).user?.sub) {
+    const userId = (request as any).user?.id || (request as any).user?.sub;
+    if (userId) {
+      trackUserActivity(app, userId);
+    }
+  }
+});
+
 // Register rate limit after Redis is available
 app.register(async (fastify) => {
   await fastify.register(rateLimit, {
@@ -144,6 +159,10 @@ app.register(async (fastify) => {
   await fastify.register(moderationRoutes, { prefix: '/api/v1/mod' });
   await fastify.register(expertRoutes, { prefix: '/api/v1/expert' });
   await fastify.register(presetRoutes, { prefix: '/api/v1/presets' });
+  await fastify.register(reportRoutes, { prefix: '/api/v1/reports' });
+  await fastify.register(vouchRoutes, { prefix: '/api/v1/vouch' });
+  await fastify.register(councilRoutes, { prefix: '/api/v1/council' });
+  await fastify.register(appealRoutes, { prefix: '/api/v1/appeals' });
 });
 app.register(usersRoutes, { prefix: '/users' });
 app.register(metadataRoutes, { prefix: '/metadata' });

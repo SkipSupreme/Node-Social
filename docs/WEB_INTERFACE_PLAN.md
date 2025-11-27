@@ -60,7 +60,7 @@ Build a fully customizable web interface where users can drag, drop, resize, and
 - `backend/api/prisma/schema.prisma` - Add `VibeVector`, `NodeVibeWeight`, `VibeReaction` models
 - `backend/api/src/routes/posts.ts` - Add `/posts/:id/reactions` endpoint
 - `backend/api/src/services/vibeService.ts` - Vibe Vector logic and Node weighting
-- `backend/api/src/services/credService.ts` - ConnoisseurCred calculation from reactions
+- `backend/api/src/services/credService.ts` - Cred calculation from reactions
 - `backend/api/src/config/vibeVectors.ts` - Platform-wide vector definitions and seed data
 
 **Schema additions:**
@@ -159,7 +159,7 @@ model User {
 - Node-specific weighting affects feed ranking, not which vectors are available
 - Intensity values are 0.0-1.0 (percentage-based)
 - Users can apply multiple vectors with different intensities in one reaction
-- Reactions feed into ConnoisseurCred calculation (experts' reactions weighted more)
+- Reactions feed into Cred calculation (experts' reactions weighted more)
 - Don't display raw counts prominently (research: visible scores create bias)
 - Reactions are personal expression, not public voting
 
@@ -265,7 +265,7 @@ model User {
 - `backend/api/src/services/nodeWeightService.ts` - Calculate weighted scores based on Node's vector weights
 
 **Ranking factors:**
-1. **Vibe Vector intensities** (weighted by reactor's ConnoisseurCred AND Node's vector weights)
+1. **Vibe Vector intensities** (weighted by reactor's Cred AND Node's vector weights)
 2. **Vibe Vector diversity** (posts with varied reactions score higher)
 3. **Quality weight** (from Vibe Validator user preferences)
 4. **Recency weight** (from Vibe Validator, time decay)

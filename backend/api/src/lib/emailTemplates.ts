@@ -1,4 +1,4 @@
-import type { EmailTemplate } from '../../generated/prisma/client.js';
+import type { EmailTemplate } from '@prisma/client';
 
 type RenderResult = {
   subject: string;

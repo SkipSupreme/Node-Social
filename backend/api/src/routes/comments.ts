@@ -39,6 +39,24 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Post not found' });
       }
 
+      // Expert Gate enforcement: Check if user has enough cred for top-level comments
+      // Replies to existing comments are always allowed (enables discussion)
+      if (post.expertGateCred !== null && !parentId) {
+        const user = await fastify.prisma.user.findUnique({
+          where: { id: userId },
+          select: { cred: true },
+        });
+
+        if (!user || user.cred < post.expertGateCred) {
+          return reply.status(403).send({
+            error: 'Expert Gate',
+            message: `This post requires ${post.expertGateCred} cred to comment. You have ${user?.cred || 0} cred.`,
+            requiredCred: post.expertGateCred,
+            userCred: user?.cred || 0,
+          });
+        }
+      }
+
       // Check if parent comment exists if provided
       if (parentId) {
         const parent = await fastify.prisma.comment.findUnique({ where: { id: parentId } });
@@ -65,7 +83,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
               username: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           _count: {
@@ -144,7 +162,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
               username: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           _count: {
@@ -182,7 +200,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
               username: true,
               avatar: true,
               era: true,
-              connoisseurCred: true,
+              cred: true,
             },
           },
           _count: {

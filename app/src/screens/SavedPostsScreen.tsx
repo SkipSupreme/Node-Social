@@ -32,7 +32,7 @@ export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
                     username: p.author.username || p.author.email.split('@')[0],
                     avatar: p.author.avatar,
                     era: p.author.era || 'Lurker Era',
-                    connoisseurCred: p.author.connoisseurCred || 0
+                    cred: p.author.cred || 0
                 },
                 title: p.title || 'Untitled Post',
                 content: p.content,

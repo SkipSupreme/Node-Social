@@ -35,7 +35,7 @@ export async function updatePostMetrics(
     const engagementScore =
       commentCount * 2 + likeCount * 1 + shareCount * 3 + saveCount * 1;
 
-    // Quality score defaults to 50.0, can be updated later with ConnoisseurCred
+    // Quality score defaults to 50.0, can be updated later with Cred
     const qualityScore = existing?.qualityScore ?? 50.0;
 
     // Upsert PostMetric

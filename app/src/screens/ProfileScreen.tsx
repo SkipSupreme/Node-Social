@@ -140,7 +140,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
                             onPress={onCredClick}
                             disabled={!onCredClick}
                         >
-                            <Text style={styles.badgeText}>{user.connoisseurCred || 0} Cred</Text>
+                            <Text style={styles.badgeText}>{user.cred || 0} Cred</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
