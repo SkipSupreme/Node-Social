@@ -1,10 +1,11 @@
 // Phase 4.2 - Post Type Filter Component
-// Filter feed by post type (text, image, video, link)
+// Filter feed by post type (text, image, video, link, poll)
 
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { COLORS } from '../../../constants/theme';
 
-export type PostType = 'text' | 'image' | 'video' | 'link';
+export type PostType = 'text' | 'image' | 'video' | 'link' | 'poll';
 
 interface PostTypeFilterProps {
   selectedTypes: PostType[];
@@ -17,6 +18,7 @@ const ALL_POST_TYPES: { type: PostType; label: string; icon: string }[] = [
   { type: 'image', label: 'Images', icon: '🖼️' },
   { type: 'video', label: 'Videos', icon: '🎥' },
   { type: 'link', label: 'Links', icon: '🔗' },
+  { type: 'poll', label: 'Polls', icon: '📊' },
 ];
 
 export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
@@ -52,7 +54,7 @@ export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
   const showAll = selectedTypes.length === 0 || selectedTypes.length === ALL_POST_TYPES.length;
 
   return (
-    <View style={styles.container}>
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.container}>
       <TouchableOpacity
         style={[styles.filterButton, showAll && styles.filterButtonSelected]}
         onPress={handleSelectAll}
@@ -79,7 +81,7 @@ export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
           </TouchableOpacity>
         );
       })}
-    </View>
+    </ScrollView>
   );
 };
 
@@ -89,7 +91,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     paddingVertical: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 8,
   },
   filterButton: {
     flexDirection: 'row',
@@ -97,14 +99,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: COLORS.node.border,
     gap: 4,
   },
   filterButtonSelected: {
-    backgroundColor: '#EFF6FF',
-    borderColor: '#2563EB',
+    backgroundColor: `${COLORS.node.accent}20`,
+    borderColor: COLORS.node.accent,
   },
   filterIcon: {
     fontSize: 14,
@@ -112,10 +114,10 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#334155',
+    color: COLORS.node.muted,
   },
   filterButtonTextSelected: {
-    color: '#2563EB',
+    color: COLORS.node.accent,
     fontWeight: '600',
   },
 });

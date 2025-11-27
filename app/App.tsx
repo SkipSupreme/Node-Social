@@ -19,7 +19,7 @@ import { Sidebar } from './src/components/ui/Sidebar';
 import { Feed } from './src/components/ui/Feed';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VibeValidator } from './src/components/ui/VibeValidator';
-import { getFeed, getNodes, Post, searchPosts } from './src/lib/api';
+import { getFeed, getNodes, Post, searchPosts, getFeedPreferences, updateFeedPreferences } from './src/lib/api';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
 import { Plus } from 'lucide-react-native';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
@@ -34,6 +34,7 @@ import { FollowingScreen } from './src/screens/FollowingScreen';
 import { PostDetailScreen } from './src/screens/PostDetailScreen';
 import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
+import { PostTypeFilter, PostType } from './src/web/components/Feeds/PostTypeFilter';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
@@ -62,6 +63,39 @@ const MainApp = () => {
     weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 }
   });
 
+  // Load feed preferences from backend on mount
+  const loadFeedPreferences = async () => {
+    try {
+      const prefs = await getFeedPreferences();
+      setAlgoSettings({
+        preset: prefs.presetMode || 'balanced',
+        weights: {
+          quality: prefs.qualityWeight,
+          recency: prefs.recencyWeight,
+          engagement: prefs.engagementWeight,
+          personalization: prefs.personalizationWeight,
+        }
+      });
+    } catch (error) {
+      console.log('Using default feed preferences');
+    }
+  };
+
+  // Save feed preferences to backend (debounced in effect)
+  const saveFeedPreferences = async (settings: typeof algoSettings) => {
+    try {
+      await updateFeedPreferences({
+        preset: settings.preset as any,
+        qualityWeight: settings.weights.quality,
+        recencyWeight: settings.weights.recency,
+        engagementWeight: settings.weights.engagement,
+        personalizationWeight: settings.weights.personalization,
+      });
+    } catch (error) {
+      console.error('Failed to save feed preferences:', error);
+    }
+  };
+
   const { width } = useWindowDimensions();
   const isTablet = width >= 768;
   const isDesktop = width >= 1024; // 3-column breakpoint
@@ -88,7 +122,9 @@ const MainApp = () => {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
+  const [selectedPostTypes, setSelectedPostTypes] = useState<PostType[]>([]);
+
+  const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global', postTypes?: PostType[]) => {
     setLoading(true);
     try {
       const params: any = {
@@ -103,6 +139,11 @@ const MainApp = () => {
         params.preset = 'popular'; // Or 'balanced'
       } else if (mode === 'following') {
         params.followingOnly = true;
+      }
+
+      // Add post type filter if any selected
+      if (postTypes && postTypes.length > 0) {
+        params.postTypes = postTypes;
       }
 
       const data = await getFeed(params);
@@ -157,13 +198,18 @@ const MainApp = () => {
     }
   };
 
-  // Debounced feed refresh when algo settings change
+  // Debounced feed refresh and preference save when algo settings change
+  const [settingsInitialized, setSettingsInitialized] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchFeed(selectedNodeId, feedMode);
+      fetchFeed(selectedNodeId, feedMode, selectedPostTypes);
+      // Only save to backend after initial load (not on first mount)
+      if (settingsInitialized) {
+        saveFeedPreferences(algoSettings);
+      }
     }, 500);
     return () => clearTimeout(timer);
-  }, [algoSettings]);
+  }, [algoSettings, settingsInitialized, selectedPostTypes]);
 
   const handleNodeSelect = (nodeId: string | null) => {
     setSelectedNodeId(nodeId);
@@ -173,7 +219,7 @@ const MainApp = () => {
     // But if we are in discovery/following, maybe we should stay there?
     // For now, let's reset to global when picking a node to be safe/simple
     setFeedMode('global');
-    fetchFeed(nodeId, 'global');
+    fetchFeed(nodeId, 'global', selectedPostTypes);
   };
 
   const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
@@ -188,7 +234,7 @@ const MainApp = () => {
       setCurrentView('following');
     } else {
       setCurrentView('feed');
-      fetchFeed(null, mode);
+      fetchFeed(null, mode, selectedPostTypes);
     }
   };
 
@@ -196,7 +242,7 @@ const MainApp = () => {
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      fetchFeed(selectedNodeId, feedMode);
+      fetchFeed(selectedNodeId, feedMode, selectedPostTypes);
       return;
     }
     setLoading(true);
@@ -245,8 +291,13 @@ const MainApp = () => {
   };
 
   useEffect(() => {
-    fetchNodes();
-    fetchFeed();
+    const init = async () => {
+      await fetchNodes();
+      await loadFeedPreferences();
+      setSettingsInitialized(true);
+      // fetchFeed will be called by the algoSettings effect after preferences load
+    };
+    init();
   }, []);
 
   // Socket.io Integration for Real-time Feed
@@ -377,16 +428,26 @@ const MainApp = () => {
           {/* Scrollable Content - Full Width */}
           <View style={{ width: '100%', maxWidth: '100%', flex: 1 }}>
             {currentView === 'feed' ? (
-              <Feed
-                posts={posts}
-                currentUser={user}
-                onPostAction={(postId, action) => {
-                  // Optimistic update: remove post from feed
-                  setPosts(prev => prev.filter(p => p.id !== postId));
-                }}
-                onPostClick={handlePostClick}
-                globalNodeId={nodes.find(n => n.slug === 'global')?.id}
-              />
+              <View style={{ flex: 1 }}>
+                {/* Post Type Filter */}
+                <View style={{ borderBottomWidth: 1, borderBottomColor: COLORS.node.border }}>
+                  <PostTypeFilter
+                    selectedTypes={selectedPostTypes}
+                    onTypesChange={setSelectedPostTypes}
+                    multiSelect={true}
+                  />
+                </View>
+                <Feed
+                  posts={posts}
+                  currentUser={user}
+                  onPostAction={(postId, _action) => {
+                    // Optimistic update: remove post from feed
+                    setPosts(prev => prev.filter(p => p.id !== postId));
+                  }}
+                  onPostClick={handlePostClick}
+                  globalNodeId={nodes.find(n => n.slug === 'global')?.id}
+                />
+              </View>
             ) : currentView === 'profile' ? (
               <ProfileScreen
                 onBack={() => setCurrentView('feed')}
@@ -497,7 +558,7 @@ const MainApp = () => {
         onSuccess={() => {
           setIsCreatePostOpen(false);
           queryClient.invalidateQueries({ queryKey: ['posts'] });
-          fetchFeed(selectedNodeId); // Refresh feed after posting
+          fetchFeed(selectedNodeId, feedMode, selectedPostTypes); // Refresh feed after posting
         }}
         nodes={nodes}
         initialNodeId={selectedNodeId}

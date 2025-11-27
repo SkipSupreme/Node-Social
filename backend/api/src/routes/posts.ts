@@ -2,7 +2,16 @@ import type { FastifyPluginAsync } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { initializePostMetrics, updatePostMetrics } from '../lib/metrics.js';
-import { calculateFeedScore, calculateScoreBreakdown, getDefaultPreferences, type FeedPreferences } from '../lib/feedScoring.js';
+import {
+  calculateFeedScore,
+  calculateScoreBreakdown,
+  getDefaultPreferences,
+  calculatePersonalizationScore,
+  buildVibeProfileFromReactions,
+  buildTrustNetwork,
+  type FeedPreferences,
+  type PersonalizationContext
+} from '../lib/feedScoring.js';
 import { syncPostToMeili } from '../lib/searchSync.js';
 import { logModAction } from '../lib/moderation.js';
 import { ExpertService, type ExpertRule } from '../services/expertService.js';
@@ -405,16 +414,60 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         posts = ExpertService.applyRules(posts, expertRules);
       }
 
+      // Build personalization context for the user
+      // This includes following list, node cred scores, vibe profile, and trust network
+      const [user, userReactions, vouches] = await Promise.all([
+        fastify.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            nodeCredScores: true,
+            following: { select: { followingId: true } },
+          },
+        }),
+        // Get user's last 100 reactions to build vibe profile
+        fastify.prisma.vibeReaction.findMany({
+          where: { userId },
+          select: { intensities: true },
+          orderBy: { createdAt: 'desc' },
+          take: 100,
+        }),
+        // Get all active vouches for trust network
+        fastify.prisma.vouch.findMany({
+          where: { active: true },
+          select: { voucherId: true, voucheeId: true, active: true },
+        }),
+      ]);
+
+      const personalizationContext: PersonalizationContext = {
+        followingIds: new Set(user?.following.map(f => f.followingId) || []),
+        userNodeCredScores: (user?.nodeCredScores as Record<string, number>) || {},
+        userVibeProfile: buildVibeProfileFromReactions(
+          userReactions.map(r => ({ intensities: r.intensities as Record<string, number> }))
+        ),
+        vouchNetwork: buildTrustNetwork(vouches, userId, 3),
+      };
+
       // Calculate feed scores and sort
       const postsWithScores = posts.map((post) => {
         const metrics = post.metrics;
+
+        // Calculate real personalization score based on user context
+        const personalizationScore = calculatePersonalizationScore(
+          {
+            authorId: post.authorId,
+            nodeId: post.nodeId,
+            vibeAggregate: post.vibeAggregate,
+          },
+          personalizationContext
+        );
+
         const score = calculateFeedScore(
           {
             id: post.id,
             createdAt: post.createdAt,
             engagementScore: metrics?.engagementScore ?? 0,
             qualityScore: metrics?.qualityScore ?? 50.0,
-            personalizationScore: 50.0, // Default: no personalization yet (future: following, vibe alignment)
+            personalizationScore,
           },
           preferences,
           (post as any).boostMultiplier || 1.0 // Apply boost from rules
@@ -618,7 +671,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       const updatedPost = await fastify.prisma.post.update({
         where: { id },
-        data: updateData,
+        data: { ...updateData, editedAt: new Date() },
         include: {
           author: {
             select: {
@@ -640,6 +693,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             },
           },
         },
+      });
+
+      // Sync updated content to MeiliSearch (fire-and-forget)
+      syncPostToMeili(fastify, id).catch((err) => {
+        fastify.log.error({ err, postId: id }, 'Failed to sync update to MeiliSearch');
       });
 
       return reply.send(updatedPost);
@@ -813,7 +871,49 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    // 3. Calculate Breakdown
+    // 3. Build personalization context
+    const [user, userReactions, vouches, vibeAggregate] = await Promise.all([
+      fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          nodeCredScores: true,
+          following: { select: { followingId: true } },
+        },
+      }),
+      fastify.prisma.vibeReaction.findMany({
+        where: { userId },
+        select: { intensities: true },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      }),
+      fastify.prisma.vouch.findMany({
+        where: { active: true },
+        select: { voucherId: true, voucheeId: true, active: true },
+      }),
+      fastify.prisma.postVibeAggregate.findUnique({
+        where: { postId: post.id },
+      }),
+    ]);
+
+    const personalizationContext: PersonalizationContext = {
+      followingIds: new Set(user?.following.map(f => f.followingId) || []),
+      userNodeCredScores: (user?.nodeCredScores as Record<string, number>) || {},
+      userVibeProfile: buildVibeProfileFromReactions(
+        userReactions.map(r => ({ intensities: r.intensities as Record<string, number> }))
+      ),
+      vouchNetwork: buildTrustNetwork(vouches, userId, 3),
+    };
+
+    const personalizationScore = calculatePersonalizationScore(
+      {
+        authorId: post.authorId,
+        nodeId: post.nodeId,
+        vibeAggregate,
+      },
+      personalizationContext
+    );
+
+    // 4. Calculate Breakdown
     const metrics = post.metrics;
     const breakdown = calculateScoreBreakdown(
       {
@@ -821,7 +921,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         createdAt: post.createdAt,
         engagementScore: metrics?.engagementScore ?? 0,
         qualityScore: metrics?.qualityScore ?? 50.0,
-        personalizationScore: 50.0,
+        personalizationScore,
       },
       preferences,
       boostMultiplier
