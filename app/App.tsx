@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -124,6 +124,19 @@ const MainApp = () => {
 
   const [selectedPostTypes, setSelectedPostTypes] = useState<PostType[]>([]);
 
+  // Refs to track latest values for the debounced effect (avoids stale closures)
+  const feedModeRef = useRef(feedMode);
+  const selectedNodeIdRef = useRef(selectedNodeId);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    feedModeRef.current = feedMode;
+  }, [feedMode]);
+  
+  useEffect(() => {
+    selectedNodeIdRef.current = selectedNodeId;
+  }, [selectedNodeId]);
+
   const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global', postTypes?: PostType[]) => {
     setLoading(true);
     try {
@@ -202,7 +215,9 @@ const MainApp = () => {
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchFeed(selectedNodeId, feedMode, selectedPostTypes);
+      // Use refs to get latest feedMode/selectedNodeId without them as dependencies
+      // This avoids duplicate fetches since handlers already call fetchFeed directly
+      fetchFeed(selectedNodeIdRef.current, feedModeRef.current, selectedPostTypes);
       // Only save to backend after initial load (not on first mount)
       if (settingsInitialized) {
         saveFeedPreferences(algoSettings);

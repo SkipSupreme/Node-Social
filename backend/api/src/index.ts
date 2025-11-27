@@ -1,6 +1,6 @@
 // src/index.ts
 import 'dotenv/config'; // loads .env
-import Fastify from 'fastify';
+import Fastify, { type FastifyInstance } from 'fastify';
 import cors, { type OriginFunction } from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
@@ -32,62 +32,6 @@ import appealRoutes from './routes/appeals.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 
-const app = Fastify({ logger: true });
-const isProd = process.env.NODE_ENV === 'production';
-const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;
-
-// plugins
-// CORS: Allow all origins in dev, or specific domains in production
-const allowedOriginsList = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
-  : null;
-const corsOrigin: OriginFunction =
-  allowedOriginsList && allowedOriginsList.length > 0
-    ? (origin, cb) => {
-      // Allow configured origins in prod, reflect all in dev for local testing
-      if (!origin) return cb(null, true);
-      if (!isProd) return cb(null, true);
-      if (allowedOriginsList.includes(origin)) return cb(null, origin);
-      return cb(new Error('Origin not allowed'), false);
-    }
-    : (origin, cb) => {
-      cb(null, true); // reflect any origin in dev/tunnel scenarios
-    };
-app.register(cors, {
-  origin: corsOrigin,
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
-});
-app.register(cookie, {
-  secret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
-});
-app.register(helmet, {
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      imgSrc: ["'self'", 'data:'],
-      connectSrc: ["'self'", ...(Array.isArray(allowedOriginsList) ? allowedOriginsList : [])],
-      frameAncestors: ["'none'"],
-      objectSrc: ["'none'"],
-    },
-  },
-  crossOriginEmbedderPolicy: false,
-});
-app.register(redisPlugin);
-app.register(prismaPlugin);
-app.register(meilisearchPlugin);
-app.register(socketPlugin);
-
-app.after(() => {
-  registerEmailQueue(app);
-});
-
-app.register(jwt, {
-  secret: process.env.JWT_SECRET || 'dev-secret-change-me',
-});
-
 // Add authenticate decorator for protected routes
 declare module 'fastify' {
   interface FastifyInstance {
@@ -95,91 +39,168 @@ declare module 'fastify' {
   }
 }
 
-app.decorate('authenticate', async function (request: any, reply: any) {
-  try {
-    await request.jwtVerify();
-  } catch (err) {
-    // Fallback to cookie-based access token
-    const cookieToken = request.cookies?.accessToken;
-    if (cookieToken) {
-      try {
-        await request.jwtVerify({ token: cookieToken });
-        return;
-      } catch (cookieErr) {
-        app.log.debug({ cookieErr }, 'Cookie JWT verification failed');
+/**
+ * Build the Fastify application instance
+ * Exported for testing - tests can import build() to get an app instance
+ */
+export async function build(): Promise<FastifyInstance> {
+  const isTest = process.env.NODE_ENV === 'test';
+  const app = Fastify({ logger: !isTest }); // Disable logging in tests
+  const isProd = process.env.NODE_ENV === 'production';
+
+  // plugins
+  // CORS: Allow all origins in dev, or specific domains in production
+  const allowedOriginsList = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map((o) => o.trim())
+    : null;
+  const corsOrigin: OriginFunction =
+    allowedOriginsList && allowedOriginsList.length > 0
+      ? (origin, cb) => {
+        // Allow configured origins in prod, reflect all in dev for local testing
+        if (!origin) return cb(null, true);
+        if (!isProd) return cb(null, true);
+        if (allowedOriginsList.includes(origin)) return cb(null, origin);
+        return cb(new Error('Origin not allowed'), false);
+      }
+      : (origin, cb) => {
+        cb(null, true); // reflect any origin in dev/tunnel scenarios
+      };
+  await app.register(cors, {
+    origin: corsOrigin,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
+  });
+  await app.register(cookie, {
+    secret: process.env.COOKIE_SECRET || 'dev-cookie-secret',
+  });
+  await app.register(helmet, {
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'", ...(Array.isArray(allowedOriginsList) ? allowedOriginsList : [])],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+  });
+  await app.register(redisPlugin);
+  await app.register(prismaPlugin);
+  await app.register(meilisearchPlugin);
+  await app.register(socketPlugin);
+
+  app.after(() => {
+    registerEmailQueue(app);
+  });
+
+  await app.register(jwt, {
+    secret: process.env.JWT_SECRET || 'dev-secret-change-me',
+  });
+
+  app.decorate('authenticate', async function (request: any, reply: any) {
+    try {
+      await request.jwtVerify();
+    } catch (err) {
+      // Fallback to cookie-based access token
+      const cookieToken = request.cookies?.accessToken;
+      if (cookieToken) {
+        try {
+          await request.jwtVerify({ token: cookieToken });
+          return;
+        } catch (cookieErr) {
+          app.log.debug({ cookieErr }, 'Cookie JWT verification failed');
+        }
+      }
+      reply.status(401).send({ error: 'Unauthorized' });
+    }
+  });
+
+  // Activity tracking - update lastActiveAt for authenticated users
+  app.addHook('onRequest', async (request) => {
+    if ((request as any).user?.id || (request as any).user?.sub) {
+      const userId = (request as any).user?.id || (request as any).user?.sub;
+      if (userId) {
+        trackUserActivity(app, userId);
       }
     }
-    reply.status(401).send({ error: 'Unauthorized' });
-  }
-});
-
-// Activity tracking - update lastActiveAt for authenticated users
-app.addHook('onRequest', async (request) => {
-  if ((request as any).user?.id || (request as any).user?.sub) {
-    const userId = (request as any).user?.id || (request as any).user?.sub;
-    if (userId) {
-      trackUserActivity(app, userId);
-    }
-  }
-});
-
-// Register rate limit after Redis is available
-app.register(async (fastify) => {
-  await fastify.register(rateLimit, {
-    max: 100,
-    timeWindow: '1 minute',
-    redis: fastify.redis, // Use Redis for shared rate limiting across instances
   });
-});
 
-// CSRF protection for cookie-based sessions (double-submit token)
-app.addHook('onRequest', async (request, reply) => {
-  const method = request.method.toUpperCase();
-  const isSafe = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
-  const hasAuthCookie = Boolean(request.cookies?.accessToken || request.cookies?.refreshToken);
-
-  if (!isSafe && hasAuthCookie) {
-    const csrfCookie = request.cookies?.csrfToken;
-    const csrfHeader = request.headers['x-csrf-token'];
-    if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
-      return reply.status(403).send({ error: 'Invalid CSRF token' });
-    }
-  }
-});
-
-// routes
-app.register(authRoutes, { prefix: '/auth' });
-app.register(nodeRoutes, { prefix: '/nodes' });
-app.register(postRoutes, { prefix: '/posts' });
-app.register(commentRoutes, { prefix: '/' }); // Comments are nested under /posts or at root /comments
-app.register(feedPreferenceRoutes, { prefix: '/' });
-app.register(notificationRoutes, { prefix: '/notifications' });
-app.register(async (fastify) => {
-  await fastify.register(reactionRoutes, { prefix: '/api/v1' });
-  await fastify.register(moderationRoutes, { prefix: '/api/v1/mod' });
-  await fastify.register(expertRoutes, { prefix: '/api/v1/expert' });
-  await fastify.register(presetRoutes, { prefix: '/api/v1/presets' });
-  await fastify.register(reportRoutes, { prefix: '/api/v1/reports' });
-  await fastify.register(vouchRoutes, { prefix: '/api/v1/vouch' });
-  await fastify.register(councilRoutes, { prefix: '/api/v1/council' });
-  await fastify.register(appealRoutes, { prefix: '/api/v1/appeals' });
-});
-app.register(usersRoutes, { prefix: '/users' });
-app.register(metadataRoutes, { prefix: '/metadata' });
-app.register(messagesRoutes, { prefix: '/api' }); // Prefix /api so it becomes /api/conversations
-
-// health check
-app.get('/health', async () => ({ ok: true }));
-
-// start server
-const port = Number(process.env.PORT) || 3000;
-
-app
-  .listen({ port, host: '0.0.0.0' })
-  .then(() => {
-    app.log.info(`API running on http://localhost:${port}`);
-  })
-  .catch((err) => {
-    app.log.error(err);
-    process.exit(1);
+  // Register rate limit after Redis is available
+  await app.register(async (fastify) => {
+    await fastify.register(rateLimit, {
+      max: 100,
+      timeWindow: '1 minute',
+      redis: fastify.redis, // Use Redis for shared rate limiting across instances
+    });
   });
+
+  // CSRF protection for cookie-based sessions (double-submit token)
+  app.addHook('onRequest', async (request, reply) => {
+    const method = request.method.toUpperCase();
+    const isSafe = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
+    const hasAuthCookie = Boolean(request.cookies?.accessToken || request.cookies?.refreshToken);
+
+    if (!isSafe && hasAuthCookie) {
+      const csrfCookie = request.cookies?.csrfToken;
+      const csrfHeader = request.headers['x-csrf-token'];
+      if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+        return reply.status(403).send({ error: 'Invalid CSRF token' });
+      }
+    }
+  });
+
+  // routes
+  await app.register(authRoutes, { prefix: '/auth' });
+  await app.register(nodeRoutes, { prefix: '/nodes' });
+  await app.register(postRoutes, { prefix: '/posts' });
+  await app.register(commentRoutes, { prefix: '/' }); // Comments are nested under /posts or at root /comments
+  await app.register(feedPreferenceRoutes, { prefix: '/' });
+  await app.register(notificationRoutes, { prefix: '/notifications' });
+  await app.register(async (fastify) => {
+    await fastify.register(reactionRoutes, { prefix: '/api/v1' });
+    await fastify.register(moderationRoutes, { prefix: '/api/v1/mod' });
+    await fastify.register(expertRoutes, { prefix: '/api/v1/expert' });
+    await fastify.register(presetRoutes, { prefix: '/api/v1/presets' });
+    await fastify.register(reportRoutes, { prefix: '/api/v1/reports' });
+    await fastify.register(vouchRoutes, { prefix: '/api/v1/vouch' });
+    await fastify.register(councilRoutes, { prefix: '/api/v1/council' });
+    await fastify.register(appealRoutes, { prefix: '/api/v1/appeals' });
+  });
+  await app.register(usersRoutes, { prefix: '/users' });
+  await app.register(metadataRoutes, { prefix: '/metadata' });
+  await app.register(messagesRoutes, { prefix: '/api' }); // Prefix /api so it becomes /api/conversations
+
+  // health check
+  app.get('/health', async () => ({ ok: true }));
+
+  // Wait for plugins to be ready
+  await app.ready();
+
+  return app;
+}
+
+// Start server only when running directly (not imported for tests)
+const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+
+if (isMainModule) {
+  const port = Number(process.env.PORT) || 3000;
+
+  build()
+    .then((app) => {
+      app.listen({ port, host: '0.0.0.0' })
+        .then(() => {
+          app.log.info(`API running on http://localhost:${port}`);
+        })
+        .catch((err) => {
+          app.log.error(err);
+          process.exit(1);
+        });
+    })
+    .catch((err) => {
+      console.error('Failed to build app:', err);
+      process.exit(1);
+    });
+}

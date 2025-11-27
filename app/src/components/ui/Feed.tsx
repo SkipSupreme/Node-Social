@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share } from 'react-native';
-import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2 } from './Icons';
+import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag } from './Icons';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason } from '../../lib/api';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { socketManager } from '../../lib/socket';
@@ -205,6 +205,8 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     const [replyingTo, setReplyingTo] = useState<UIComment | null>(null);
     const [submitting, setSubmitting] = useState(false);
     const [isDeleted, setIsDeleted] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportSubmitting, setReportSubmitting] = useState(false);
     const eraStyle = ERAS[post.author.era] || ERAS['Default'];
 
     // Check if current user is the author
@@ -403,6 +405,21 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     const handleEdit = () => {
         setMenuVisible(false);
         onEdit && onEdit(post);
+    };
+
+    const handleReport = async (reason: ReportReason) => {
+        setReportSubmitting(true);
+        try {
+            await reportContent('post', post.id, reason);
+            setShowReportModal(false);
+            setMenuVisible(false);
+            // Show success feedback (could use a toast/alert in the future)
+        } catch (error: any) {
+            console.error('Failed to report post:', error);
+            // Could show error message to user
+        } finally {
+            setReportSubmitting(false);
+        }
     };
 
     const handleSubmitComment = async () => {
@@ -698,9 +715,46 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                                     <Ban size={20} color="#ef4444" />
                                     <Text style={[styles.menuText, { color: '#ef4444' }]}>Block @{post.author.username}</Text>
                                 </TouchableOpacity>
+                                <TouchableOpacity style={styles.menuItem} onPress={() => { setMenuVisible(false); setShowReportModal(true); }}>
+                                    <Flag size={20} color="#f97316" />
+                                    <Text style={[styles.menuText, { color: '#f97316' }]}>Report Post</Text>
+                                </TouchableOpacity>
                             </>
                         )}
                         <TouchableOpacity style={styles.menuItem} onPress={() => setMenuVisible(false)}>
+                            <X size={20} color={COLORS.node.muted} />
+                            <Text style={styles.menuText}>Cancel</Text>
+                        </TouchableOpacity>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Report Modal */}
+            <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
+                <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowReportModal(false)}>
+                    <View style={[styles.menuContainer, { maxWidth: 350 }]}>
+                        <Text style={styles.reportTitle}>Report Post</Text>
+                        <Text style={styles.reportSubtitle}>Why are you reporting this post?</Text>
+
+                        {([
+                            { reason: 'spam' as ReportReason, label: 'Spam or misleading' },
+                            { reason: 'harassment' as ReportReason, label: 'Harassment or bullying' },
+                            { reason: 'hate_speech' as ReportReason, label: 'Hate speech' },
+                            { reason: 'misinformation' as ReportReason, label: 'Misinformation' },
+                            { reason: 'violence' as ReportReason, label: 'Violence or threats' },
+                            { reason: 'other' as ReportReason, label: 'Other' },
+                        ]).map(({ reason, label }) => (
+                            <TouchableOpacity
+                                key={reason}
+                                style={styles.reportOption}
+                                onPress={() => handleReport(reason)}
+                                disabled={reportSubmitting}
+                            >
+                                <Text style={styles.reportOptionText}>{label}</Text>
+                            </TouchableOpacity>
+                        ))}
+
+                        <TouchableOpacity style={[styles.menuItem, { marginTop: 8 }]} onPress={() => setShowReportModal(false)}>
                             <X size={20} color={COLORS.node.muted} />
                             <Text style={styles.menuText}>Cancel</Text>
                         </TouchableOpacity>
@@ -865,6 +919,31 @@ const styles = StyleSheet.create({
         borderRadius: 8
     },
     menuText: { fontSize: 16, color: COLORS.node.text, fontWeight: '500' },
+    reportTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: COLORS.node.text,
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    reportSubtitle: {
+        fontSize: 14,
+        color: COLORS.node.muted,
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    reportOption: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderRadius: 8,
+        backgroundColor: COLORS.node.bg,
+        marginBottom: 8,
+    },
+    reportOptionText: {
+        fontSize: 15,
+        color: COLORS.node.text,
+        fontWeight: '500',
+    },
     commentInputRow: {
         flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16,
         paddingHorizontal: 8

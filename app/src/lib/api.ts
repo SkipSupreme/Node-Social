@@ -714,6 +714,17 @@ export function blockUser(userId: string) {
   });
 }
 
+// Reports
+export type ReportReason = 'spam' | 'harassment' | 'hate_speech' | 'misinformation' | 'violence' | 'other';
+export type ReportTargetType = 'post' | 'comment' | 'user';
+
+export function reportContent(targetType: ReportTargetType, targetId: string, reason: ReportReason, details?: string) {
+  return request<{ message: string; reportId: string }>('/reports', {
+    method: "POST",
+    body: JSON.stringify({ targetType, targetId, reason, details }),
+  });
+}
+
 // Notifications
 export function getNotifications() {
   return request<{ notifications: any[] }>("/notifications", {

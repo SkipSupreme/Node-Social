@@ -81,10 +81,63 @@ jobs:
       
       - name: Test Docker health
         run: |
-          # Start services (already running via services, but verify)
-          docker ps || true
-          # Test API health endpoint would require starting the server
-          # For now, just verify services are accessible
+          # Verify services are accessible
           pg_isready -h localhost -p 5432 || exit 1
           redis-cli -h localhost -p 6379 ping || exit 1
+
+      - name: Generate Prisma client
+        run: |
+          cd backend/api
+          npx prisma generate
+        env:
+          DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
+
+      - name: Run database migrations
+        run: |
+          cd backend/api
+          npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
+
+      - name: Start backend and test health
+        run: |
+          cd backend/api
+          # Start the server in background
+          NODE_ENV=test npm run dev &
+          SERVER_PID=$!
+
+          # Wait for server to start
+          sleep 10
+
+          # Test health endpoint
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3000/health)
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "Health check passed!"
+          else
+            echo "Health check failed with status $HTTP_STATUS"
+            kill $SERVER_PID 2>/dev/null || true
+            exit 1
+          fi
+
+          # Stop server
+          kill $SERVER_PID 2>/dev/null || true
+        env:
+          DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-for-ci
+          CSRF_SECRET: test-csrf-secret-for-ci
+          NODE_ENV: test
+          PORT: 3000
+
+      - name: Run backend tests
+        run: |
+          cd backend/api
+          npm test
+        env:
+          DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-for-ci
+          CSRF_SECRET: test-csrf-secret-for-ci
+          NODE_ENV: test
 
