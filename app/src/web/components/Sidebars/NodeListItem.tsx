@@ -38,13 +38,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: '#2a2d35',
     position: 'relative',
   },
   itemSelected: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
     borderLeftWidth: 3,
-    borderLeftColor: '#2563EB',
+    borderLeftColor: '#6366f1',
   },
   content: {
     flex: 1,
@@ -52,16 +52,16 @@ const styles = StyleSheet.create({
   name: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#334155',
+    color: '#e2e8f0',
     marginBottom: 2,
   },
   nameSelected: {
-    color: '#2563EB',
+    color: '#6366f1',
     fontWeight: '600',
   },
   description: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#94a3b8',
   },
   indicator: {
     position: 'absolute',
@@ -69,7 +69,7 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 3,
-    backgroundColor: '#2563EB',
+    backgroundColor: '#6366f1',
   },
 });
 

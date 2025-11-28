@@ -2,7 +2,7 @@
   "expo": {
     "name": "Node Social",
     "slug": "Node Social",
-    "version": "1.1.1",
+    "version": "1.4.2",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
@@ -42,7 +42,9 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "backgroundColor": "#0f1115",
+      "themeColor": "#0f1115"
     },
     "plugins": [
       "expo-secure-store",

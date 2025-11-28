@@ -103,14 +103,14 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
 
 const styles = StyleSheet.create({
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#181a20',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#2a2d35',
     cursor: 'pointer',
   },
   loadingText: {
-    color: '#64748B',
+    color: '#94a3b8',
     fontSize: 14,
   },
   header: {
@@ -127,30 +127,30 @@ const styles = StyleSheet.create({
   author: {
     fontWeight: '600',
     fontSize: 14,
-    color: '#1E293B',
+    color: '#e2e8f0',
   },
   separator: {
     fontSize: 12,
-    color: '#94A3B8',
+    color: '#94a3b8',
   },
   nodeName: {
     fontSize: 12,
-    color: '#2563EB',
+    color: '#6366f1',
     fontWeight: '500',
   },
   time: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#94a3b8',
   },
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#e2e8f0',
     marginBottom: 8,
   },
   content: {
     fontSize: 15,
-    color: '#334155',
+    color: '#cbd5e1',
     lineHeight: 22,
     marginBottom: 12,
   },
@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   },
   commentCount: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#94a3b8',
     fontWeight: '500',
   },
   // Development: Intensity display
@@ -180,7 +180,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: '#E2E8F0',
+    borderTopColor: '#2a2d35',
     gap: 6,
   },
   intensityItem: {
@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
   intensityBarContainer: {
     flex: 1,
     height: 8,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#0f1115',
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -205,7 +205,7 @@ const styles = StyleSheet.create({
   },
   intensityText: {
     fontSize: 12,
-    color: '#64748B',
+    color: '#94a3b8',
     fontWeight: '600',
     minWidth: 40,
     textAlign: 'right',

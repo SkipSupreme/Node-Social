@@ -116,7 +116,8 @@ const MainApp = () => {
   const loadFeedPreferences = async () => {
     try {
       const prefs = await getFeedPreferences();
-      setAlgoSettings({
+      setAlgoSettings(prev => ({
+        ...prev,
         preset: prefs.presetMode || 'balanced',
         weights: {
           quality: prefs.qualityWeight,
@@ -124,7 +125,7 @@ const MainApp = () => {
           engagement: prefs.engagementWeight,
           personalization: prefs.personalizationWeight,
         }
-      });
+      }));
     } catch (error) {
       console.log('Using default feed preferences');
     }

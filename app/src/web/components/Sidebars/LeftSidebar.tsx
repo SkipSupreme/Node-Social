@@ -128,17 +128,17 @@ const styles = StyleSheet.create({
   container: {
     width: 240,
     height: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#181a20',
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: '#2a2d35',
     flexDirection: 'column',
   },
   collapsedContainer: {
     width: 40,
     height: '100%',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#0f1115',
     borderRightWidth: 1,
-    borderRightColor: '#E2E8F0',
+    borderRightColor: '#2a2d35',
     alignItems: 'center',
     paddingTop: 12,
   },
@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   },
   collapseIcon: {
     fontSize: 18,
-    color: '#64748B',
+    color: '#94a3b8',
   },
   header: {
     flexDirection: 'row',
@@ -161,26 +161,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#2a2d35',
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#e2e8f0',
   },
   searchContainer: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#2a2d35',
   },
   searchInput: {
     height: 32,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: '#0f1115',
     borderRadius: 16,
     paddingHorizontal: 12,
     fontSize: 14,
-    color: '#1E293B',
+    color: '#e2e8f0',
   },
   nodeList: {
     flex: 1,
@@ -191,7 +191,7 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-    color: '#64748B',
+    color: '#94a3b8',
   },
   emptyContainer: {
     padding: 16,
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#94a3b8',
   },
 });
 

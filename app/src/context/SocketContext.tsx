@@ -2,13 +2,10 @@ import React, { createContext, useContext, useEffect, useState, useCallback, use
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../store/auth';
+import { API_URL } from '../config';
 
-// Use localhost for Android emulator (10.0.2.2) or iOS simulator (localhost)
-const SOCKET_URL = Platform.select({
-    android: 'http://10.0.2.2:3000',
-    ios: 'http://localhost:3000',
-    default: 'http://localhost:3000',
-});
+// Use the same URL logic as the API - production or local
+const SOCKET_URL = API_URL;
 
 interface SocketContextType {
     socket: Socket | null;
@@ -29,10 +26,13 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [isConnected, setIsConnected] = useState(false);
     const { token } = useAuthStore();
     const listenersRef = useRef<Map<string, Function[]>>(new Map());
+    // Use ref for socket to avoid recreating subscribeToPost on every socket change
+    const socketRef = useRef<Socket | null>(null);
 
     useEffect(() => {
         // Don't connect if no token is available
         if (!token) {
+            socketRef.current = null;
             setSocket(null);
             setIsConnected(false);
             return;
@@ -44,16 +44,28 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             },
             transports: ['websocket'],
             autoConnect: true,
+            reconnectionAttempts: 5,
+            reconnectionDelay: 1000,
         });
 
         socketInstance.on('connect', () => {
             console.log('Socket connected:', socketInstance.id);
             setIsConnected(true);
+
+            // Rejoin all rooms on reconnect
+            listenersRef.current.forEach((_, key) => {
+                const postId = key.replace('post:', '');
+                socketInstance.emit('join:post', postId);
+            });
         });
 
         socketInstance.on('disconnect', () => {
             console.log('Socket disconnected');
             setIsConnected(false);
+        });
+
+        socketInstance.on('connect_error', (error) => {
+            console.log('Socket connection error:', error.message);
         });
 
         // Handle post updates and notify subscribers
@@ -65,21 +77,24 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             }
         });
 
+        socketRef.current = socketInstance;
         setSocket(socketInstance);
 
         return () => {
             socketInstance.disconnect();
+            socketRef.current = null;
             listenersRef.current.clear();
         };
     }, [token]);
 
+    // Stable subscribeToPost that uses ref instead of socket state
     const subscribeToPost = useCallback((postId: string, callback: (data: any) => void) => {
         const key = `post:${postId}`;
 
         if (!listenersRef.current.has(key)) {
             listenersRef.current.set(key, []);
-            // Join the post room
-            socket?.emit('join:post', postId);
+            // Join the post room using ref
+            socketRef.current?.emit('join:post', postId);
         }
 
         listenersRef.current.get(key)?.push(callback);
@@ -94,12 +109,12 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 }
                 if (callbacks.length === 0) {
                     listenersRef.current.delete(key);
-                    // Leave the post room
-                    socket?.emit('leave:post', postId);
+                    // Leave the post room using ref
+                    socketRef.current?.emit('leave:post', postId);
                 }
             }
         };
-    }, [socket]);
+    }, []); // Empty deps - uses refs internally
 
     return (
         <SocketContext.Provider value={{ socket, isConnected, subscribeToPost }}>

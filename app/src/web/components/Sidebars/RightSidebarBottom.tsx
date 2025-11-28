@@ -39,18 +39,18 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#181a20',
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#2a2d35',
   },
   title: {
     fontSize: 16,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#e2e8f0',
   },
   emptyContainer: {
     padding: 16,
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 14,
-    color: '#94A3B8',
+    color: '#94a3b8',
     textAlign: 'center',
   },
 });

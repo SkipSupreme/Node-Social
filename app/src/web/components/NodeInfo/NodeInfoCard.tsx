@@ -48,27 +48,27 @@ const styles = StyleSheet.create({
   },
   description: {
     fontSize: 14,
-    color: '#334155',
+    color: '#cbd5e1',
     lineHeight: 20,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#e2e8f0',
     marginBottom: 8,
   },
   statText: {
     fontSize: 13,
-    color: '#64748B',
+    color: '#94a3b8',
   },
   joinButton: {
-    backgroundColor: '#2563EB',
+    backgroundColor: '#6366f1',
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
   },
   joinButtonText: {
-    color: '#FFFFFF',
+    color: '#fff',
     fontSize: 14,
     fontWeight: '600',
   },

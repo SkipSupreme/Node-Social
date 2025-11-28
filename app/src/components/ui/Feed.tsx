@@ -315,7 +315,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         return () => {
             unsubscribe?.();
         };
-    }, [post.id, subscribeToPost]);
+    }, [post.id]); // subscribeToPost is stable (uses refs internally)
 
     // Don't render if deleted (after all hooks)
     if (isDeleted) return null;
@@ -328,8 +328,15 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         const hasVotedLocally = localPoll.votes && localPoll.votes.length > 0;
         if (hasVotedLocally) return;
 
-        // Optimistic update
-        const newPoll = { ...localPoll };
+        // Deep copy for optimistic update (avoid mutating original post.poll)
+        const newPoll = {
+            ...localPoll,
+            options: localPoll.options.map(opt => ({
+                ...opt,
+                _count: opt._count ? { ...opt._count } : undefined
+            })),
+            votes: [...(localPoll.votes || [])]
+        };
         const optionIndex = newPoll.options.findIndex(o => o.id === optionId);
         if (optionIndex === -1) return;
 

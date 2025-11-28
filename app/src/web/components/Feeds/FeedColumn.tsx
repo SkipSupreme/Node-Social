@@ -174,14 +174,14 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     height: '100%',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#0f1115',
   },
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#181a20',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: '#2a2d35',
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
@@ -198,10 +198,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1E293B',
+    color: '#e2e8f0',
   },
   errorBanner: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
     borderLeftWidth: 4,
     borderLeftColor: '#EF4444',
     padding: 12,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   errorBannerText: {
-    color: '#991B1B',
+    color: '#f87171',
     fontSize: 14,
   },
   list: {
@@ -237,12 +237,12 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1E293B',
+    color: '#e2e8f0',
     marginBottom: 8,
   },
   emptyText: {
     fontSize: 16,
-    color: '#64748B',
+    color: '#94a3b8',
     textAlign: 'center',
   },
 });

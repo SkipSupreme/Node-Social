@@ -68,6 +68,7 @@ export async function build(): Promise<FastifyInstance> {
   await app.register(cors, {
     origin: corsOrigin,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token'],
   });
   await app.register(cookie, {
