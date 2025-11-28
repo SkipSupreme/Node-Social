@@ -151,7 +151,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             }
 
             await createPost({
-                content,
+                content: content.trim() || undefined, // Don't send empty string
                 title: finalTitle,
                 nodeId: selectedNodeId || undefined,
                 linkUrl: linkUrl || imageUrl || undefined, // Use image URL as link URL if present

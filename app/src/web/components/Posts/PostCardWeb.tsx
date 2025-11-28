@@ -82,9 +82,11 @@ export const PostCardWeb: React.FC<PostCardWebProps> = ({ post, node: nodeProp, 
 
       {/* Post Content */}
       {post.title && <Text style={styles.title}>{post.title}</Text>}
-      <Text style={styles.content} numberOfLines={5}>
-        {post.content}
-      </Text>
+      {post.content && (
+        <Text style={styles.content} numberOfLines={5}>
+          {post.content}
+        </Text>
+      )}
 
       {/* Post Footer with Reactions */}
       <View style={styles.footer}>

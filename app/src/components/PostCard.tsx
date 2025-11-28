@@ -92,9 +92,11 @@ export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
         <Text style={styles.title}>{post.title}</Text>
       )}
 
-      <Text style={styles.content} numberOfLines={5}>
-        {post.content}
-      </Text>
+      {post.content && (
+        <Text style={styles.content} numberOfLines={5}>
+          {post.content}
+        </Text>
+      )}
 
       {post.poll && (
         <View style={styles.pollContainer}>

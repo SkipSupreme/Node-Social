@@ -31,7 +31,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     },
     async (request, reply) => {
       const schema = z.object({
-        content: z.string().min(1).max(6000),
+        content: z.string().min(1).max(6000).optional(), // Optional when poll is present
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().min(1).max(300),
         linkUrl: z.string().url().optional(),
@@ -41,7 +41,10 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           options: z.array(z.string().min(1).max(100)).min(2).max(4),
           duration: z.number().min(1).max(7).default(3), // Days
         }).optional(),
-      });
+      }).refine(
+        (data) => data.content || data.poll || data.linkUrl,
+        { message: 'Post must have content, a poll, or a link' }
+      );
 
       const parsed = schema.safeParse(request.body);
       if (!parsed.success) {
@@ -76,9 +79,18 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
+      // Determine post type based on content
+      let postType = 'text';
+      if (poll && !content) {
+        postType = 'poll';
+      } else if (linkUrl && !content) {
+        postType = 'link';
+      }
+
       const postData: Prisma.PostCreateInput = {
-        content,
+        content: content ?? null,
         title: title ?? null,
+        postType,
         author: { connect: { id: userId } },
         linkUrl: linkUrl ?? null,
         expertGateCred: expertGateCred ?? null,

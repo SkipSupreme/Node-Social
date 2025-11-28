@@ -94,12 +94,13 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Create Notification for Post Author
       if (post.authorId !== userId) {
+        const postPreview = post.content?.substring(0, 20) || post.title?.substring(0, 20) || 'your post';
         await fastify.prisma.notification.create({
           data: {
             userId: post.authorId,
             actorId: userId,
             type: 'comment',
-            content: `commented on your post: "${post.content.substring(0, 20)}..."`,
+            content: `commented on "${postPreview}..."`,
             postId: post.id,
             commentId: comment.id
           }

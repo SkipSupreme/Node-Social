@@ -156,7 +156,7 @@ model NodeSubscription {
 
 model Post {
   id        String   @id @default(cuid())
-  content   String
+  content   String?  // Optional for poll-only or link-only posts
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?

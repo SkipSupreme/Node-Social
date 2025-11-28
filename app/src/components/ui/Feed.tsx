@@ -51,7 +51,7 @@ export interface UIPost {
     node: { id?: string; name: string; color?: string };
     author: UIAuthor;
     title: string;
-    content: string;
+    content?: string | null; // Optional for poll-only or link-only posts
     createdAt: string | Date;
     commentCount: number;
     expertGated?: boolean;
@@ -515,23 +515,25 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         </Text>
                     </TouchableOpacity>
 
-                    <View style={{ maxHeight: isExpanded ? undefined : 80, overflow: 'hidden' }}>
-                        <Text style={styles.bodyText}>
-                            {post.content}
-                        </Text>
-                        {!isExpanded && post.content.length > 300 && (
-                            <View
-                                style={{
-                                    position: 'absolute',
-                                    left: 0,
-                                    right: 0,
-                                    bottom: 0,
-                                    height: 80,
-                                }}
-                            />
-                        )}
-                    </View>
-                    {!isExpanded && post.content.length > 300 && (
+                    {post.content && (
+                        <View style={{ maxHeight: isExpanded ? undefined : 80, overflow: 'hidden' }}>
+                            <Text style={styles.bodyText}>
+                                {post.content}
+                            </Text>
+                            {!isExpanded && post.content.length > 300 && (
+                                <View
+                                    style={{
+                                        position: 'absolute',
+                                        left: 0,
+                                        right: 0,
+                                        bottom: 0,
+                                        height: 80,
+                                    }}
+                                />
+                            )}
+                        </View>
+                    )}
+                    {post.content && !isExpanded && post.content.length > 300 && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                             <Text style={{ color: COLORS.node.accent, fontSize: 12, fontWeight: '700' }}>Continue Reading</Text>
                             <ChevronDown size={12} color={COLORS.node.accent} />

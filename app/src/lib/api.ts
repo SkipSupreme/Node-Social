@@ -416,7 +416,7 @@ export function getNodeMembers(nodeId: string, limit = 20, cursor?: string) {
 // --- Post Endpoints ---
 
 export function createPost(data: {
-  content: string;
+  content?: string; // Optional for poll-only or link-only posts
   nodeId?: string;
   title?: string;
   linkUrl?: string;
