@@ -28,10 +28,14 @@ export const NotificationsScreen = ({ onBack }: NotificationsScreenProps) => {
         setLoading(true);
         try {
             const data = await getNotifications();
-            setNotifications(data.notifications);
-            await markNotificationsRead();
+            setNotifications(data.notifications || []);
+            // Mark as read in background - don't fail if this errors
+            markNotificationsRead().catch(err =>
+                console.warn('Failed to mark notifications as read:', err)
+            );
         } catch (error) {
             console.error('Failed to load notifications:', error);
+            setNotifications([]);
         } finally {
             setLoading(false);
         }

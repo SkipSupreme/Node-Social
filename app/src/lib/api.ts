@@ -735,6 +735,7 @@ export function getNotifications() {
 export function markNotificationsRead() {
   return request("/notifications/read-all", {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

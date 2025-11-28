@@ -183,6 +183,72 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return { following: true };
         }
     });
+
+    // Get user's cred history
+    fastify.get('/:userId/cred/history', {
+        onRequest: [fastify.authenticate]
+    }, async (request, reply) => {
+        const { userId } = request.params as { userId: string };
+
+        // Get cred transactions
+        const transactions = await fastify.prisma.credTransaction.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            take: 100,
+        });
+
+        // For transactions from posts, get the node info
+        const postIds = transactions
+            .filter(t => t.sourceType === 'post' && t.sourceId)
+            .map(t => t.sourceId as string);
+
+        const posts = postIds.length > 0
+            ? await fastify.prisma.post.findMany({
+                where: { id: { in: postIds } },
+                select: { id: true, node: { select: { id: true, name: true, slug: true } } }
+            })
+            : [];
+
+        const postNodeMap = new Map(posts.map(p => [p.id, p.node]));
+
+        // Enrich transactions with node info
+        const enrichedTransactions = transactions.map(t => ({
+            ...t,
+            node: t.sourceType === 'post' && t.sourceId ? postNodeMap.get(t.sourceId) || null : null
+        }));
+
+        return { transactions: enrichedTransactions };
+    });
+
+    // Get user's posts
+    fastify.get('/:userId/posts', async (request, reply) => {
+        const { userId } = request.params as { userId: string };
+        const { limit = '10' } = request.query as { limit?: string };
+
+        const posts = await fastify.prisma.post.findMany({
+            where: { authorId: userId },
+            orderBy: { createdAt: 'desc' },
+            take: Math.min(parseInt(limit) || 10, 50),
+            include: {
+                node: {
+                    select: {
+                        id: true,
+                        name: true,
+                        slug: true,
+                    }
+                },
+                author: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                    }
+                }
+            }
+        });
+
+        return { posts };
+    });
 };
 
 export default usersRoutes;
