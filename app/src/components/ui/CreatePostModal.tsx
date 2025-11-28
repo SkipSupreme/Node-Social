@@ -177,17 +177,25 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                             <X color={COLORS.node.text} size={24} />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>Create Post</Text>
-                        <TouchableOpacity
-                            style={[styles.postBtn, (!title.trim()) && styles.disabledBtn]}
-                            onPress={handleSubmit}
-                            disabled={!title.trim() || loading}
-                        >
-                            {loading ? (
-                                <ActivityIndicator color="#fff" size="small" />
-                            ) : (
-                                <Text style={styles.postBtnText}>Post</Text>
-                            )}
-                        </TouchableOpacity>
+                        {/* Enable button if title exists OR if valid poll exists (poll question can be used as title) */}
+                        {(() => {
+                            const hasTitle = !!title.trim();
+                            const hasValidPoll = showPoll && !!pollQuestion.trim() && pollOptions.filter(o => o.trim()).length >= 2;
+                            const canSubmit = hasTitle || hasValidPoll;
+                            return (
+                                <TouchableOpacity
+                                    style={[styles.postBtn, !canSubmit && styles.disabledBtn]}
+                                    onPress={handleSubmit}
+                                    disabled={!canSubmit || loading}
+                                >
+                                    {loading ? (
+                                        <ActivityIndicator color="#fff" size="small" />
+                                    ) : (
+                                        <Text style={styles.postBtnText}>Post</Text>
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })()}
                     </View>
 
                     {error && (

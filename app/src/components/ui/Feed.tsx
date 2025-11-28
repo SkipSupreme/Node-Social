@@ -308,7 +308,11 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 // Update engagement score or other metrics if we displayed them
             }
             if (data.vibeAggregate) {
-                // Real-time vibe aggregate updates - can be used to update live counts
+                // Real-time vibe aggregate updates - update live counts
+                setPost(prev => ({
+                    ...prev,
+                    vibeAggregate: data.vibeAggregate
+                }));
             }
         });
 
