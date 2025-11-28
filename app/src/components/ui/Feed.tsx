@@ -5,7 +5,7 @@ import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason } from '../../lib/api';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
-import { socketManager } from '../../lib/socket';
+import { useSocket } from '../../context/SocketContext';
 
 export interface UIAuthor {
     id: string;
@@ -299,12 +299,10 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     }, [post.poll]);
 
     // Socket.io Real-time Updates
+    const { subscribeToPost } = useSocket();
     React.useEffect(() => {
-        // Connect socket if not connected
-        socketManager.connect();
-
-        // Subscribe to updates for this post
-        const unsubscribe = socketManager.subscribeToPost(post.id, (data) => {
+        // Subscribe to updates for this post via context
+        const unsubscribe = subscribeToPost(post.id, (data) => {
             // Update local post state with new metrics/aggregates
             if (data.metrics) {
                 // Update engagement score or other metrics if we displayed them
@@ -317,7 +315,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         return () => {
             unsubscribe?.();
         };
-    }, [post.id]);
+    }, [post.id, subscribeToPost]);
 
     // Don't render if deleted (after all hooks)
     if (isDeleted) return null;

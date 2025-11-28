@@ -192,6 +192,7 @@ const MainApp = () => {
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
+            id: c.author.id,
             username: c.author.username || 'User',
             avatar: c.author.avatar,
             era: c.author.era || 'Lurker Era',
@@ -286,6 +287,7 @@ const MainApp = () => {
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
+            id: c.author.id,
             username: c.author.username || 'User',
             avatar: c.author.avatar,
             era: c.author.era || 'Lurker Era',
