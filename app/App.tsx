@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput, Animated } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Menu, Settings, X, MessageSquare, Bell, PanelRight, Search, ChevronDown } from './src/components/ui/Icons';
@@ -45,6 +45,7 @@ const queryClient = new QueryClient();
 
 const MainApp = () => {
   const { user, logout } = useAuthStore();
+  const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
@@ -416,10 +417,25 @@ const MainApp = () => {
     }
   }, []);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.node.bg, paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight : 0 }}>
-      {/* ... (keep existing StatusBar) */}
+  // Status bar height for positioning
+  const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : insets.top;
 
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+      {/* Persistent status bar background - always visible behind notch/status bar area */}
+      {!isDesktop && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          height: statusBarHeight,
+          backgroundColor: COLORS.node.bg,
+          zIndex: 200,
+        }} />
+      )}
+
+      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
       <View style={{ flex: 1 }}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
 
@@ -696,6 +712,7 @@ const MainApp = () => {
       )}
 
     </SafeAreaView>
+    </View>
   );
 };
 
@@ -743,7 +760,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar barStyle="light-content" backgroundColor="#0f1115" />
+        <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
         {!user ? (
           // Auth Flow
           currentScreen === 'login' ? (
