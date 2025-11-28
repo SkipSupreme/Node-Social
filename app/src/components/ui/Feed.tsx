@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag } from './Icons';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
@@ -216,6 +216,13 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     const [localComments, setLocalComments] = useState<UIComment[]>(post.comments || []);
     const [commentsLoaded, setCommentsLoaded] = useState(false);
     const [commentSort, setCommentSort] = useState<string>('newest');
+
+    // Sync local state when initialPost prop changes (e.g., from socket updates or refetch)
+    useEffect(() => {
+        setPost(initialPost);
+        setLocalPoll(initialPost.poll);
+        setLocalComments(initialPost.comments || []);
+    }, [initialPost]);
 
     const fetchComments = async () => {
         // if (commentsLoaded) return; // Allow reload if sort changes

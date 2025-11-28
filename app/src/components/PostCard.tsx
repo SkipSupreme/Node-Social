@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
 import { MessageSquare, BarChart2 } from "lucide-react-native";
 import { Post, votePoll } from "../lib/api";
@@ -32,6 +32,11 @@ export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
   const { user } = useAuthStore();
   const [post, setPost] = useState(initialPost);
   const [voting, setVoting] = useState(false);
+
+  // Sync local state when initialPost prop changes (e.g., from socket updates or refetch)
+  useEffect(() => {
+    setPost(initialPost);
+  }, [initialPost]);
 
   const handleVote = async (optionId: string) => {
     if (voting || !post.poll) return;

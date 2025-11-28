@@ -265,14 +265,15 @@ const MainApp = () => {
   // Debounced feed refresh and preference save when algo settings change
   const [settingsInitialized, setSettingsInitialized] = useState(false);
   useEffect(() => {
+    // Don't start the timer until settings are initialized
+    // This prevents double-fetch: one with defaults, one with loaded preferences
+    if (!settingsInitialized) return;
+
     const timer = setTimeout(() => {
       // Use refs to get latest feedMode/selectedNodeId without them as dependencies
       // This avoids duplicate fetches since handlers already call fetchFeed directly
       fetchFeed(selectedNodeIdRef.current, feedModeRef.current, selectedPostTypes);
-      // Only save to backend after initial load (not on first mount)
-      if (settingsInitialized) {
-        saveFeedPreferences(algoSettings);
-      }
+      saveFeedPreferences(algoSettings);
     }, 500);
     return () => clearTimeout(timer);
   }, [algoSettings, settingsInitialized, selectedPostTypes]);
@@ -373,9 +374,28 @@ const MainApp = () => {
     if (!socket) return;
 
     socket.on('post:new', (newPost: any) => {
-      // Only add if we are in global mode or if the post matches the current node
-      // For simplicity, just add to top if global or matching node
-      // We need to map the raw post to the UI format
+      // Only add post if it matches the current feed view
+      const postNodeId = newPost.node?.id || null;
+
+      // Filter based on current feed mode and selected node
+      if (feedMode === 'following') {
+        // In following mode, skip real-time updates (would need follow list to filter properly)
+        // Let the user refresh to see new posts from followed users
+        return;
+      }
+
+      if (feedMode === 'discovery') {
+        // In discovery mode, skip real-time updates (algorithm-based feed)
+        return;
+      }
+
+      // In global mode: only add if no node selected OR post matches selected node
+      if (selectedNodeId && postNodeId !== selectedNodeId) {
+        // User is viewing a specific node, but this post is from a different node
+        return;
+      }
+
+      // Map the raw post to the UI format
       const mappedPost = {
         id: newPost.id,
         node: { id: newPost.node?.id, name: newPost.node?.name || 'Global', color: '#6366f1' },
