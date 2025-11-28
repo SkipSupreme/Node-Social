@@ -328,7 +328,17 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         const hasVotedLocally = localPoll.votes && localPoll.votes.length > 0;
         if (hasVotedLocally) return;
 
-        // Deep copy for optimistic update (avoid mutating original post.poll)
+        // Save previous state for revert (deep copy)
+        const previousPoll = {
+            ...localPoll,
+            options: localPoll.options.map(opt => ({
+                ...opt,
+                _count: opt._count ? { ...opt._count } : undefined
+            })),
+            votes: [...(localPoll.votes || [])]
+        };
+
+        // Deep copy for optimistic update
         const newPoll = {
             ...localPoll,
             options: localPoll.options.map(opt => ({
@@ -349,8 +359,8 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             await votePoll(post.id, optionId);
         } catch (error) {
             console.error('Failed to vote:', error);
-            // Revert on failure
-            setLocalPoll(post.poll);
+            // Revert to previous localPoll state (not post.poll which could be stale)
+            setLocalPoll(previousPoll);
         }
     };
 
