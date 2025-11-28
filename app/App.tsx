@@ -373,24 +373,28 @@ const MainApp = () => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('post:new', (newPost: any) => {
+    // Use refs to access current state values without adding them as dependencies
+    // This prevents re-registering the listener on every feedMode/selectedNodeId change
+    const handleNewPost = (newPost: any) => {
       // Only add post if it matches the current feed view
       const postNodeId = newPost.node?.id || null;
+      const currentFeedMode = feedModeRef.current;
+      const currentNodeId = selectedNodeIdRef.current;
 
       // Filter based on current feed mode and selected node
-      if (feedMode === 'following') {
+      if (currentFeedMode === 'following') {
         // In following mode, skip real-time updates (would need follow list to filter properly)
         // Let the user refresh to see new posts from followed users
         return;
       }
 
-      if (feedMode === 'discovery') {
+      if (currentFeedMode === 'discovery') {
         // In discovery mode, skip real-time updates (algorithm-based feed)
         return;
       }
 
       // In global mode: only add if no node selected OR post matches selected node
-      if (selectedNodeId && postNodeId !== selectedNodeId) {
+      if (currentNodeId && postNodeId !== currentNodeId) {
         // User is viewing a specific node, but this post is from a different node
         return;
       }
@@ -420,12 +424,14 @@ const MainApp = () => {
       };
 
       setPosts(prev => [mappedPost, ...prev]);
-    });
+    };
+
+    socket.on('post:new', handleNewPost);
 
     return () => {
-      socket.off('post:new');
+      socket.off('post:new', handleNewPost);
     };
-  }, [socket, selectedNodeId, feedMode]);
+  }, [socket]);
 
   // Check for Beta Route
   useEffect(() => {
