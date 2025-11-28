@@ -4,7 +4,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } from 'react-native';
 import { PostCardWeb } from '../Posts/PostCardWeb';
-import { PostTypeFilter, type PostType } from './PostTypeFilter';
+import { type PostType } from './PostTypeFilter';
 import { getFeed, getNode, type Post, type Node } from '../../../lib/api';
 
 interface FeedColumnProps {
@@ -143,15 +143,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
             {node ? `n/${node.slug}` : 'All Posts'}
           </Text>
         </View>
-        <View style={styles.headerRight}>
-          {/* Post Type Filter */}
-          <PostTypeFilter
-            selectedTypes={selectedPostTypes}
-            onTypesChange={setSelectedPostTypes}
-            multiSelect={true}
-          />
-          {/* Future: Sort options */}
-        </View>
+        {/* Post Type Filter removed - may be added to Vibe Validator expert mode later */}
       </View>
 
       {error && !refreshing && (

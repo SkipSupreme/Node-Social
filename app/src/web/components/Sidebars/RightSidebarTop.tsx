@@ -4,16 +4,17 @@
 
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ViewStyle, StyleProp } from 'react-native';
-import { VibeValidator } from '../../../components/ui/VibeValidator';
+import { VibeValidator, VibeValidatorSettings } from '../../../components/ui/VibeValidator';
 
 interface RightSidebarTopProps {
   style?: StyleProp<ViewStyle>;
 }
 
 export const RightSidebarTop: React.FC<RightSidebarTopProps> = ({ style }) => {
-  const [settings, setSettings] = useState({
+  const [settings, setSettings] = useState<VibeValidatorSettings>({
     preset: 'balanced',
-    weights: { quality: 35, recency: 25, engagement: 20, personalization: 20 }
+    weights: { quality: 35, recency: 25, engagement: 20, personalization: 20 },
+    mode: 'simple',
   });
 
   return (

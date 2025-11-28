@@ -1,16 +1,16 @@
 
 import {
     MessageSquare, Share2, Shield, Zap, MoreHorizontal, Bookmark,
-    CornerDownRight, Minus, ChevronDown, Hexagon, Lightbulb,
+    CornerDownRight, Minus, ChevronDown, ChevronUp, Hexagon, Lightbulb,
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
-    Edit2, Trash2, Flag, Scale, Gavel
+    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award
 } from 'lucide-react-native';
 
 export {
     MessageSquare, Share2, Shield, Zap, MoreHorizontal, Bookmark,
-    CornerDownRight, Minus, ChevronDown, Hexagon, Lightbulb,
+    CornerDownRight, Minus, ChevronDown, ChevronUp, Hexagon, Lightbulb,
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
-    Edit2, Trash2, Flag, Scale, Gavel
+    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award
 };

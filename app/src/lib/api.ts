@@ -752,6 +752,34 @@ export function getCredHistory() {
   });
 }
 
+// Get cred history for a specific user (with node breakdown)
+export async function getUserCredHistory(userId: string) {
+  try {
+    const res = await request<{ transactions: { id: string; amount: number; reason: string; createdAt: string; node?: { id: string; name: string; slug: string } }[] }>(`/users/${userId}/cred/history`, {
+      method: "GET",
+    });
+    return res.transactions || [];
+  } catch (error) {
+    // Fallback: if endpoint doesn't exist, return empty array
+    console.log('getUserCredHistory not available, using empty array');
+    return [];
+  }
+}
+
+// Get user's posts
+export async function getUserPosts(userId: string, limit = 10) {
+  try {
+    const res = await request<{ posts: Post[] }>(`/users/${userId}/posts?limit=${limit}`, {
+      method: "GET",
+    });
+    return res.posts || [];
+  } catch (error) {
+    // Fallback: if endpoint doesn't exist, return empty array
+    console.log('getUserPosts not available, using empty array');
+    return [];
+  }
+}
+
 // --- Web of Trust (Vouching) ---
 
 export type Vouch = {

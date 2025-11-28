@@ -773,11 +773,18 @@ interface FeedProps {
     onPostClick?: (post: UIPost) => void;
     onEdit?: (post: UIPost) => void;
     globalNodeId?: string;
+    onScroll?: (scrollY: number) => void;
+    headerOffset?: number;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, globalNodeId }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
     return (
-        <ScrollView style={{ flex: 1, backgroundColor: COLORS.node.bg }} contentContainerStyle={{ paddingBottom: 80, padding: 8 }}>
+        <ScrollView
+            style={{ flex: 1, backgroundColor: COLORS.node.bg }}
+            contentContainerStyle={{ paddingBottom: 80, padding: 8, paddingTop: headerOffset + 8 }}
+            scrollEventThrottle={16}
+            onScroll={(e) => onScroll?.(e.nativeEvent.contentOffset.y)}
+        >
             {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} globalNodeId={globalNodeId} />)}
         </ScrollView>
     );
