@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { createPost, getNodes, type Node } from "../lib/api";
+import { COLORS } from "../constants/theme";
 
 type CreatePostScreenProps = {
   onSuccess: () => void;
@@ -152,7 +153,7 @@ export const CreatePostScreen = ({ onSuccess, onCancel, nodeId: initialNodeId }:
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.bg,
   },
   keyboardView: {
     flex: 1,
@@ -164,25 +165,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: COLORS.node.border,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1E293B",
+    color: COLORS.node.text,
   },
   cancelButton: {
     fontSize: 16,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   postButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
   },
   postButtonDisabled: {
-    backgroundColor: "#94A3B8",
+    backgroundColor: COLORS.node.muted,
   },
   postButtonText: {
     color: "#FFFFFF",
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: COLORS.node.border,
     position: "relative",
     zIndex: 10,
   },
@@ -203,19 +204,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 8,
     paddingHorizontal: 12,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
   },
   nodeSelectorText: {
     fontSize: 14,
-    color: "#1E293B",
+    color: COLORS.node.text,
     fontWeight: "500",
   },
   nodeSelectorArrow: {
     fontSize: 12,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   nodeSelectorDropdown: {
     position: "absolute",
@@ -223,14 +224,14 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     maxHeight: 200,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
     marginTop: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 5,
   },
@@ -238,17 +239,17 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: COLORS.node.border,
   },
   nodeOptionSelected: {
-    backgroundColor: "#EFF6FF",
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
   },
   nodeOptionText: {
     fontSize: 14,
-    color: "#1E293B",
+    color: COLORS.node.text,
   },
   nodeOptionTextSelected: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontWeight: "600",
   },
   inputContainer: {
@@ -257,7 +258,7 @@ const styles = StyleSheet.create({
   },
   input: {
     fontSize: 18,
-    color: "#1E293B",
+    color: COLORS.node.text,
     lineHeight: 28,
     textAlignVertical: "top",
     height: "100%",

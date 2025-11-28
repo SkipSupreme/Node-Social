@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { resendVerificationEmail, verifyEmail } from "../lib/api";
+import { COLORS } from "../constants/theme";
 
 type StatusType = "info" | "error" | "success";
 
@@ -170,7 +171,7 @@ export const VerifyEmailScreen: React.FC<Props> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.bg,
     padding: 24,
     gap: 24,
   },
@@ -180,51 +181,51 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    color: "#1E293B",
+    color: COLORS.node.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#475569",
+    color: COLORS.node.muted,
     lineHeight: 22,
   },
   boldEmail: {
     fontWeight: "600",
-    color: "#111827",
+    color: COLORS.node.text,
   },
   card: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     padding: 20,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
     gap: 16,
-    shadowColor: "#0F172A",
-    shadowOpacity: 0.05,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
   cardTitle: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#0F172A",
+    color: COLORS.node.text,
   },
   cardSubtitle: {
     fontSize: 14,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#CBD5F5",
+    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#0F172A",
-    backgroundColor: "#F8FAFF",
+    color: COLORS.node.text,
+    backgroundColor: COLORS.node.bg,
   },
   primaryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -241,10 +242,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
-    borderColor: "#2563EB",
+    borderColor: COLORS.node.accent,
   },
   secondaryButtonText: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontSize: 16,
     fontWeight: "600",
   },
@@ -256,42 +257,42 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   logoutText: {
-    color: "#DC2626",
+    color: "#EF4444",
     fontWeight: "600",
   },
   successBanner: {
-    backgroundColor: "#DCFCE7",
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#86EFAC",
+    borderColor: "#22C55E",
   },
   successText: {
-    color: "#166534",
+    color: "#22C55E",
     fontSize: 14,
     textAlign: "center",
   },
   errorBanner: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: "#EF4444",
   },
   errorText: {
-    color: "#B91C1C",
+    color: "#EF4444",
     fontSize: 14,
     textAlign: "center",
   },
   infoBanner: {
-    backgroundColor: "#DBEAFE",
+    backgroundColor: "rgba(99, 102, 241, 0.1)",
     borderRadius: 10,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#93C5FD",
+    borderColor: COLORS.node.accent,
   },
   infoText: {
-    color: "#1E3A8A",
+    color: COLORS.node.accent,
     fontSize: 14,
     textAlign: "center",
   },

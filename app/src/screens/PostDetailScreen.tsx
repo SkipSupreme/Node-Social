@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { getPost, getComments, createComment, Post, Comment } from "../lib/api";
 import { PostCard } from "../components/PostCard";
+import { COLORS } from "../constants/theme";
 
 type PostDetailScreenProps = {
   postId: string;
@@ -201,7 +202,7 @@ export const PostDetailScreen = ({ postId, onBack }: PostDetailScreenProps) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.bg,
   },
   centerLoader: {
     flex: 1,
@@ -214,21 +215,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: COLORS.node.border,
   },
   headerTitle: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#1E293B",
+    color: COLORS.node.text,
   },
   backButton: {
     width: 60,
   },
   backButtonText: {
     fontSize: 16,
-    color: "#2563EB",
+    color: COLORS.node.accent,
   },
   keyboardView: {
     flex: 1,
@@ -242,21 +243,21 @@ const styles = StyleSheet.create({
   commentsTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#1E293B",
+    color: COLORS.node.text,
     marginHorizontal: 16,
     marginTop: 16,
     marginBottom: 8,
   },
   commentCard: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    borderBottomColor: COLORS.node.border,
   },
   commentReply: {
     marginLeft: 16,
     borderLeftWidth: 2,
-    borderLeftColor: "#E2E8F0",
+    borderLeftColor: COLORS.node.border,
     paddingLeft: 12,
   },
   commentHeader: {
@@ -268,15 +269,15 @@ const styles = StyleSheet.create({
   commentAuthor: {
     fontWeight: "600",
     fontSize: 14,
-    color: "#334155",
+    color: COLORS.node.text,
   },
   replyCountText: {
     fontSize: 12,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   commentContent: {
     fontSize: 15,
-    color: "#1E293B",
+    color: COLORS.node.text,
     lineHeight: 22,
   },
   errorContainer: {
@@ -292,7 +293,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -302,7 +303,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   errorBanner: {
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
     borderLeftWidth: 4,
     borderLeftColor: "#EF4444",
     padding: 12,
@@ -314,12 +315,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   errorBannerText: {
-    color: "#991B1B",
+    color: "#EF4444",
     fontSize: 14,
     flex: 1,
   },
   errorBannerRetry: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 12,
@@ -330,36 +331,36 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#64748B",
+    color: COLORS.node.muted,
     textAlign: "center",
   },
   inputContainer: {
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    borderTopColor: COLORS.node.border,
   },
   input: {
     flex: 1,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: COLORS.node.bg,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
-    color: "#1E293B",
+    color: COLORS.node.text,
     maxHeight: 100,
   },
   sendButton: {
     marginLeft: 12,
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
   },
   sendButtonDisabled: {
-    backgroundColor: "#94A3B8",
+    backgroundColor: COLORS.node.muted,
   },
   sendButtonText: {
     color: "#FFFFFF",

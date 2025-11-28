@@ -10,6 +10,7 @@ import {
   Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { COLORS } from "../constants/theme";
 
 export const EnterResetTokenScreen: React.FC<{
   onTokenEntered: (token: string) => void;
@@ -66,7 +67,7 @@ export const EnterResetTokenScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.bg,
   },
   keyboardView: {
     flex: 1,
@@ -82,35 +83,35 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    color: "#1E293B",
+    color: COLORS.node.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#1E293B",
+    color: COLORS.node.text,
     minHeight: 100,
   },
   button: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#2563EB",
+    shadowColor: COLORS.node.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -126,7 +127,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkText: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },

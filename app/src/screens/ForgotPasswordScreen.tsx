@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { forgotPassword } from "../lib/api";
+import { COLORS } from "../constants/theme";
 
 export const ForgotPasswordScreen: React.FC<{
   goToLogin: () => void;
@@ -128,7 +129,7 @@ export const ForgotPasswordScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F8FAFC",
+    backgroundColor: COLORS.node.bg,
   },
   keyboardView: {
     flex: 1,
@@ -144,46 +145,46 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: "700",
-    color: "#1E293B",
+    color: COLORS.node.text,
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: "#64748B",
+    color: COLORS.node.muted,
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: "#FFFFFF",
+    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: "#1E293B",
+    color: COLORS.node.text,
   },
   errorContainer: {
-    backgroundColor: "#FEE2E2",
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#FCA5A5",
+    borderColor: "#EF4444",
   },
   errorText: {
-    color: "#DC2626",
+    color: "#EF4444",
     fontSize: 14,
     textAlign: "center",
   },
   button: {
-    backgroundColor: "#2563EB",
+    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 8,
-    shadowColor: "#2563EB",
+    shadowColor: COLORS.node.accent,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
@@ -206,20 +207,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   linkText: {
-    color: "#2563EB",
+    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },
   successCard: {
-    backgroundColor: "#D1FAE5",
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#86EFAC",
+    borderColor: "#22C55E",
     marginBottom: 24,
   },
   successText: {
-    color: "#065F46",
+    color: "#22C55E",
     fontSize: 14,
     lineHeight: 20,
     textAlign: "center",
