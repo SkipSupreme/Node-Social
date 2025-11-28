@@ -120,13 +120,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     };
 
     const handleSubmit = async () => {
-        if (!title.trim()) return; // Title is required
-
         setLoading(true);
         setError(null);
 
         try {
-            // Validate Poll
+            // Validate Poll first (needed for title fallback)
             let pollData;
             if (showPoll) {
                 const trimmedQuestion = pollQuestion.trim();

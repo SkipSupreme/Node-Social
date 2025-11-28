@@ -36,25 +36,38 @@ export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
   const handleVote = async (optionId: string) => {
     if (voting || !post.poll) return;
 
-    // Optimistic update
-    const newPoll = { ...post.poll };
-    const hasVoted = newPoll.votes && newPoll.votes.length > 0;
-
+    const hasVoted = post.poll.votes && post.poll.votes.length > 0;
     if (hasVoted) return; // Already voted
+
+    // Save current state for revert (deep copy to avoid mutation)
+    const previousPost = {
+      ...post,
+      poll: post.poll ? {
+        ...post.poll,
+        options: post.poll.options.map(opt => ({
+          ...opt,
+          _count: opt._count ? { ...opt._count } : undefined
+        })),
+        votes: [...(post.poll.votes || [])]
+      } : undefined
+    };
 
     setVoting(true);
 
-    // Update local state
-    newPoll.votes = [{ optionId }];
-    newPoll.options = newPoll.options.map(opt => {
-      if (opt.id === optionId) {
-        return {
-          ...opt,
-          _count: { votes: (opt._count?.votes || 0) + 1 }
-        };
-      }
-      return opt;
-    });
+    // Optimistic update with deep copy
+    const newPoll = {
+      ...post.poll,
+      votes: [{ optionId }],
+      options: post.poll.options.map(opt => {
+        if (opt.id === optionId) {
+          return {
+            ...opt,
+            _count: { votes: (opt._count?.votes || 0) + 1 }
+          };
+        }
+        return { ...opt, _count: opt._count ? { ...opt._count } : undefined };
+      })
+    };
 
     setPost({ ...post, poll: newPoll });
 
@@ -62,8 +75,8 @@ export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
       await votePoll(post.id, optionId);
     } catch (error) {
       console.error('Failed to vote:', error);
-      // Revert on failure (could be improved)
-      setPost(initialPost);
+      // Revert to previous state (not initialPost which could be stale)
+      setPost(previousPost);
     } finally {
       setVoting(false);
     }

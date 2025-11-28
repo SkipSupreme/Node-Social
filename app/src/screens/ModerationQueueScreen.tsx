@@ -27,7 +27,7 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
 
     const fetchQueue = async () => {
         try {
-            const response = await api.get<{ items: ModQueueItem[] }>('/mod/queue');
+            const response = await api.get<{ items: ModQueueItem[] }>('/api/v1/mod/queue');
             setItems(response.items);
         } catch (error) {
             console.error('Failed to fetch mod queue:', error);
@@ -44,7 +44,7 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
 
     const handleResolve = async (itemId: string, action: 'approved' | 'removed' | 'warned' | 'banned') => {
         try {
-            await api.post(`/mod/queue/${itemId}/resolve`, { action });
+            await api.post(`/api/v1/mod/queue/${itemId}/resolve`, { action });
             // Optimistic update
             setItems(prev => prev.filter(item => item.id !== itemId));
             Alert.alert('Success', `Item ${action}`);
