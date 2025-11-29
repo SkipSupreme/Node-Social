@@ -79,7 +79,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // DELETE /vouch/:userId - Revoke vouch
+  // DELETE /vouch/:userId - Revoke vouch with 50% penalty
   fastify.delete<{ Params: { userId: string } }>(
     '/:userId',
     { preHandler: [fastify.authenticate] },
@@ -97,19 +97,37 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(404).send({ error: 'Active vouch not found' });
       }
 
-      const updated = await fastify.prisma.vouch.update({
-        where: { id: vouch.id },
-        data: {
-          active: false,
-          revokedAt: new Date(),
-        },
-      });
+      // Calculate 50% penalty
+      const penalty = Math.floor(vouch.stake * 0.5);
 
-      return reply.send({ success: true, vouch: updated });
+      // Transaction: deduct penalty from voucher's cred and update vouch
+      const [updatedVouch] = await fastify.prisma.$transaction([
+        fastify.prisma.vouch.update({
+          where: { id: vouch.id },
+          data: {
+            active: false,
+            revokedAt: new Date(),
+            penaltyPaid: penalty,
+          },
+        }),
+        fastify.prisma.user.update({
+          where: { id: voucherId },
+          data: {
+            cred: { decrement: penalty },
+          },
+        }),
+      ]);
+
+      return reply.send({
+        success: true,
+        vouch: updatedVouch,
+        penaltyPaid: penalty,
+        credReturned: vouch.stake - penalty,
+      });
     }
   );
 
-  // GET /vouch/given - Get vouches given by current user
+  // GET /vouch/given - Get vouches given by current user (includes revoked for history)
   fastify.get(
     '/given',
     { preHandler: [fastify.authenticate] },
@@ -118,7 +136,6 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
       const vouches = await fastify.prisma.vouch.findMany({
         where: {
           voucherId: userId,
-          active: true,
         },
         include: {
           vouchee: {
@@ -137,7 +154,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // GET /vouch/received - Get vouches received by current user
+  // GET /vouch/received - Get vouches received by current user (includes revoked for history)
   fastify.get(
     '/received',
     { preHandler: [fastify.authenticate] },
@@ -146,7 +163,6 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
       const vouches = await fastify.prisma.vouch.findMany({
         where: {
           voucheeId: userId,
-          active: true,
         },
         include: {
           voucher: {

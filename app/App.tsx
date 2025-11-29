@@ -38,6 +38,7 @@ import { PostDetailScreen } from './src/screens/PostDetailScreen';
 import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
 import { AppealsScreen } from './src/screens/AppealsScreen';
 import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
+import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 // PostTypeFilter removed from main feed - may be added to Vibe Validator expert mode later
 import { PostType } from './src/web/components/Feeds/PostTypeFilter';
@@ -52,7 +53,7 @@ const MainApp = () => {
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -489,6 +490,7 @@ const MainApp = () => {
               onModerationClick={() => setCurrentView('moderation')}
               onAppealsClick={() => setCurrentView('appeals')}
               onCouncilClick={() => setCurrentView('council')}
+              onVouchesClick={() => setCurrentView('vouches')}
               currentView={currentView}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -656,6 +658,14 @@ const MainApp = () => {
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Global'}
                 onBack={() => setCurrentView('feed')}
               />
+            ) : currentView === 'vouches' ? (
+              <MyVouchesScreen
+                onBack={() => setCurrentView('feed')}
+                onViewProfile={(userId) => {
+                  setViewParams({ userId });
+                  setCurrentView('profile');
+                }}
+              />
             ) : null}
 
           </View>
@@ -723,6 +733,10 @@ const MainApp = () => {
                 onCouncilClick={() => {
                   setMenuVisible(false);
                   setCurrentView('council');
+                }}
+                onVouchesClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('vouches');
                 }}
                 currentView={currentView}
               />

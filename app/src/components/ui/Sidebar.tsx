@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake } from './Icons';
 import { COLORS } from '../../constants/theme';
 
 interface SidebarProps {
@@ -22,6 +22,7 @@ interface SidebarProps {
     onModerationClick?: () => void;
     onAppealsClick?: () => void;
     onCouncilClick?: () => void;
+    onVouchesClick?: () => void;
     currentView?: string;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
@@ -120,6 +121,7 @@ export const Sidebar = ({
     onModerationClick,
     onAppealsClick,
     onCouncilClick,
+    onVouchesClick,
     currentView,
     collapsed = false,
     onToggleCollapse
@@ -199,6 +201,11 @@ export const Sidebar = ({
                         icon={Crown}
                         active={currentView === 'council'}
                         onPress={onCouncilClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Handshake}
+                        active={currentView === 'vouches'}
+                        onPress={onVouchesClick}
                     />
                     <CollapsedNavItem
                         icon={Zap}
@@ -326,6 +333,15 @@ export const Sidebar = ({
                         onPress={() => {
                             if (onClose && !isDesktop) onClose();
                             if (onCouncilClick) onCouncilClick();
+                        }}
+                    />
+                    <NavItem
+                        icon={Handshake}
+                        label="My Vouches"
+                        active={currentView === 'vouches'}
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onVouchesClick) onVouchesClick();
                         }}
                     />
                     <NavItem

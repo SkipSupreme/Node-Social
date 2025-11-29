@@ -788,8 +788,10 @@ export type Vouch = {
   voucherId: string;
   voucheeId: string;
   stake: number;
+  penaltyPaid?: number; // Cred lost when revoked (50% penalty)
   active: boolean;
   createdAt: string;
+  revokedAt?: string;
   voucher?: {
     id: string;
     username: string;
@@ -821,7 +823,7 @@ export function vouchForUser(userId: string, stake?: number) {
 }
 
 export function revokeVouch(userId: string) {
-  return request<{ success: boolean; vouch: Vouch }>(`/api/v1/vouch/${userId}`, {
+  return request<{ success: boolean; vouch: Vouch; penaltyPaid: number; credReturned: number }>(`/api/v1/vouch/${userId}`, {
     method: "DELETE",
   });
 }

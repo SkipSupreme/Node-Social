@@ -659,6 +659,7 @@ model Vouch {
   voucheeId   String   // User receiving the vouch
   vouchee     User     @relation("VouchReceiver", fields: [voucheeId], references: [id], onDelete: Cascade)
   stake       Int      @default(100) // Cred staked on this vouch
+  penaltyPaid Int?     // Cred lost when revoked (50% penalty)
   active      Boolean  @default(true)
   createdAt   DateTime @default(now())
   revokedAt   DateTime?

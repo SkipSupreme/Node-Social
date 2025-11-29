@@ -5,6 +5,7 @@ import { useAuthStore } from '../store/auth';
 import { updateProfile, getUserCredHistory, getUserPosts } from '../lib/api';
 import { ArrowLeft, Edit2, Share2, ChevronRight, Hexagon, Award, Users, TrendingUp, Clock, MessageSquare, Heart } from 'lucide-react-native';
 import { ERAS, COLORS } from '../constants/theme';
+import { VouchSection } from '../components/ui/VouchSection';
 
 interface CredBreakdown {
     nodeId: string;
@@ -234,6 +235,18 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
                         </View>
                     )}
                 </TouchableOpacity>
+
+                {/* Web of Trust Section */}
+                {user?.id && (
+                    <View style={{ marginTop: 16 }}>
+                        <VouchSection
+                            userId={user.id}
+                            username={user.username || 'user'}
+                            currentUserCred={authUser?.cred || 0}
+                            isOwnProfile={authUser?.id === user.id}
+                        />
+                    </View>
+                )}
 
                 {/* Stats Grid */}
                 <View style={styles.statsGrid}>
