@@ -36,6 +36,8 @@ import { DiscoveryScreen } from './src/screens/DiscoveryScreen';
 import { FollowingScreen } from './src/screens/FollowingScreen';
 import { PostDetailScreen } from './src/screens/PostDetailScreen';
 import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
+import { AppealsScreen } from './src/screens/AppealsScreen';
+import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 // PostTypeFilter removed from main feed - may be added to Vibe Validator expert mode later
 import { PostType } from './src/web/components/Feeds/PostTypeFilter';
@@ -49,7 +51,8 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation'>('feed');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -313,6 +316,7 @@ const MainApp = () => {
       return;
     }
     setLoading(true);
+    setCurrentView('feed'); // Switch to feed view to show search results
     try {
       const data = await searchPosts(searchQuery);
       const mappedPosts = data.posts.map((p: any) => ({
@@ -468,7 +472,7 @@ const MainApp = () => {
 
         {/* Desktop Sidebar */}
         {isDesktop && (
-          <View style={styles.drawerLeft}>
+          <View style={[styles.drawerLeft, sidebarCollapsed && styles.drawerLeftCollapsed]}>
             <Sidebar
               nodes={nodes}
               isDesktop={true}
@@ -483,7 +487,11 @@ const MainApp = () => {
               onBetaClick={() => setCurrentView('beta')}
               onNewPostClick={() => setIsCreatePostOpen(true)}
               onModerationClick={() => setCurrentView('moderation')}
+              onAppealsClick={() => setCurrentView('appeals')}
+              onCouncilClick={() => setCurrentView('council')}
               currentView={currentView}
+              collapsed={sidebarCollapsed}
+              onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
             />
           </View>
         )}
@@ -640,6 +648,14 @@ const MainApp = () => {
               <PostDetailScreen postId={viewParams?.postId} onBack={() => setCurrentView('feed')} />
             ) : currentView === 'moderation' ? (
               <ModerationQueueScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'appeals' ? (
+              <AppealsScreen onBack={() => setCurrentView('feed')} />
+            ) : currentView === 'council' ? (
+              <NodeCouncilScreen
+                nodeId={selectedNodeId || 'global'}
+                nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Global'}
+                onBack={() => setCurrentView('feed')}
+              />
             ) : null}
 
           </View>
@@ -699,6 +715,14 @@ const MainApp = () => {
                 onModerationClick={() => {
                   setMenuVisible(false);
                   setCurrentView('moderation');
+                }}
+                onAppealsClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('appeals');
+                }}
+                onCouncilClick={() => {
+                  setMenuVisible(false);
+                  setCurrentView('council');
                 }}
                 currentView={currentView}
               />
@@ -889,6 +913,10 @@ const styles = StyleSheet.create({
     maxWidth: 300,
     backgroundColor: COLORS.node.panel,
     height: '100%'
+  },
+  drawerLeftCollapsed: {
+    width: 56,
+    maxWidth: 56,
   },
   drawerRight: {
     width: '85%',

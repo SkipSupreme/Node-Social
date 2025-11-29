@@ -29,6 +29,7 @@ import reportRoutes from './routes/reports.js';
 import vouchRoutes from './routes/vouch.js';
 import councilRoutes from './routes/council.js';
 import appealRoutes from './routes/appeals.js';
+import searchRoutes from './routes/search.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 
@@ -173,6 +174,7 @@ export async function build(): Promise<FastifyInstance> {
   await app.register(usersRoutes, { prefix: '/users' });
   await app.register(metadataRoutes, { prefix: '/metadata' });
   await app.register(messagesRoutes, { prefix: '/api' }); // Prefix /api so it becomes /api/conversations
+  await app.register(searchRoutes); // Search routes - /search/posts
 
   // health check
   app.get('/health', async () => ({ ok: true }));

@@ -74,6 +74,12 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
               select: {
                 id: true,
                 email: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                avatar: true,
+                era: true,
+                cred: true,
               },
             },
             node: true,
@@ -84,7 +90,28 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
               take: 3,
               orderBy: { createdAt: 'desc' },
               include: {
-                author: { select: { id: true, email: true } }
+                author: {
+                  select: {
+                    id: true,
+                    email: true,
+                    username: true,
+                    firstName: true,
+                    lastName: true,
+                    avatar: true,
+                    era: true,
+                    cred: true,
+                  }
+                }
+              }
+            },
+            vibeAggregate: true,
+            poll: {
+              include: {
+                options: {
+                  include: {
+                    _count: { select: { votes: true } }
+                  }
+                }
               }
             },
           },

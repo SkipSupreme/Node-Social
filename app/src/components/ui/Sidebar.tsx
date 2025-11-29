@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown } from './Icons';
 import { COLORS } from '../../constants/theme';
 
 interface SidebarProps {
@@ -20,7 +20,11 @@ interface SidebarProps {
     onBetaClick?: () => void;
     onNewPostClick?: () => void;
     onModerationClick?: () => void;
+    onAppealsClick?: () => void;
+    onCouncilClick?: () => void;
     currentView?: string;
+    collapsed?: boolean;
+    onToggleCollapse?: () => void;
 }
 
 // Animated Logo Component
@@ -114,7 +118,11 @@ export const Sidebar = ({
     onBetaClick,
     onNewPostClick,
     onModerationClick,
-    currentView
+    onAppealsClick,
+    onCouncilClick,
+    currentView,
+    collapsed = false,
+    onToggleCollapse
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
@@ -137,6 +145,84 @@ export const Sidebar = ({
         }
     };
 
+    // Collapsed sidebar view - icons only
+    if (collapsed && isDesktop) {
+        return (
+            <SafeAreaView style={styles.collapsedContainer}>
+                {/* Expand button */}
+                <TouchableOpacity
+                    style={styles.collapseButton}
+                    onPress={onToggleCollapse}
+                    activeOpacity={0.7}
+                >
+                    <Text style={styles.collapseIcon}>☰</Text>
+                </TouchableOpacity>
+
+                {/* Icon-only nav items */}
+                <View style={styles.collapsedNav}>
+                    <CollapsedNavItem
+                        icon={Flame}
+                        active={feedMode === 'global' && selectedNodeId === null}
+                        onPress={() => handleModeClick('global')}
+                    />
+                    <CollapsedNavItem
+                        icon={Search}
+                        active={feedMode === 'discovery'}
+                        onPress={() => handleModeClick('discovery')}
+                    />
+                    <CollapsedNavItem
+                        icon={Users}
+                        active={feedMode === 'following'}
+                        onPress={() => handleModeClick('following')}
+                    />
+                    <CollapsedNavItem
+                        icon={Palette}
+                        active={currentView === 'themes'}
+                        onPress={onThemesClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Bookmark}
+                        active={currentView === 'saved'}
+                        onPress={onSavedClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Shield}
+                        active={currentView === 'moderation'}
+                        onPress={onModerationClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Scale}
+                        active={currentView === 'appeals'}
+                        onPress={onAppealsClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Crown}
+                        active={currentView === 'council'}
+                        onPress={onCouncilClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Zap}
+                        active={currentView === 'beta'}
+                        onPress={onBetaClick}
+                    />
+                </View>
+
+                {/* User avatar at bottom */}
+                <TouchableOpacity style={styles.collapsedFooter} onPress={onProfileClick}>
+                    <View style={[styles.collapsedAvatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981' }]}>
+                        {user?.avatar ? (
+                            <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+                        ) : (
+                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
+                                {user?.firstName?.[0] || 'U'}
+                            </Text>
+                        )}
+                    </View>
+                </TouchableOpacity>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView style={[styles.container, isDesktop && styles.containerDesktop]}>
             {/* Header */}
@@ -146,7 +232,14 @@ export const Sidebar = ({
                     <Text style={styles.logoText}>Node<Text style={{ color: COLORS.node.accent }}>Social</Text></Text>
                 </View>
 
-                {/* Only show Close button if not in Desktop mode */}
+                {/* Desktop: Collapse button */}
+                {isDesktop && onToggleCollapse && (
+                    <TouchableOpacity onPress={onToggleCollapse} style={styles.collapseButton} activeOpacity={0.7}>
+                        <Text style={styles.collapseIcon}>←</Text>
+                    </TouchableOpacity>
+                )}
+
+                {/* Mobile: Close button */}
                 {!isDesktop && onClose && (
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
                         <X size={20} color={COLORS.node.muted} />
@@ -215,6 +308,24 @@ export const Sidebar = ({
                         onPress={() => {
                             if (onClose && !isDesktop) onClose();
                             if (onModerationClick) onModerationClick();
+                        }}
+                    />
+                    <NavItem
+                        icon={Scale}
+                        label="Appeals"
+                        active={currentView === 'appeals'}
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onAppealsClick) onAppealsClick();
+                        }}
+                    />
+                    <NavItem
+                        icon={Crown}
+                        label="Node Council"
+                        active={currentView === 'council'}
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onCouncilClick) onCouncilClick();
                         }}
                     />
                     <NavItem
@@ -289,6 +400,23 @@ const NavItem = ({ icon: Icon, label, active, onPress }: NavItemProps) => (
     </TouchableOpacity>
 );
 
+// Collapsed nav item - icon only
+interface CollapsedNavItemProps {
+    icon: any;
+    active?: boolean;
+    onPress?: () => void;
+}
+
+const CollapsedNavItem = ({ icon: Icon, active, onPress }: CollapsedNavItemProps) => (
+    <TouchableOpacity
+        style={[styles.collapsedNavItem, active && styles.collapsedNavItemActive]}
+        onPress={onPress}
+        activeOpacity={0.7}
+    >
+        <Icon size={20} color={active ? COLORS.node.accent : COLORS.node.muted} />
+    </TouchableOpacity>
+);
+
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.node.panel },
     containerDesktop: { borderRightWidth: 1, borderRightColor: COLORS.node.border },
@@ -329,5 +457,59 @@ const styles = StyleSheet.create({
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
     avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#374151' },
     footerUser: { color: '#fff', fontWeight: 'bold' },
-    footerEra: { color: COLORS.node.muted, fontSize: 12 }
+    footerEra: { color: COLORS.node.muted, fontSize: 12 },
+    // Collapsed sidebar styles
+    collapsedContainer: {
+        width: 56,
+        height: '100%',
+        backgroundColor: COLORS.node.panel,
+        borderRightWidth: 1,
+        borderRightColor: COLORS.node.border,
+        alignItems: 'center',
+        paddingTop: 12,
+        paddingBottom: 12,
+    },
+    collapseButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'transparent',
+        marginBottom: 8,
+    },
+    collapseIcon: {
+        fontSize: 20,
+        color: COLORS.node.muted,
+    },
+    collapsedNav: {
+        flex: 1,
+        alignItems: 'center',
+        paddingTop: 8,
+        gap: 4,
+    },
+    collapsedNavItem: {
+        width: 40,
+        height: 40,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    collapsedNavItemActive: {
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    },
+    collapsedFooter: {
+        paddingTop: 12,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.node.border,
+        alignItems: 'center',
+    },
+    collapsedAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
 });

@@ -4,7 +4,7 @@ import {
     CornerDownRight, Minus, ChevronDown, ChevronUp, Hexagon, Lightbulb,
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
-    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award
+    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award, Crown
 } from 'lucide-react-native';
 
 export {
@@ -12,5 +12,5 @@ export {
     CornerDownRight, Minus, ChevronDown, ChevronUp, Hexagon, Lightbulb,
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
-    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award
+    Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award, Crown
 };
