@@ -4,7 +4,7 @@ import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, S
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Menu, X, PanelRight, Search, ChevronDown, MessageSquare, Bell } from './src/components/ui/Icons';
+import { Menu, PanelRight, Search, ChevronDown, MessageSquare, Bell } from './src/components/ui/Icons';
 import { useAuthStore } from './src/store/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
@@ -561,16 +561,33 @@ const MainApp = () => {
                 </TouchableOpacity>
               </View>
 
-              {/* Right: Vibe Validator Button (far right like mobile) */}
-              <TouchableOpacity
-                onPress={() => setVibeVisible(true)}
-                style={styles.presetButton}
-              >
-                <Text style={styles.presetButtonText} numberOfLines={1}>
-                  {getPresetDisplayName(algoSettings.preset as PresetType)}
-                </Text>
-                <ChevronDown size={14} color={COLORS.node.accent} />
-              </TouchableOpacity>
+              {/* Right: Vibe Validator Button + Dropdown (far right like mobile) */}
+              <View style={{ position: 'relative' }}>
+                <TouchableOpacity
+                  onPress={() => setVibeVisible(!vibeVisible)}
+                  style={styles.presetButton}
+                >
+                  <Text style={styles.presetButtonText} numberOfLines={1}>
+                    {getPresetDisplayName(algoSettings.preset as PresetType)}
+                  </Text>
+                  <ChevronDown size={14} color={COLORS.node.accent} />
+                </TouchableOpacity>
+
+                {/* Desktop Vibe Validator Dropdown */}
+                {vibeVisible && (
+                  <>
+                    {/* Invisible backdrop to close dropdown when clicking outside */}
+                    <TouchableOpacity
+                      style={styles.dropdownBackdrop}
+                      onPress={() => setVibeVisible(false)}
+                      activeOpacity={1}
+                    />
+                    <View style={styles.vibeDropdown}>
+                      <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
+                    </View>
+                  </>
+                )}
+              </View>
             </View>
           )}
 
@@ -789,20 +806,21 @@ const MainApp = () => {
         initialNodeId={selectedNodeId}
       />
 
-      {/* Vibe Validator Modal - 90% height like before */}
-      <Modal visible={vibeVisible} animationType="slide" transparent>
-        <View style={styles.vibeModalOverlay}>
-          <View style={styles.vibeModalContent}>
-            <TouchableOpacity
-              onPress={() => setVibeVisible(false)}
-              style={styles.vibeModalClose}
-            >
-              <X size={24} color={COLORS.node.text} />
+      {/* Mobile Vibe Validator - Full screen bottom sheet (no overlay on desktop - uses dropdown) */}
+      {!isDesktop && (
+        <Modal visible={vibeVisible} animationType="slide" transparent>
+          <TouchableOpacity
+            style={styles.vibeModalOverlay}
+            activeOpacity={1}
+            onPress={() => setVibeVisible(false)}
+          >
+            <TouchableOpacity activeOpacity={1} style={styles.vibeModalContent}>
+              <View style={styles.vibeModalHandle} />
+              <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
             </TouchableOpacity>
-            <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
-          </View>
-        </View>
-      </Modal>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
     </SafeAreaView>
     </View>
@@ -1003,28 +1021,53 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  // Vibe Validator Modal - 90% height, centered on desktop
+  // Desktop Vibe Validator Dropdown (like banner editor)
+  dropdownBackdrop: {
+    position: 'absolute',
+    top: -1000,
+    left: -1000,
+    right: -1000,
+    bottom: -1000,
+    zIndex: 999,
+  },
+  vibeDropdown: {
+    position: 'absolute',
+    top: '100%',
+    right: 0,
+    marginTop: 8,
+    width: 400,
+    maxHeight: 600,
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  // Mobile Vibe Validator - Full screen bottom sheet (no black overlay)
   vibeModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: 'transparent',
+    justifyContent: 'flex-end',
   },
   vibeModalContent: {
     backgroundColor: COLORS.node.panel,
-    borderRadius: 16,
-    width: '95%',
-    maxWidth: 500,
-    height: '90%',
-    maxHeight: 800,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    height: '100%',
+    paddingTop: 8,
   },
-  vibeModalClose: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 10,
-    padding: 8,
-    backgroundColor: COLORS.node.bg,
-    borderRadius: 20,
+  vibeModalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.node.border,
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 8,
   },
 });
