@@ -1192,8 +1192,13 @@ const styles = StyleSheet.create({
   actionButton: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 4,
-    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
   },
   actionCount: {
     fontSize: 13,

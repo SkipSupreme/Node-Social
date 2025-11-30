@@ -474,7 +474,7 @@ const styles = StyleSheet.create({
     nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
     nodeSubscribers: { fontSize: 11, color: COLORS.node.muted, marginTop: 2 },
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#374151' },
+    avatar: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#374151' },
     footerUser: { color: '#fff', fontWeight: 'bold' },
     footerEra: { color: COLORS.node.muted, fontSize: 12 },
     // Collapsed sidebar styles

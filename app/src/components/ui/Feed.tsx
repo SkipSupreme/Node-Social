@@ -1047,18 +1047,18 @@ const styles = StyleSheet.create({
     avatarSmallContainer: {
         width: 20,
         height: 20,
-        borderRadius: 10,
+        borderRadius: 6,
         borderWidth: 1,
         borderColor: COLORS.node.border,
         backgroundColor: COLORS.node.panel,
         overflow: 'hidden',
         zIndex: 10
     },
-    avatarImage: { width: '100%', height: '100%', borderRadius: 16 },
+    avatarImage: { width: '100%', height: '100%', borderRadius: 8 },
     avatarContainer: {
         width: 36,
         height: 36,
-        borderRadius: 18,
+        borderRadius: 10,
         borderWidth: 2,
         borderColor: COLORS.node.accent,
         overflow: 'hidden',
@@ -1091,8 +1091,8 @@ const styles = StyleSheet.create({
     fadeOverlay: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 40 },
     cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
     pillBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8,
-        backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border, borderRadius: 999
+        flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8,
+        backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border, borderRadius: 8
     },
     pillText: { fontSize: 14, fontWeight: '500', color: COLORS.node.muted },
     commentsSection: {

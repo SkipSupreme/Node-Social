@@ -526,6 +526,7 @@ const MainApp = () => {
           {/* Desktop Header - Full Width */}
           {isDesktop && (
             <View style={styles.desktopHeader}>
+              {/* Left: Search */}
               <View style={styles.searchContainerDesktop}>
                 <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
                 <TextInput
@@ -539,7 +540,7 @@ const MainApp = () => {
                 />
                 {searchQuery.trim() && (
                   <TouchableOpacity
-                    style={{ position: 'absolute', right: 8, top: 6, padding: 4, backgroundColor: COLORS.node.accent, borderRadius: 4 }}
+                    style={styles.searchButton}
                     onPress={handleSearch}
                   >
                     <Search size={14} color="#fff" />
@@ -547,6 +548,20 @@ const MainApp = () => {
                 )}
               </View>
 
+              {/* Center: Nav Icons */}
+              <View style={styles.navIconsDesktop}>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setCurrentView('messages')}>
+                  <MessageSquare size={20} color={COLORS.node.text} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setCurrentView('notifications')}>
+                  <Bell size={20} color={COLORS.node.text} />
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setRightPanelOpen(!rightPanelOpen)}>
+                  <PanelRight size={20} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
+                </TouchableOpacity>
+              </View>
+
+              {/* Right: Vibe Validator Button (far right like mobile) */}
               <TouchableOpacity
                 onPress={() => setVibeVisible(true)}
                 style={styles.presetButton}
@@ -556,18 +571,6 @@ const MainApp = () => {
                 </Text>
                 <ChevronDown size={14} color={COLORS.node.accent} />
               </TouchableOpacity>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-                <TouchableOpacity onPress={() => setCurrentView('messages')}>
-                  <MessageSquare size={24} color={COLORS.node.text} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setCurrentView('notifications')}>
-                  <Bell size={24} color={COLORS.node.text} />
-                </TouchableOpacity>
-                <TouchableOpacity onPress={() => setRightPanelOpen(!rightPanelOpen)}>
-                  <PanelRight size={24} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
-                </TouchableOpacity>
-              </View>
             </View>
           )}
 
@@ -582,7 +585,7 @@ const MainApp = () => {
                 onSearchChange={setSearchQuery}
                 onSearch={handleSearch}
                 algoSettings={algoSettings}
-                onAlgoSettingsChange={setAlgoSettings}
+                onVibeClick={() => setVibeVisible(true)}
                 onMenuClick={() => setMenuVisible(true)}
                 isDesktop={false}
               />
@@ -927,26 +930,47 @@ const styles = StyleSheet.create({
     borderColor: COLORS.node.border,
     paddingVertical: 8,
     paddingLeft: 36,
-    paddingRight: 12,
+    paddingRight: 40,
     color: '#fff',
     fontSize: 14,
+  },
+  searchButton: {
+    position: 'absolute',
+    right: 8,
+    top: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: COLORS.node.accent,
+    borderRadius: 6,
+  },
+  navIconsDesktop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  iconButtonDesktop: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.node.panel,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
   },
   presetButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: `${COLORS.node.accent}20`,
-    borderRadius: 20,
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: `${COLORS.node.accent}15`,
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.node.accent,
   },
   presetButtonText: {
     color: COLORS.node.accent,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    maxWidth: 100,
   },
   // Mobile Header
   mobileHeader: {
@@ -979,18 +1003,20 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  // Vibe Validator Modal - 90% height
+  // Vibe Validator Modal - 90% height, centered on desktop
   vibeModalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   vibeModalContent: {
     backgroundColor: COLORS.node.panel,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderRadius: 16,
+    width: '95%',
+    maxWidth: 500,
     height: '90%',
-    paddingBottom: 40,
+    maxHeight: 800,
   },
   vibeModalClose: {
     position: 'absolute',

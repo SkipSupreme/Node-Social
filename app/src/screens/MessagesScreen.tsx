@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
         padding: 12, backgroundColor: COLORS.node.panel,
         borderRadius: 12, marginBottom: 8, borderWidth: 1, borderColor: COLORS.node.border
     },
-    avatar: { width: 48, height: 48, borderRadius: 24 },
+    avatar: { width: 48, height: 48, borderRadius: 12 },
     content: { flex: 1 },
     header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
     username: { fontSize: 16, fontWeight: 'bold', color: COLORS.node.text },
