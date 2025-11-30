@@ -5,7 +5,7 @@ import {
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
     Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award, Crown,
-    Handshake, CheckCircle, User
+    Handshake, CheckCircle, User, Waypoints
 } from 'lucide-react-native';
 
 export {
@@ -14,5 +14,5 @@ export {
     Smile, Skull, Sparkles, Menu, Search, Bell, X, Flame, Users, Palette, ChevronRight,
     PanelRight, Settings, TrendingUp, Clock, UserCheck, Heart, HelpCircle, Ban, BellOff, ArrowLeft, UserPlus,
     Edit2, Trash2, Flag, Scale, Gavel, Eye, EyeOff, FileText, Image, Link2, Filter, Shuffle, Target, Award, Crown,
-    Handshake, CheckCircle, User
+    Handshake, CheckCircle, User, Waypoints
 };

@@ -192,7 +192,7 @@ export const RegisterScreen: React.FC<{ onSuccessLogin: () => void; goToLogin: (
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
             <Text style={styles.title}>Create your account</Text>
             <Text style={styles.subtitle}>Join the network of the future</Text>
           </View>

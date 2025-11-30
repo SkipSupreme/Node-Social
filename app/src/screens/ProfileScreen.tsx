@@ -191,7 +191,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
     // Loading state for fetching other user's profile
     if (loadingUser) {
         return (
-            <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+            <SafeAreaView style={styles.container} edges={['left', 'right']}>
                 <View style={[styles.loadingHeader, { marginTop: mobileHeaderOffset }]}>
                     <TouchableOpacity onPress={onBack} style={[styles.backButton, { backgroundColor: COLORS.node.border }]}>
                         <ArrowLeft color={COLORS.node.text} size={24} />
@@ -281,7 +281,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+        <SafeAreaView style={styles.container} edges={['left', 'right']}>
             <ScrollView contentContainerStyle={[styles.content, { paddingTop: mobileHeaderOffset }]}>
                 {/* Profile Banner with overlaid header */}
                 <View style={styles.bannerSection}>

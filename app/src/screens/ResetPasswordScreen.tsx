@@ -75,7 +75,7 @@ export const ResetPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
             <View style={styles.iconWrapper}>
               <Lock size={28} color={COLORS.node.accent} />
             </View>

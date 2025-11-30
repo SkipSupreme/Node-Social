@@ -14,13 +14,71 @@ import {
   Share,
   Modal,
   Dimensions,
+  Linking,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, MessageSquare, Share2, Bookmark, X, ImageIcon, Camera, Smile } from "lucide-react-native";
+import { ArrowLeft, MessageSquare, Share2, Bookmark, X, ImageIcon, Camera, Smile, Play } from "lucide-react-native";
 import { getPost, getComments, createComment, Post, Comment, savePost } from "../lib/api";
 import { COLORS } from "../constants/theme";
 import { VibeBar, VibeAggregateData } from "../components/VibeBar";
 import { VibeRadialWheel } from "../components/VibeRadialWheel";
+
+// Helper to detect video URLs
+const isVideoUrl = (url: string): boolean => {
+  const videoPatterns = [
+    /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i,
+    /youtube\.com\/watch\?v=/i,
+    /youtu\.be\//i,
+    /vimeo\.com\//i,
+    /tiktok\.com\//i,
+  ];
+  return videoPatterns.some(pattern => pattern.test(url));
+};
+
+// Helper to get YouTube thumbnail
+const getYouTubeThumbnail = (url: string): string | null => {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  if (match && match[1]) {
+    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
+  }
+  return null;
+};
+
+// Helper to check if URL is an image
+const isImageUrl = (url: string): boolean => {
+  return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+};
+
+// Auto-sizing image component that maintains aspect ratio
+const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
+  const [aspectRatio, setAspectRatio] = useState(16 / 9);
+
+  useEffect(() => {
+    Image.getSize(
+      uri,
+      (width, height) => {
+        setAspectRatio(width / height);
+      },
+      (error) => {
+        console.log('Failed to get image size:', error);
+      }
+    );
+  }, [uri]);
+
+  return (
+    <Image
+      source={{ uri }}
+      style={[
+        styles.postMediaImage,
+        {
+          aspectRatio,
+          maxHeight,
+        }
+      ]}
+      resizeMode="contain"
+    />
+  );
+};
 
 const MAX_REPLY_LENGTH = 500;
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
@@ -408,6 +466,79 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
           {post.title && <Text style={styles.postTitle}>{post.title}</Text>}
           {post.content && <Text style={styles.postContent}>{post.content}</Text>}
 
+          {/* Image/Video/Link Preview */}
+          {post.linkUrl && (
+            <View style={styles.postMediaContainer}>
+              {isImageUrl(post.linkUrl) ? (
+                <AutoSizeImage uri={post.linkUrl} maxHeight={500} />
+              ) : isVideoUrl(post.linkUrl) ? (
+                <TouchableOpacity
+                  style={styles.videoPreview}
+                  onPress={() => Linking.openURL(post.linkUrl!)}
+                >
+                  {getYouTubeThumbnail(post.linkUrl) ? (
+                    <Image
+                      source={{ uri: getYouTubeThumbnail(post.linkUrl)! }}
+                      style={styles.videoThumbnail}
+                      resizeMode="cover"
+                    />
+                  ) : (
+                    <View style={styles.videoPlaceholder} />
+                  )}
+                  <View style={styles.playButtonOverlay}>
+                    <View style={styles.playButton}>
+                      <Play size={32} color="#fff" fill="#fff" />
+                    </View>
+                  </View>
+                  <View style={styles.videoLabel}>
+                    <Text style={styles.videoLabelText}>
+                      {post.linkUrl.includes('youtube') || post.linkUrl.includes('youtu.be') ? 'YouTube' :
+                       post.linkUrl.includes('vimeo') ? 'Vimeo' :
+                       post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : post.linkMeta?.image ? (
+                <TouchableOpacity
+                  style={styles.linkPreview}
+                  onPress={() => Linking.openURL(post.linkUrl!)}
+                >
+                  <Image
+                    source={{ uri: post.linkMeta.image }}
+                    style={styles.linkPreviewImage}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.linkPreviewContent}>
+                    {post.linkMeta.title && (
+                      <Text style={styles.linkPreviewTitle} numberOfLines={2}>
+                        {post.linkMeta.title}
+                      </Text>
+                    )}
+                    {post.linkMeta.description && (
+                      <Text style={styles.linkPreviewDescription} numberOfLines={2}>
+                        {post.linkMeta.description}
+                      </Text>
+                    )}
+                    {post.linkMeta.domain && (
+                      <Text style={styles.linkPreviewDomain}>
+                        {post.linkMeta.domain}
+                      </Text>
+                    )}
+                  </View>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity
+                  style={styles.plainLink}
+                  onPress={() => Linking.openURL(post.linkUrl!)}
+                >
+                  <Text style={styles.plainLinkText} numberOfLines={1}>
+                    {post.linkUrl}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           {/* Timestamp */}
           <Text style={styles.postTimestamp}>
             {new Date(post.createdAt).toLocaleString('en-US', {
@@ -775,6 +906,109 @@ const styles = StyleSheet.create({
     fontSize: 17,
     color: COLORS.node.text,
     lineHeight: 24,
+  },
+  // Media styles
+  postMediaContainer: {
+    marginTop: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  postMediaImage: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: COLORS.node.bg,
+  },
+  videoPreview: {
+    width: '100%',
+    aspectRatio: 16 / 9,
+    borderRadius: 12,
+    backgroundColor: COLORS.node.bg,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  videoThumbnail: {
+    width: '100%',
+    height: '100%',
+  },
+  videoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: COLORS.node.panel,
+  },
+  playButtonOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  playButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(99, 102, 241, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingLeft: 4,
+  },
+  videoLabel: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  videoLabelText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  linkPreview: {
+    backgroundColor: COLORS.node.bg,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    overflow: 'hidden',
+  },
+  linkPreviewImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: COLORS.node.panel,
+  },
+  linkPreviewContent: {
+    padding: 12,
+  },
+  linkPreviewTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.node.text,
+    marginBottom: 4,
+  },
+  linkPreviewDescription: {
+    fontSize: 13,
+    color: COLORS.node.muted,
+    marginBottom: 6,
+    lineHeight: 18,
+  },
+  linkPreviewDomain: {
+    fontSize: 12,
+    color: COLORS.node.accent,
+  },
+  plainLink: {
+    backgroundColor: COLORS.node.bg,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+  },
+  plainLinkText: {
+    fontSize: 14,
+    color: COLORS.node.accent,
   },
   postTimestamp: {
     fontSize: 14,

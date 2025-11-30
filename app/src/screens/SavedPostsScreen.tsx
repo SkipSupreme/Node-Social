@@ -40,6 +40,7 @@ export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
                 createdAt: p.createdAt,
                 expertGated: false,
                 vibes: [],
+                linkUrl: p.linkUrl,
                 linkMeta: p.linkMeta,
                 poll: p.poll,
                 comments: [] // Saved posts view doesn't need to load comments initially

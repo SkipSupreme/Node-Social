@@ -244,6 +244,7 @@ const MainApp = () => {
         createdAt: p.createdAt,
         expertGated: false,
         vibes: [],
+        linkUrl: p.linkUrl,
         linkMeta: p.linkMeta,
         poll: p.poll,
         myReaction: p.myReaction,
@@ -341,6 +342,7 @@ const MainApp = () => {
         createdAt: p.createdAt,
         expertGated: false,
         vibes: [],
+        linkUrl: p.linkUrl,
         linkMeta: p.linkMeta,
         poll: p.poll,
         myReaction: p.myReaction,
@@ -1054,14 +1056,14 @@ const styles = StyleSheet.create({
   // Vibe Modal Styles
   vibeModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'transparent',
     justifyContent: 'flex-end'
   },
   vibeModalContent: {
     backgroundColor: COLORS.node.panel,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '90%',
+    height: '85%',
     paddingBottom: 40
   },
   vibeModalClose: {
@@ -1069,7 +1071,7 @@ const styles = StyleSheet.create({
     top: 16,
     right: 16,
     zIndex: 10,
-    padding: 4,
+    padding: 8,
     backgroundColor: COLORS.node.bg,
     borderRadius: 20,
   }

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 're
 import Slider from '@react-native-community/slider';
 import {
     Settings, TrendingUp, Clock, UserCheck, Sparkles, ChevronDown, ChevronUp,
-    Zap, MessageSquare, Users, Eye, EyeOff, FileText, Image, Link2, Filter,
+    Zap, MessageSquare, Users, Eye, EyeOff, FileText, Image, Link2, Waypoints,
     Shuffle, Target, Award, Scale, Flame
 } from './Icons';
 import { COLORS } from '../../constants/theme';
@@ -345,7 +345,6 @@ const SimpleMode = ({ settings, onUpdate, activePreset, setActivePreset }: {
 
     return (
         <View style={simpleStyles.container}>
-            <Text style={simpleStyles.hint}>Tap a card to change your feed algorithm</Text>
             <View style={simpleStyles.grid}>
                 {PRESETS.map((preset) => {
                     const Icon = preset.icon;
@@ -738,7 +737,7 @@ export const VibeValidator = ({ settings, onUpdate }: VibeValidatorProps) => {
             {/* Header */}
             <View style={styles.header}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Filter size={20} color={COLORS.node.accent} />
+                    <Waypoints size={20} color={COLORS.node.accent} />
                     <Text style={styles.title}>Vibe Validator</Text>
                 </View>
                 <Text style={styles.subtitle}>Control your feed algorithm</Text>

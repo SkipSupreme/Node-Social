@@ -50,7 +50,7 @@ export const EnterResetTokenScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
             <View style={styles.iconWrapper}>
               <Key size={28} color={COLORS.node.accent} />
             </View>

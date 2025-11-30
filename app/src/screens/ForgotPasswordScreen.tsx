@@ -59,7 +59,7 @@ export const ForgotPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
             <View style={styles.successIconWrapper}>
               <Mail size={32} color="#22C55E" />
             </View>
@@ -105,7 +105,7 @@ export const ForgotPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
             <Text style={styles.title}>Forgot password?</Text>
             <Text style={styles.subtitle}>
               Enter your email and we'll send you a reset link

@@ -1,11 +1,74 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag } from './Icons';
+import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason } from '../../lib/api';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { useSocket } from '../../context/SocketContext';
+
+// Auto-sizing image component that maintains aspect ratio
+const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
+    const [aspectRatio, setAspectRatio] = useState(16 / 9); // Default aspect ratio
+    const [loading, setLoading] = useState(true);
+    const screenWidth = Dimensions.get('window').width;
+
+    useEffect(() => {
+        Image.getSize(
+            uri,
+            (width, height) => {
+                setAspectRatio(width / height);
+                setLoading(false);
+            },
+            (error) => {
+                console.log('Failed to get image size:', error);
+                setLoading(false);
+            }
+        );
+    }, [uri]);
+
+    return (
+        <Image
+            source={{ uri }}
+            style={[
+                styles.postImage,
+                {
+                    aspectRatio,
+                    height: undefined, // Let aspectRatio control height
+                    maxHeight,
+                }
+            ]}
+            resizeMode="contain"
+        />
+    );
+};
+
+// Helper to detect video URLs
+const isVideoUrl = (url: string): boolean => {
+    const videoPatterns = [
+        /\.(mp4|webm|mov|avi|mkv)(\?.*)?$/i,
+        /youtube\.com\/watch\?v=/i,
+        /youtu\.be\//i,
+        /vimeo\.com\//i,
+        /tiktok\.com\//i,
+    ];
+    return videoPatterns.some(pattern => pattern.test(url));
+};
+
+// Helper to get YouTube thumbnail
+const getYouTubeThumbnail = (url: string): string | null => {
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+    if (match && match[1]) {
+        return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
+    }
+    return null;
+};
+
+// Helper to check if URL is an image
+const isImageUrl = (url: string): boolean => {
+    return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+};
 
 export interface UIAuthor {
     id: string;
@@ -65,6 +128,15 @@ export interface UIPost {
     };
     myReaction?: { [key: string]: number } | null;
     vibeAggregate?: VibeAggregateData | null;
+    linkUrl?: string | null;
+    linkMeta?: {
+        id: string;
+        url: string;
+        title?: string | null;
+        description?: string | null;
+        image?: string | null;
+        domain?: string | null;
+    } | null;
 }
 
 interface CommentNodeProps {
@@ -506,7 +578,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             <TouchableOpacity activeOpacity={0.9} style={styles.cardContent} onPress={() => setIsExpanded(!isExpanded)}>
 
                 <View style={styles.postHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
                         <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)} style={styles.avatarContainer}>
                             {post.author.avatar ? (
                                 <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
@@ -533,12 +605,12 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             <Text style={styles.subtext}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
                         </View>
                     </View>
-                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={{ padding: 4 }}>
+                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={{ padding: 8 }}>
                         <MoreHorizontal size={16} color={COLORS.node.muted} />
                     </TouchableOpacity>
                 </View>
 
-                <View style={{ paddingLeft: 4, marginBottom: 8 }}>
+                <View style={{ paddingHorizontal: 4, marginBottom: 8 }}>
                     <TouchableOpacity onPress={() => onPress?.(post)} activeOpacity={0.7}>
                         <Text style={styles.title}>
                             {post.expertGated && <Shield size={12} color="#f87171" style={{ marginRight: 4 }} />}
@@ -568,6 +640,83 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                             <Text style={{ color: COLORS.node.accent, fontSize: 12, fontWeight: '700' }}>Continue Reading</Text>
                             <ChevronDown size={12} color={COLORS.node.accent} />
+                        </View>
+                    )}
+
+                    {/* Image/Video/Link Preview Rendering */}
+                    {post.linkUrl && (
+                        <View style={styles.linkPreviewContainer}>
+                            {/* Check if it's a direct image URL */}
+                            {isImageUrl(post.linkUrl) ? (
+                                <AutoSizeImage uri={post.linkUrl} maxHeight={500} />
+                            ) : isVideoUrl(post.linkUrl) ? (
+                                /* Video URL - show thumbnail with play button */
+                                <TouchableOpacity
+                                    style={styles.videoPreview}
+                                    onPress={() => Linking.openURL(post.linkUrl!)}
+                                >
+                                    {getYouTubeThumbnail(post.linkUrl) ? (
+                                        <Image
+                                            source={{ uri: getYouTubeThumbnail(post.linkUrl)! }}
+                                            style={styles.videoThumbnail}
+                                            resizeMode="cover"
+                                        />
+                                    ) : (
+                                        <View style={styles.videoPlaceholder} />
+                                    )}
+                                    <View style={styles.playButtonOverlay}>
+                                        <View style={styles.playButton}>
+                                            <Play size={32} color="#fff" fill="#fff" />
+                                        </View>
+                                    </View>
+                                    <View style={styles.videoLabel}>
+                                        <Text style={styles.videoLabelText}>
+                                            {post.linkUrl.includes('youtube') || post.linkUrl.includes('youtu.be') ? 'YouTube' :
+                                             post.linkUrl.includes('vimeo') ? 'Vimeo' :
+                                             post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            ) : post.linkMeta?.image ? (
+                                /* Link with preview image */
+                                <TouchableOpacity
+                                    style={styles.linkPreview}
+                                    onPress={() => Linking.openURL(post.linkUrl!)}
+                                >
+                                    <Image
+                                        source={{ uri: post.linkMeta.image }}
+                                        style={styles.linkPreviewImage}
+                                        resizeMode="cover"
+                                    />
+                                    <View style={styles.linkPreviewContent}>
+                                        {post.linkMeta.title && (
+                                            <Text style={styles.linkPreviewTitle} numberOfLines={2}>
+                                                {post.linkMeta.title}
+                                            </Text>
+                                        )}
+                                        {post.linkMeta.description && (
+                                            <Text style={styles.linkPreviewDescription} numberOfLines={2}>
+                                                {post.linkMeta.description}
+                                            </Text>
+                                        )}
+                                        {post.linkMeta.domain && (
+                                            <Text style={styles.linkPreviewDomain}>
+                                                {post.linkMeta.domain}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            ) : (
+                                /* Plain link without preview */
+                                <TouchableOpacity
+                                    style={styles.plainLink}
+                                    onPress={() => Linking.openURL(post.linkUrl!)}
+                                >
+                                    <Text style={styles.plainLinkText} numberOfLines={1}>
+                                        {post.linkUrl}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
                         </View>
                     )}
 
@@ -1002,5 +1151,109 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: COLORS.node.accent
     },
     sortChipText: { fontSize: 12, color: COLORS.node.muted },
-    sortChipTextSelected: { color: COLORS.node.accent, fontWeight: '600' }
+    sortChipTextSelected: { color: COLORS.node.accent, fontWeight: '600' },
+    // Image/Link Preview styles
+    linkPreviewContainer: {
+        marginTop: 12,
+        borderRadius: 12,
+        overflow: 'hidden',
+    },
+    postImage: {
+        width: '100%',
+        borderRadius: 12,
+        backgroundColor: COLORS.node.bg,
+    },
+    // Video styles
+    videoPreview: {
+        width: '100%',
+        aspectRatio: 16 / 9,
+        borderRadius: 12,
+        backgroundColor: COLORS.node.bg,
+        overflow: 'hidden',
+        position: 'relative',
+    },
+    videoThumbnail: {
+        width: '100%',
+        height: '100%',
+    },
+    videoPlaceholder: {
+        width: '100%',
+        height: '100%',
+        backgroundColor: COLORS.node.panel,
+    },
+    playButtonOverlay: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    },
+    playButton: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: 'rgba(99, 102, 241, 0.9)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingLeft: 4, // Offset play icon to center visually
+    },
+    videoLabel: {
+        position: 'absolute',
+        bottom: 8,
+        left: 8,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 4,
+    },
+    videoLabelText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    linkPreview: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+        overflow: 'hidden',
+    },
+    linkPreviewImage: {
+        width: '100%',
+        height: 180,
+        backgroundColor: COLORS.node.panel,
+    },
+    linkPreviewContent: {
+        padding: 12,
+    },
+    linkPreviewTitle: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.node.text,
+        marginBottom: 4,
+    },
+    linkPreviewDescription: {
+        fontSize: 13,
+        color: COLORS.node.muted,
+        marginBottom: 6,
+        lineHeight: 18,
+    },
+    linkPreviewDomain: {
+        fontSize: 12,
+        color: COLORS.node.accent,
+    },
+    plainLink: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: 8,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    plainLinkText: {
+        fontSize: 14,
+        color: COLORS.node.accent,
+    },
 });

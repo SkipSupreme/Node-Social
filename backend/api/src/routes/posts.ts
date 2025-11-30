@@ -356,6 +356,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             description: true,
           },
         },
+        linkMeta: true,
         metrics: true,
         _count: {
           select: { comments: true },

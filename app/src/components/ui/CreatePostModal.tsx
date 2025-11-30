@@ -224,19 +224,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                             autoFocus
                         />
 
-                        {/* Image URL Input */}
+                        {/* Image/Video URL Input */}
                         {showImageInput && (
                             <View style={styles.sectionContainer}>
                                 <View style={styles.sectionHeader}>
                                     <ImageIcon size={16} color={COLORS.node.accent} />
-                                    <Text style={styles.sectionTitle}>Image URL</Text>
+                                    <Text style={styles.sectionTitle}>Image or Video URL</Text>
                                     <TouchableOpacity onPress={() => setShowImageInput(false)}>
                                         <X size={16} color={COLORS.node.muted} />
                                     </TouchableOpacity>
                                 </View>
                                 <TextInput
                                     style={styles.urlInput}
-                                    placeholder="https://example.com/image.jpg"
+                                    placeholder="Paste image or YouTube/video URL"
                                     placeholderTextColor={COLORS.node.muted}
                                     value={imageUrl}
                                     onChangeText={setImageUrl}

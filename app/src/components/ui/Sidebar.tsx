@@ -236,7 +236,7 @@ export const Sidebar = ({
             <View style={styles.header}>
                 <View style={styles.logoRow}>
                     <PulsingLogo />
-                    <Text style={styles.logoText}>Node<Text style={{ color: COLORS.node.accent }}>Social</Text></Text>
+                    <Text style={styles.logoText}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
                 </View>
 
                 {/* Desktop: Collapse button */}
