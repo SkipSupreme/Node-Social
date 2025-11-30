@@ -4,7 +4,7 @@ import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, S
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Menu, X } from './src/components/ui/Icons';
+import { Menu, X, PanelRight, Search, ChevronDown, MessageSquare, Bell } from './src/components/ui/Icons';
 import { useAuthStore } from './src/store/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
@@ -54,6 +54,8 @@ const MainApp = () => {
   const { user, logout } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
+  const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
+  const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
   const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
@@ -518,26 +520,65 @@ const MainApp = () => {
           </View>
         )}
 
-        {/* Main Content Wrapper - Pushes Right Sidebar to edge */}
-        <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
+        {/* Main Content Wrapper */}
+        <View style={{ flex: 1, borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
 
-          {/* Header - FeedHeader with collapsible Vibe Validator */}
-          <Animated.View style={[
-            !isDesktop && styles.mobileHeader,
-            !isDesktop && { transform: [{ translateY: headerTranslateY }] }
-          ]}>
-            <FeedHeader
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              onSearch={handleSearch}
-              algoSettings={algoSettings}
-              onAlgoSettingsChange={setAlgoSettings}
-              onMessagesClick={() => setCurrentView('messages')}
-              onNotificationsClick={() => setCurrentView('notifications')}
-              onMenuClick={() => setMenuVisible(true)}
-              isDesktop={isDesktop}
-            />
-          </Animated.View>
+          {/* Desktop Header - Full Width */}
+          {isDesktop && (
+            <View style={styles.desktopHeader}>
+              <View style={styles.searchContainerDesktop}>
+                <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
+                <TextInput
+                  style={styles.inputDesktop}
+                  placeholder="Search posts, users, nodes..."
+                  placeholderTextColor={COLORS.node.muted}
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  onSubmitEditing={handleSearch}
+                />
+              </View>
+
+              <TouchableOpacity
+                onPress={() => setVibeVisible(true)}
+                style={styles.presetButton}
+              >
+                <Text style={styles.presetButtonText} numberOfLines={1}>
+                  {getPresetDisplayName(algoSettings.preset as PresetType)}
+                </Text>
+                <ChevronDown size={14} color={COLORS.node.accent} />
+              </TouchableOpacity>
+
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+                <TouchableOpacity onPress={() => setCurrentView('messages')}>
+                  <MessageSquare size={24} color={COLORS.node.text} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setCurrentView('notifications')}>
+                  <Bell size={24} color={COLORS.node.text} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setRightPanelOpen(!rightPanelOpen)}>
+                  <PanelRight size={24} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Mobile Header */}
+          {!isDesktop && (
+            <Animated.View style={[
+              styles.mobileHeader,
+              { transform: [{ translateY: headerTranslateY }] }
+            ]}>
+              <FeedHeader
+                searchQuery={searchQuery}
+                onSearchChange={setSearchQuery}
+                onSearch={handleSearch}
+                algoSettings={algoSettings}
+                onAlgoSettingsChange={setAlgoSettings}
+                onMenuClick={() => setMenuVisible(true)}
+                isDesktop={false}
+              />
+            </Animated.View>
+          )}
 
           {/* Scrollable Content - Full Width */}
           <View style={{ width: '100%', maxWidth: '100%', flex: 1 }}>
@@ -634,7 +675,7 @@ const MainApp = () => {
         </View>
 
         {/* Desktop Right Panel - Contextual: WhatsVibing (global) or NodeLandingPage (node selected) */}
-        {isDesktop && (
+        {isDesktop && rightPanelOpen && (
           <View style={styles.drawerRight}>
             {selectedNodeId ? (
               <NodeLandingPage
@@ -736,6 +777,20 @@ const MainApp = () => {
         initialNodeId={selectedNodeId}
       />
 
+      {/* Vibe Validator Modal - 90% height like before */}
+      <Modal visible={vibeVisible} animationType="slide" transparent>
+        <View style={styles.vibeModalOverlay}>
+          <View style={styles.vibeModalContent}>
+            <TouchableOpacity
+              onPress={() => setVibeVisible(false)}
+              style={styles.vibeModalClose}
+            >
+              <X size={24} color={COLORS.node.text} />
+            </TouchableOpacity>
+            <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
+          </View>
+        </View>
+      </Modal>
 
     </SafeAreaView>
     </View>
@@ -838,6 +893,53 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  // Desktop Header
+  desktopHeader: {
+    height: 64,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.node.border,
+    backgroundColor: COLORS.node.bg,
+    width: '100%',
+  },
+  searchContainerDesktop: {
+    flex: 1,
+    maxWidth: 400,
+    position: 'relative',
+    justifyContent: 'center',
+  },
+  inputDesktop: {
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    paddingVertical: 8,
+    paddingLeft: 36,
+    paddingRight: 12,
+    color: '#fff',
+    fontSize: 14,
+  },
+  presetButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: `${COLORS.node.accent}20`,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.node.accent,
+  },
+  presetButtonText: {
+    color: COLORS.node.accent,
+    fontSize: 12,
+    fontWeight: '600',
+    maxWidth: 100,
+  },
+  // Mobile Header
   mobileHeader: {
     position: 'absolute',
     top: 0,
@@ -845,16 +947,17 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 100,
   },
+  // Modals
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    flexDirection: 'row'
+    flexDirection: 'row',
   },
   drawerLeft: {
     width: '80%',
     maxWidth: 300,
     backgroundColor: COLORS.node.panel,
-    height: '100%'
+    height: '100%',
   },
   drawerLeftCollapsed: {
     width: 56,
@@ -865,6 +968,28 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     backgroundColor: COLORS.node.panel,
     height: '100%',
-    position: 'relative'
+    position: 'relative',
+  },
+  // Vibe Validator Modal - 90% height
+  vibeModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  vibeModalContent: {
+    backgroundColor: COLORS.node.panel,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    height: '90%',
+    paddingBottom: 40,
+  },
+  vibeModalClose: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 10,
+    padding: 8,
+    backgroundColor: COLORS.node.bg,
+    borderRadius: 20,
   },
 });

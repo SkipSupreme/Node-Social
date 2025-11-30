@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: -32,
+    marginTop: -48, // Banner comes halfway down the avatar
     borderWidth: 3,
     borderColor: COLORS.node.panel,
   },
