@@ -9,10 +9,11 @@ import {
   Platform,
   UIManager,
 } from 'react-native';
-import { Search, ChevronDown, ChevronUp, MessageSquare, Bell } from './Icons';
+import { Search, ChevronDown, ChevronUp, MessageSquare, Bell, Menu } from './Icons';
 import { COLORS } from '../../constants/theme';
 import { VibeValidator, VibeValidatorSettings } from './VibeValidator';
 import { getPresetDisplayName, PresetType } from './PresetBottomSheet';
+import { NodeLogo } from './NodeLogo';
 
 // Enable LayoutAnimation on Android
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -29,9 +30,10 @@ interface FeedHeaderProps {
   algoSettings: VibeValidatorSettings;
   onAlgoSettingsChange: (settings: VibeValidatorSettings) => void;
 
-  // Navigation actions (desktop only)
+  // Navigation actions
   onMessagesClick?: () => void;
   onNotificationsClick?: () => void;
+  onMenuClick?: () => void;
 
   // Layout
   isDesktop?: boolean;
@@ -45,9 +47,11 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
   onAlgoSettingsChange,
   onMessagesClick,
   onNotificationsClick,
+  onMenuClick,
   isDesktop = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [mobileSearchActive, setMobileSearchActive] = useState(false);
 
   const toggleExpanded = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -56,9 +60,96 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
 
   const currentPresetName = getPresetDisplayName(algoSettings.preset as PresetType);
 
+  // Mobile Layout
+  if (!isDesktop) {
+    return (
+      <View style={styles.container}>
+        {/* Mobile Header Row */}
+        {!mobileSearchActive ? (
+          <View style={styles.mobileHeaderRow}>
+            {/* Left: Menu + Logo */}
+            <View style={styles.mobileLeft}>
+              <TouchableOpacity onPress={onMenuClick} style={styles.menuButton}>
+                <Menu size={24} color={COLORS.node.text} />
+              </TouchableOpacity>
+              <NodeLogo size="small" showText={true} />
+            </View>
+
+            {/* Right: Search Icon + Preset Button */}
+            <View style={styles.mobileRight}>
+              <TouchableOpacity
+                onPress={() => setMobileSearchActive(true)}
+                style={styles.mobileIconButton}
+              >
+                <Search size={20} color={COLORS.node.text} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.presetButtonMobile}
+                onPress={toggleExpanded}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.presetButtonText} numberOfLines={1}>
+                  {currentPresetName}
+                </Text>
+                {isExpanded ? (
+                  <ChevronUp size={14} color={COLORS.node.accent} />
+                ) : (
+                  <ChevronDown size={14} color={COLORS.node.accent} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          // Mobile Search Active
+          <View style={styles.mobileSearchRow}>
+            <View style={styles.mobileSearchInputWrapper}>
+              <Search size={16} color={COLORS.node.muted} />
+              <TextInput
+                style={styles.mobileSearchInput}
+                placeholder="Search posts, users, nodes..."
+                placeholderTextColor={COLORS.node.muted}
+                value={searchQuery}
+                onChangeText={onSearchChange}
+                onSubmitEditing={onSearch}
+                autoFocus
+              />
+            </View>
+            <TouchableOpacity
+              onPress={() => {
+                setMobileSearchActive(false);
+                onSearchChange('');
+              }}
+              style={styles.mobileSearchCancel}
+            >
+              <Text style={styles.mobileSearchCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Expandable Vibe Validator Panel (Mobile) */}
+        {isExpanded && (
+          <View style={styles.validatorPanel}>
+            <VibeValidator
+              settings={algoSettings}
+              onUpdate={onAlgoSettingsChange}
+            />
+            <TouchableOpacity
+              style={styles.collapseButton}
+              onPress={toggleExpanded}
+            >
+              <ChevronUp size={16} color={COLORS.node.muted} />
+              <Text style={styles.collapseButtonText}>Collapse</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    );
+  }
+
+  // Desktop Layout
   return (
     <View style={styles.container}>
-      {/* Main Header Row */}
+      {/* Desktop Header Row */}
       <View style={styles.headerRow}>
         {/* Search Input */}
         <View style={styles.searchContainer}>
@@ -88,16 +179,14 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
         </TouchableOpacity>
 
         {/* Desktop Nav Icons */}
-        {isDesktop && (
-          <View style={styles.navIcons}>
-            <TouchableOpacity onPress={onMessagesClick} style={styles.navIcon}>
-              <MessageSquare size={24} color={COLORS.node.text} />
-            </TouchableOpacity>
-            <TouchableOpacity onPress={onNotificationsClick} style={styles.navIcon}>
-              <Bell size={24} color={COLORS.node.text} />
-            </TouchableOpacity>
-          </View>
-        )}
+        <View style={styles.navIcons}>
+          <TouchableOpacity onPress={onMessagesClick} style={styles.navIcon}>
+            <MessageSquare size={24} color={COLORS.node.text} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onNotificationsClick} style={styles.navIcon}>
+            <Bell size={24} color={COLORS.node.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Expandable Vibe Validator Panel */}
@@ -126,6 +215,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: COLORS.node.border,
   },
+  // Desktop Styles
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -135,6 +225,7 @@ const styles = StyleSheet.create({
   },
   searchContainer: {
     flex: 1,
+    maxWidth: 400,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: COLORS.node.panel,
@@ -177,6 +268,81 @@ const styles = StyleSheet.create({
   navIcon: {
     padding: 4,
   },
+  // Mobile Styles
+  mobileHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  mobileLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuButton: {
+    padding: 4,
+  },
+  mobileRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  mobileIconButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: COLORS.node.panel,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+  },
+  presetButtonMobile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: `${COLORS.node.accent}20`,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: COLORS.node.accent,
+  },
+  mobileSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 12,
+  },
+  mobileSearchInputWrapper: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  mobileSearchInput: {
+    flex: 1,
+    color: COLORS.node.text,
+    fontSize: 14,
+  },
+  mobileSearchCancel: {
+    padding: 8,
+  },
+  mobileSearchCancelText: {
+    color: COLORS.node.accent,
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  // Validator Panel (shared)
   validatorPanel: {
     borderTopWidth: 1,
     borderTopColor: COLORS.node.border,
