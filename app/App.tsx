@@ -4,7 +4,7 @@ import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, S
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Menu, Settings, X, MessageSquare, Bell, PanelRight, Search, ChevronDown } from './src/components/ui/Icons';
+import { Menu, X } from './src/components/ui/Icons';
 import { useAuthStore } from './src/store/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
@@ -54,8 +54,6 @@ const MainApp = () => {
   const { user, logout } = useAuthStore();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
-  const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
-  const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
   const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
@@ -64,7 +62,6 @@ const MainApp = () => {
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
 
   // Mobile-specific states
-  const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const headerTranslateY = useRef(new Animated.Value(0)).current;
   const lastScrollY = useRef(0);
   const headerVisible = useRef(true);
@@ -115,7 +112,6 @@ const MainApp = () => {
       // When navigating to feed, clear search and refresh feed data
       if (view === 'feed') {
         setSearchQuery('');
-        setMobileSearchActive(false);
         setFeedMode('global');
         setSelectedNodeId(null);
         fetchFeed(null, 'global', selectedPostTypes);
@@ -740,22 +736,6 @@ const MainApp = () => {
         initialNodeId={selectedNodeId}
       />
 
-      {/* Mobile Vibe Validator Modal */}
-      {!isDesktop && (
-        <Modal visible={vibeVisible} animationType="slide" transparent>
-          <View style={styles.vibeModalOverlay}>
-            <View style={styles.vibeModalContent}>
-              <TouchableOpacity
-                onPress={() => setVibeVisible(false)}
-                style={styles.vibeModalClose}
-              >
-                <X size={24} color={COLORS.node.text} />
-              </TouchableOpacity>
-              <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
-            </View>
-          </View>
-        </Modal>
-      )}
 
     </SafeAreaView>
     </View>
@@ -858,45 +838,12 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  header: {
-    height: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
-    backgroundColor: COLORS.node.bg,
-    width: '100%'
-  },
   mobileHeader: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     zIndex: 100,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff'
-  },
-  desktopSearch: {
-    flex: 1,
-    maxWidth: 400,
-    height: 36,
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 8,
-    marginHorizontal: 24
-  },
-  iconBtn: {
-    padding: 8,
-    borderRadius: 8
   },
   modalOverlay: {
     flex: 1,
@@ -920,113 +867,4 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative'
   },
-  closeBtnOverlay: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 50,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    borderRadius: 20,
-    padding: 8
-  },
-  searchContainerDesktop: {
-    flex: 1,
-    maxWidth: 400,
-    marginHorizontal: 24,
-    position: 'relative',
-    justifyContent: 'center'
-  },
-  inputDesktop: {
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    paddingVertical: 8,
-    paddingLeft: 36,
-    paddingRight: 12,
-    color: '#fff',
-    fontSize: 14
-  },
-  // Mobile Header Styles
-  mobileIconButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.node.panel,
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.node.border
-  },
-  presetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    backgroundColor: `${COLORS.node.accent}20`,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: COLORS.node.accent
-  },
-  presetButtonText: {
-    color: COLORS.node.accent,
-    fontSize: 12,
-    fontWeight: '600',
-    maxWidth: 80
-  },
-  mobileSearchContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    gap: 12
-  },
-  mobileSearchInputWrapper: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 8
-  },
-  mobileSearchInput: {
-    flex: 1,
-    color: COLORS.node.text,
-    fontSize: 14
-  },
-  mobileSearchCancel: {
-    padding: 8
-  },
-  mobileSearchCancelText: {
-    color: COLORS.node.accent,
-    fontSize: 14,
-    fontWeight: '500'
-  },
-  // Vibe Modal Styles
-  vibeModalOverlay: {
-    flex: 1,
-    backgroundColor: 'transparent',
-    justifyContent: 'flex-end'
-  },
-  vibeModalContent: {
-    backgroundColor: COLORS.node.panel,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: '85%',
-    paddingBottom: 40
-  },
-  vibeModalClose: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-    zIndex: 10,
-    padding: 8,
-    backgroundColor: COLORS.node.bg,
-    borderRadius: 20,
-  }
 });
