@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, TextInput, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Search, ArrowLeft, TrendingUp, Hash } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
 import { searchPosts, getFeed, Post } from '../lib/api';
 import { PostCard } from '../components/PostCard';
+
+const PAGE_SIZE = 20;
 
 interface DiscoveryScreenProps {
     onBack: () => void;
@@ -17,6 +19,11 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
     const [trending, setTrending] = useState<Post[]>([]);
     const [loading, setLoading] = useState(false);
     const [searched, setSearched] = useState(false);
+
+    // Pagination state
+    const [offset, setOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
 
     useEffect(() => {
         // Load trending/hot posts on mount
@@ -44,21 +51,51 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
 
         setLoading(true);
         setSearched(true);
+        setOffset(0);
+        setHasMore(true);
+
         try {
-            const data = await searchPosts(query.trim(), 30, 0);
+            const data = await searchPosts(query.trim(), PAGE_SIZE, 0);
             setResults(data.posts || []);
+            setHasMore(data.hasMore ?? (data.posts?.length === PAGE_SIZE));
+            setOffset(PAGE_SIZE);
         } catch (error) {
             console.error('Search failed:', error);
             setResults([]);
+            setHasMore(false);
         } finally {
             setLoading(false);
         }
     };
 
+    const loadMore = useCallback(async () => {
+        if (!searched || loadingMore || !hasMore || !query.trim()) return;
+
+        setLoadingMore(true);
+        try {
+            const data = await searchPosts(query.trim(), PAGE_SIZE, offset);
+            const newPosts = data.posts || [];
+
+            if (newPosts.length > 0) {
+                setResults(prev => [...prev, ...newPosts]);
+                setOffset(prev => prev + PAGE_SIZE);
+                setHasMore(data.hasMore ?? (newPosts.length === PAGE_SIZE));
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error('Load more failed:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [searched, loadingMore, hasMore, query, offset]);
+
     const clearSearch = () => {
         setQuery('');
         setResults([]);
         setSearched(false);
+        setOffset(0);
+        setHasMore(true);
     };
 
     const displayPosts = searched ? results : trending;
@@ -132,6 +169,20 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                         />
                     )}
                     contentContainerStyle={styles.listContent}
+                    onEndReached={searched ? loadMore : undefined}
+                    onEndReachedThreshold={0.3}
+                    ListFooterComponent={
+                        loadingMore ? (
+                            <View style={styles.loadingMoreContainer}>
+                                <ActivityIndicator size="small" color={COLORS.node.accent} />
+                                <Text style={styles.loadingMoreText}>Loading more...</Text>
+                            </View>
+                        ) : searched && !hasMore && results.length > 0 ? (
+                            <View style={styles.endOfResultsContainer}>
+                                <Text style={styles.endOfResultsText}>End of results</Text>
+                            </View>
+                        ) : null
+                    }
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
                             <Hash size={48} color={COLORS.node.muted} />
@@ -241,5 +292,24 @@ const styles = StyleSheet.create({
         color: COLORS.node.muted,
         fontSize: 14,
         textAlign: 'center',
+    },
+    loadingMoreContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingVertical: 20,
+        gap: 8,
+    },
+    loadingMoreText: {
+        color: COLORS.node.muted,
+        fontSize: 14,
+    },
+    endOfResultsContainer: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
+    endOfResultsText: {
+        color: COLORS.node.muted,
+        fontSize: 12,
     },
 });
