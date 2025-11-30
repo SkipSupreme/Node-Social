@@ -22,6 +22,8 @@ import { getPost, getComments, createComment, Post, Comment, savePost } from "..
 import { COLORS } from "../constants/theme";
 import { VibeBar, VibeAggregateData } from "../components/VibeBar";
 import { VibeRadialWheel } from "../components/VibeRadialWheel";
+// Only import YouTube player on native platforms
+const YoutubePlayer = Platform.OS !== 'web' ? require('react-native-youtube-iframe').default : null;
 
 // Helper to detect video URLs
 const isVideoUrl = (url: string): boolean => {
@@ -35,13 +37,61 @@ const isVideoUrl = (url: string): boolean => {
   return videoPatterns.some(pattern => pattern.test(url));
 };
 
+// Helper to get YouTube video ID
+const getYouTubeVideoId = (url: string): string | null => {
+  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+  return match ? match[1] : null;
+};
+
 // Helper to get YouTube thumbnail
 const getYouTubeThumbnail = (url: string): string | null => {
-  const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
-  if (match && match[1]) {
-    return `https://img.youtube.com/vi/${match[1]}/maxresdefault.jpg`;
+  const videoId = getYouTubeVideoId(url);
+  if (videoId) {
+    return `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
   }
   return null;
+};
+
+// YouTube Player Component - uses iframe on web, native player on mobile
+const YouTubeEmbed = ({ videoId }: { videoId: string }) => {
+  const [playing, setPlaying] = useState(false);
+  const screenWidth = Dimensions.get('window').width;
+  const playerWidth = Math.min(screenWidth - 32, 600);
+  const playerHeight = playerWidth * (9 / 16);
+
+  // Use iframe for web
+  if (Platform.OS === 'web') {
+    return (
+      <View style={[styles.youtubeContainer, { width: playerWidth, height: playerHeight }]}>
+        <iframe
+          width={playerWidth}
+          height={playerHeight}
+          src={`https://www.youtube.com/embed/${videoId}`}
+          frameBorder="0"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          style={{ borderRadius: 12 }}
+        />
+      </View>
+    );
+  }
+
+  // Use native player for iOS/Android
+  return (
+    <View style={styles.youtubeContainer}>
+      {YoutubePlayer && (
+        <YoutubePlayer
+          height={playerHeight}
+          width={playerWidth}
+          play={playing}
+          videoId={videoId}
+          onChangeState={(state: string) => {
+            if (state === 'ended') setPlaying(false);
+          }}
+        />
+      )}
+    </View>
+  );
 };
 
 // Helper to check if URL is an image
@@ -472,32 +522,27 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
               {isImageUrl(post.linkUrl) ? (
                 <AutoSizeImage uri={post.linkUrl} maxHeight={500} />
               ) : isVideoUrl(post.linkUrl) ? (
-                <TouchableOpacity
-                  style={styles.videoPreview}
-                  onPress={() => Linking.openURL(post.linkUrl!)}
-                >
-                  {getYouTubeThumbnail(post.linkUrl) ? (
-                    <Image
-                      source={{ uri: getYouTubeThumbnail(post.linkUrl)! }}
-                      style={styles.videoThumbnail}
-                      resizeMode="cover"
-                    />
-                  ) : (
+                getYouTubeVideoId(post.linkUrl) ? (
+                  <YouTubeEmbed videoId={getYouTubeVideoId(post.linkUrl)!} />
+                ) : (
+                  <TouchableOpacity
+                    style={styles.videoPreview}
+                    onPress={() => Linking.openURL(post.linkUrl!)}
+                  >
                     <View style={styles.videoPlaceholder} />
-                  )}
-                  <View style={styles.playButtonOverlay}>
-                    <View style={styles.playButton}>
-                      <Play size={32} color="#fff" fill="#fff" />
+                    <View style={styles.playButtonOverlay}>
+                      <View style={styles.playButton}>
+                        <Play size={32} color="#fff" fill="#fff" />
+                      </View>
                     </View>
-                  </View>
-                  <View style={styles.videoLabel}>
-                    <Text style={styles.videoLabelText}>
-                      {post.linkUrl.includes('youtube') || post.linkUrl.includes('youtu.be') ? 'YouTube' :
-                       post.linkUrl.includes('vimeo') ? 'Vimeo' :
-                       post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
+                    <View style={styles.videoLabel}>
+                      <Text style={styles.videoLabelText}>
+                        {post.linkUrl.includes('vimeo') ? 'Vimeo' :
+                         post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                )
               ) : post.linkMeta?.image ? (
                 <TouchableOpacity
                   style={styles.linkPreview}
@@ -917,6 +962,12 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 12,
     backgroundColor: COLORS.node.bg,
+  },
+  youtubeContainer: {
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+    alignSelf: 'center',
   },
   videoPreview: {
     width: '100%',
