@@ -2,6 +2,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { getSyncHealth, isMeiliAvailable, triggerRetryProcessing } from '../lib/searchSync.js';
 
 const searchRoutes: FastifyPluginAsync = async (fastify) => {
   // Search posts
@@ -135,6 +136,47 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.log.error({ err: error }, 'MeiliSearch query failed');
         return reply.status(500).send({ error: 'Search service unavailable' });
       }
+    }
+  );
+
+  // Search health check - check MeiliSearch status and sync queue
+  fastify.get('/search/health', async (request, reply) => {
+    const [meiliAvailable, syncHealth] = await Promise.all([
+      isMeiliAvailable(fastify),
+      getSyncHealth(fastify),
+    ]);
+
+    let indexStats = null;
+    if (meiliAvailable) {
+      try {
+        const index = fastify.meilisearch.index('posts');
+        indexStats = await index.getStats();
+      } catch {
+        // Ignore errors fetching stats
+      }
+    }
+
+    return reply.send({
+      meilisearch: {
+        available: meiliAvailable,
+        indexStats,
+      },
+      sync: syncHealth,
+    });
+  });
+
+  // Manually trigger retry queue processing (for admin use)
+  fastify.post(
+    '/search/retry',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const processed = await triggerRetryProcessing(fastify);
+      return reply.send({
+        processed,
+        message: `Processed ${processed} items from retry queue`,
+      });
     }
   );
 };

@@ -30,16 +30,26 @@ async function main() {
     process.exit(1);
   }
 
-  // Create/get index
+  // Create/get index with explicit primary key
   const index = meili.index('posts');
 
-  // Ensure index exists
+  // Ensure index exists with primary key
   try {
-    await meili.createIndex('posts', { primaryKey: 'id' });
-    console.log('📦 Created new posts index');
+    const createTask = await meili.createIndex('posts', { primaryKey: 'id' });
+    console.log('📦 Creating posts index...');
+    await meili.waitForTask(createTask.taskUid);
+    console.log('✅ Posts index created');
   } catch (e: any) {
-    if (e.message?.includes('already exists')) {
+    if (e.code === 'index_already_exists' || e.message?.includes('already exists')) {
       console.log('📦 Using existing posts index');
+      // Verify primary key is set
+      const indexInfo = await index.fetchInfo();
+      if (!indexInfo.primaryKey) {
+        console.log('⚠️  Index exists but no primary key - updating...');
+        const updateTask = await index.update({ primaryKey: 'id' });
+        await meili.waitForTask(updateTask.taskUid);
+        console.log('✅ Primary key set to "id"');
+      }
     } else {
       throw e;
     }
@@ -47,7 +57,7 @@ async function main() {
 
   // Configure index settings
   console.log('⚙️  Configuring index settings...');
-  await index.updateSettings({
+  const settingsTask = await index.updateSettings({
     searchableAttributes: ['searchableContent', 'title', 'content', 'authorUsername', 'nodeName'],
     filterableAttributes: ['authorId', 'nodeId', 'nodeSlug', 'postType', 'createdAt'],
     sortableAttributes: ['createdAt', 'updatedAt'],
@@ -61,9 +71,8 @@ async function main() {
       'createdAt:desc', // Prefer newer posts
     ],
   });
-
-  // Wait for settings to apply
-  await new Promise(resolve => setTimeout(resolve, 1000));
+  await meili.waitForTask(settingsTask.taskUid);
+  console.log('✅ Index settings configured');
 
   // Count total posts
   const totalCount = await prisma.post.count({
@@ -108,16 +117,13 @@ async function main() {
       searchableContent: `${post.title || ''} ${post.content}`.toLowerCase(),
     }));
 
-    const task = await index.addDocuments(documents);
+    const task = await index.addDocuments(documents, { primaryKey: 'id' });
+    await meili.waitForTask(task.taskUid);
     processed += posts.length;
 
     const percent = Math.round((processed / totalCount) * 100);
-    console.log(`📝 Indexed ${processed}/${totalCount} posts (${percent}%) - Task: ${task.taskUid}`);
+    console.log(`📝 Indexed ${processed}/${totalCount} posts (${percent}%)`);
   }
-
-  // Wait for tasks to complete
-  console.log('\n⏳ Waiting for indexing to complete...');
-  await new Promise(resolve => setTimeout(resolve, 2000));
 
   // Verify
   const stats = await index.getStats();

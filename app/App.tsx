@@ -109,6 +109,14 @@ const MainApp = () => {
       if (view === 'profile') {
         setViewParams(null);
       }
+      // When navigating to feed, clear search and refresh feed data
+      if (view === 'feed') {
+        setSearchQuery('');
+        setMobileSearchActive(false);
+        setFeedMode('global');
+        setSelectedNodeId(null);
+        fetchFeed(null, 'global', selectedPostTypes);
+      }
       setCurrentView(view);
     }
   };

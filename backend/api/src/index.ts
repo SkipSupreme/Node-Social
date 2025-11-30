@@ -36,6 +36,7 @@ import searchRoutes from './routes/search.js';
 import uploadsRoutes from './routes/uploads.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
+import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
 
 // Add authenticate decorator for protected routes
 declare module 'fastify' {
@@ -199,8 +200,18 @@ export async function build(): Promise<FastifyInstance> {
   // health check
   app.get('/health', async () => ({ ok: true }));
 
+  // Register cleanup hook for MeiliSearch retry processor
+  app.addHook('onClose', async () => {
+    stopRetryProcessor();
+  });
+
   // Wait for plugins to be ready
   await app.ready();
+
+  // Start MeiliSearch retry processor for failed syncs
+  if (app.meilisearch && app.redis) {
+    startRetryProcessor(app);
+  }
 
   return app;
 }
