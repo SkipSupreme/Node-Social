@@ -530,12 +530,21 @@ const MainApp = () => {
                 <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
                 <TextInput
                   style={styles.inputDesktop}
-                  placeholder="Search posts, users, nodes..."
+                  placeholder="Search posts, users, nodes... (press Enter)"
                   placeholderTextColor={COLORS.node.muted}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onSubmitEditing={handleSearch}
+                  returnKeyType="search"
                 />
+                {searchQuery.trim() && (
+                  <TouchableOpacity
+                    style={{ position: 'absolute', right: 8, top: 6, padding: 4, backgroundColor: COLORS.node.accent, borderRadius: 4 }}
+                    onPress={handleSearch}
+                  >
+                    <Search size={14} color="#fff" />
+                  </TouchableOpacity>
+                )}
               </View>
 
               <TouchableOpacity
