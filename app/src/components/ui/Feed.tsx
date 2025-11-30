@@ -192,10 +192,11 @@ interface PostCardProps {
     onVibeCheck?: (post: UIPost) => void;
     onPress?: (post: UIPost) => void;
     onEdit?: (post: UIPost) => void;
+    onAuthorClick?: (authorId: string) => void;
     globalNodeId?: string;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, globalNodeId }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, globalNodeId }: PostCardProps) => {
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -506,7 +507,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
 
                 <View style={styles.postHeader}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                        <View style={styles.avatarContainer}>
+                        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)} style={styles.avatarContainer}>
                             {post.author.avatar ? (
                                 <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
                             ) : (
@@ -516,10 +517,12 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                                     </Text>
                                 </View>
                             )}
-                        </View>
+                        </TouchableOpacity>
                         <View style={{ flex: 1 }}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                <Text style={styles.usernameLarge}>{post.author.username}</Text>
+                                <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
+                                    <Text style={styles.usernameLarge}>{post.author.username}</Text>
+                                </TouchableOpacity>
                                 <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
                                     <Text style={styles.badgeText}>{post.author.cred} Cred</Text>
                                 </View>
@@ -800,12 +803,13 @@ interface FeedProps {
     onVibeCheck?: (post: UIPost) => void;
     onPostClick?: (post: UIPost) => void;
     onEdit?: (post: UIPost) => void;
+    onAuthorClick?: (authorId: string) => void;
     globalNodeId?: string;
     onScroll?: (scrollY: number) => void;
     headerOffset?: number;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
     return (
         <ScrollView
             style={{ flex: 1, backgroundColor: COLORS.node.bg }}
@@ -813,7 +817,7 @@ export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClic
             scrollEventThrottle={16}
             onScroll={(e) => onScroll?.(e.nativeEvent.contentOffset.y)}
         >
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} globalNodeId={globalNodeId} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} globalNodeId={globalNodeId} />)}
         </ScrollView>
     );
 };
@@ -856,15 +860,14 @@ const styles = StyleSheet.create({
         overflow: 'hidden',
         zIndex: 10
     },
-    avatarImage: { width: '100%', height: '100%' },
+    avatarImage: { width: '100%', height: '100%', borderRadius: 16 },
     avatarContainer: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        borderWidth: 1,
+        borderWidth: 2,
         borderColor: COLORS.node.accent,
-        padding: 1,
-        overflow: 'hidden'
+        overflow: 'hidden',
     },
     usernameSmall: { fontSize: 14, fontWeight: 'bold', color: COLORS.node.text },
     usernameLarge: { fontSize: 16, fontWeight: 'bold', color: COLORS.node.text },

@@ -26,9 +26,10 @@ const formatTimeAgo = (dateString: string) => {
 type PostCardProps = {
   post: Post;
   onPress?: (post: Post) => void;
+  onAuthorClick?: (authorId: string) => void;
 };
 
-export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCardProps) => {
   const { user } = useAuthStore();
   const [post, setPost] = useState(initialPost);
   const [voting, setVoting] = useState(false);
@@ -97,12 +98,12 @@ export const PostCard = ({ post: initialPost, onPress }: PostCardProps) => {
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.author}>{post.author.email.split("@")[0]}</Text>
+        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
+          <Text style={styles.author}>@{post.author.username || post.author.email.split("@")[0]}</Text>
           {post.node && (
             <Text style={styles.nodeName}>n/{post.node.slug}</Text>
           )}
-        </View>
+        </TouchableOpacity>
         <Text style={styles.time}>{formatTimeAgo(post.createdAt)}</Text>
       </View>
 

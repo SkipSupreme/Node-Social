@@ -7,6 +7,9 @@ import cookie from '@fastify/cookie';
 import '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
+import multipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import path from 'path';
 
 import prismaPlugin from './plugins/prisma.js';
 import redisPlugin from './plugins/redis.js';
@@ -30,6 +33,7 @@ import vouchRoutes from './routes/vouch.js';
 import councilRoutes from './routes/council.js';
 import appealRoutes from './routes/appeals.js';
 import searchRoutes from './routes/search.js';
+import uploadsRoutes from './routes/uploads.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 
@@ -81,13 +85,14 @@ export async function build(): Promise<FastifyInstance> {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:', 'http:'],
         connectSrc: ["'self'", ...(Array.isArray(allowedOriginsList) ? allowedOriginsList : [])],
         frameAncestors: ["'none'"],
         objectSrc: ["'none'"],
       },
     },
     crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' }, // Allow images to be loaded from web app
   });
   await app.register(redisPlugin);
   await app.register(prismaPlugin);
@@ -100,6 +105,20 @@ export async function build(): Promise<FastifyInstance> {
 
   await app.register(jwt, {
     secret: process.env.JWT_SECRET || 'dev-secret-change-me',
+  });
+
+  // Multipart for file uploads
+  await app.register(multipart, {
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB
+    },
+  });
+
+  // Static file serving for uploads
+  await app.register(fastifyStatic, {
+    root: path.join(process.cwd(), 'uploads'),
+    prefix: '/uploads/',
+    decorateReply: false,
   });
 
   app.decorate('authenticate', async function (request: any, reply: any) {
@@ -175,6 +194,7 @@ export async function build(): Promise<FastifyInstance> {
   await app.register(metadataRoutes, { prefix: '/metadata' });
   await app.register(messagesRoutes, { prefix: '/api' }); // Prefix /api so it becomes /api/conversations
   await app.register(searchRoutes); // Search routes - /search/posts
+  await app.register(uploadsRoutes, { prefix: '/api/uploads' }); // File upload routes (separate from static /uploads)
 
   // health check
   app.get('/health', async () => ({ ok: true }));

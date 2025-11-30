@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
@@ -20,6 +21,12 @@ import { login, loginWithApple, loginWithGoogle } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { googleOAuthConfig, isGoogleSignInEnabled } from "../config";
 import { COLORS } from "../constants/theme";
+import { AuthLogo } from "../components/ui/AuthLogo";
+import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
+
+// TEMPORARILY DISABLED: OAuth login buttons
+// Re-enable when all tester emails are added to Google/Apple developer console
+const SHOW_OAUTH_BUTTONS = false;
 
 // CRITICAL: Must be called at top level (outside component) to dismiss auth popup
 WebBrowser.maybeCompleteAuthSession();
@@ -329,20 +336,28 @@ export const LoginScreen: React.FC<{
 
 
 
-  // ... (imports remain the same)
-
-  // ... (LoginScreen component logic remains the same)
-
   return (
     <SafeAreaView style={styles.container}>
+      {/* Animated node network background */}
+      <NodeNetworkBackground />
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Animated Logo with glow */}
+          <View style={styles.logoContainer}>
+            <AuthLogo size={52} />
+          </View>
+
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Sign in to continue</Text>
+            <Text style={styles.brandName}>NODE</Text>
+            <Text style={styles.title}>Sign in to your account</Text>
+            <Text style={styles.subtitle}>The social network of the future</Text>
           </View>
 
           <View style={styles.form}>
@@ -389,7 +404,8 @@ export const LoginScreen: React.FC<{
               <Text style={styles.linkText}>Forgot password?</Text>
             </TouchableOpacity>
 
-            {(isGoogleSignInEnabled || appleAvailable) && (
+            {/* OAuth buttons - temporarily hidden for beta testing */}
+            {SHOW_OAUTH_BUTTONS && (isGoogleSignInEnabled || appleAvailable) && (
               <>
                 <View style={styles.divider}>
                   <View style={styles.dividerLine} />
@@ -432,13 +448,13 @@ export const LoginScreen: React.FC<{
             )}
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Don't have an account? </Text>
+              <Text style={styles.footerText}>New to Node? </Text>
               <TouchableOpacity onPress={goToRegister}>
-                <Text style={styles.linkText}>Sign up</Text>
+                <Text style={styles.linkText}>Create account</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -452,26 +468,42 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 24,
+    paddingVertical: 40,
     width: '100%',
     maxWidth: 480,
     alignSelf: 'center',
+    flexGrow: 1,
     justifyContent: 'center',
   },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   header: {
-    marginBottom: 40,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  brandName: {
+    fontSize: 36,
+    fontWeight: "800",
+    color: '#ffffff',
+    letterSpacing: 8,
+    marginBottom: 8,
+    textAlign: 'center',
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: COLORS.node.text,
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.node.muted,
+    textAlign: 'center',
   },
   form: {
     gap: 16,

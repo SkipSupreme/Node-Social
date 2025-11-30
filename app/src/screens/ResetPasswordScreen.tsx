@@ -9,11 +9,15 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Lock } from "lucide-react-native";
 import { resetPassword } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { COLORS } from "../constants/theme";
+import { AuthLogo } from "../components/ui/AuthLogo";
+import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
 export const ResetPasswordScreen: React.FC<{
   token: string;
@@ -56,12 +60,25 @@ export const ResetPasswordScreen: React.FC<{
 
   return (
     <SafeAreaView style={styles.container}>
+      <NodeNetworkBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <AuthLogo size={48} />
+          </View>
+
           <View style={styles.header}>
+            <Text style={styles.brandName}>NODE</Text>
+            <View style={styles.iconWrapper}>
+              <Lock size={28} color={COLORS.node.accent} />
+            </View>
             <Text style={styles.title}>Reset password</Text>
             <Text style={styles.subtitle}>Enter your new password</Text>
           </View>
@@ -69,7 +86,7 @@ export const ResetPasswordScreen: React.FC<{
           <View style={styles.form}>
             <TextInput
               placeholder="New password (min. 8 characters)"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               secureTextEntry
               autoComplete="password-new"
               value={password}
@@ -79,7 +96,7 @@ export const ResetPasswordScreen: React.FC<{
 
             <TextInput
               placeholder="Confirm password"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               secureTextEntry
               autoComplete="password-new"
               value={confirmPassword}
@@ -105,7 +122,7 @@ export const ResetPasswordScreen: React.FC<{
               )}
             </TouchableOpacity>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -119,23 +136,51 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingVertical: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: '#ffffff',
+    letterSpacing: 6,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  iconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${COLORS.node.accent}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: COLORS.node.text,
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.node.muted,
+    textAlign: 'center',
   },
   form: {
     gap: 16,
@@ -155,7 +200,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#EF4444",
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
   errorText: {
     color: "#EF4444",
@@ -184,4 +229,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

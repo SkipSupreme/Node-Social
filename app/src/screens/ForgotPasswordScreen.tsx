@@ -8,10 +8,15 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Mail, ArrowLeft } from "lucide-react-native";
 import { forgotPassword } from "../lib/api";
 import { COLORS } from "../constants/theme";
+import { AuthLogo } from "../components/ui/AuthLogo";
+import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
 export const ForgotPasswordScreen: React.FC<{
   goToLogin: () => void;
@@ -43,8 +48,21 @@ export const ForgotPasswordScreen: React.FC<{
   if (success) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
+        <NodeNetworkBackground />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <AuthLogo size={48} />
+          </View>
+
           <View style={styles.header}>
+            <Text style={styles.brandName}>NODE</Text>
+            <View style={styles.successIconWrapper}>
+              <Mail size={32} color="#22C55E" />
+            </View>
             <Text style={styles.title}>Check your email</Text>
             <Text style={styles.subtitle}>
               We sent a password reset link to {email}
@@ -60,19 +78,34 @@ export const ForgotPasswordScreen: React.FC<{
           <TouchableOpacity style={styles.button} onPress={goToLogin}>
             <Text style={styles.buttonText}>Back to Sign In</Text>
           </TouchableOpacity>
-        </View>
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
   return (
     <SafeAreaView style={styles.container}>
+      <NodeNetworkBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back Button */}
+          <TouchableOpacity onPress={goToLogin} style={styles.backButton}>
+            <ArrowLeft size={24} color={COLORS.node.muted} />
+          </TouchableOpacity>
+
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <AuthLogo size={48} />
+          </View>
+
           <View style={styles.header}>
+            <Text style={styles.brandName}>NODE</Text>
             <Text style={styles.title}>Forgot password?</Text>
             <Text style={styles.subtitle}>
               Enter your email and we'll send you a reset link
@@ -82,7 +115,7 @@ export const ForgotPasswordScreen: React.FC<{
           <View style={styles.form}>
             <TextInput
               placeholder="Email"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
@@ -102,9 +135,11 @@ export const ForgotPasswordScreen: React.FC<{
               onPress={onSubmit}
               disabled={loading}
             >
-              <Text style={styles.buttonText}>
-                {loading ? "Sending..." : "Send Reset Link"}
-              </Text>
+              {loading ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={styles.buttonText}>Send Reset Link</Text>
+              )}
             </TouchableOpacity>
 
             {onEnterTokenManually ? (
@@ -116,11 +151,14 @@ export const ForgotPasswordScreen: React.FC<{
               </TouchableOpacity>
             ) : null}
 
-            <TouchableOpacity onPress={goToLogin} style={styles.backLink}>
-              <Text style={styles.linkText}>Back to Sign In</Text>
-            </TouchableOpacity>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Remember your password? </Text>
+              <TouchableOpacity onPress={goToLogin}>
+                <Text style={styles.linkText}>Sign in</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -134,23 +172,58 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingVertical: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    padding: 8,
+    zIndex: 1,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: '#ffffff',
+    letterSpacing: 6,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successIconWrapper: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(34, 197, 94, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: COLORS.node.text,
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.node.muted,
+    textAlign: 'center',
   },
   form: {
     gap: 16,
@@ -170,7 +243,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#EF4444",
+    borderColor: 'rgba(239, 68, 68, 0.2)',
   },
   errorText: {
     color: "#EF4444",
@@ -202,9 +275,14 @@ const styles = StyleSheet.create({
     marginTop: 16,
     alignItems: "center",
   },
-  backLink: {
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 24,
-    alignItems: "center",
+  },
+  footerText: {
+    color: COLORS.node.muted,
+    fontSize: 14,
   },
   linkText: {
     color: COLORS.node.accent,
@@ -216,7 +294,7 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#22C55E",
+    borderColor: "rgba(34, 197, 94, 0.2)",
     marginBottom: 24,
   },
   successText: {

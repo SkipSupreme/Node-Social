@@ -25,6 +25,8 @@ model User {
   dateOfBirth     DateTime?
   bio             String?
   avatar          String?
+  bannerColor     String?   // Hex color for profile banner background
+  bannerImage     String?   // URL for custom banner image
   cred            Int       @default(0)
   era             String    @default("Lurker Era")
   theme           String?

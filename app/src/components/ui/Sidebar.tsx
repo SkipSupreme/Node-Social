@@ -218,10 +218,10 @@ export const Sidebar = ({
                 <TouchableOpacity style={styles.collapsedFooter} onPress={onProfileClick}>
                     <View style={[styles.collapsedAvatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981' }]}>
                         {user?.avatar ? (
-                            <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+                            <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={{ width: '100%', height: '100%' }} />
                         ) : (
                             <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
-                                {user?.firstName?.[0] || 'U'}
+                                {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
                             </Text>
                         )}
                     </View>
@@ -383,10 +383,10 @@ export const Sidebar = ({
             <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
                 <View style={[styles.avatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }]}>
                     {user?.avatar ? (
-                        <Image source={{ uri: user.avatar }} style={{ width: '100%', height: '100%' }} />
+                        <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={{ width: '100%', height: '100%' }} />
                     ) : (
                         <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                            {user?.firstName?.[0] || 'U'}{user?.lastName?.[0]}
+                            {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
                         </Text>
                     )}
                 </View>

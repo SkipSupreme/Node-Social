@@ -19,6 +19,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 dateOfBirth: true,
                 bio: true,
                 avatar: true,
+                bannerColor: true,
+                bannerImage: true,
                 cred: true,
                 era: true,
                 theme: true,
@@ -42,6 +44,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         const schema = z.object({
             bio: z.string().max(500).optional(),
             avatar: z.string().url().optional().or(z.literal('')),
+            bannerColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().or(z.literal('')),
+            bannerImage: z.string().url().optional().or(z.literal('')),
             theme: z.string().optional(),
             era: z.string().optional(),
             customCss: z.string().max(5000).optional(),
@@ -52,11 +56,13 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
         }
 
-        const { bio, avatar, theme, era, customCss } = parsed.data;
+        const { bio, avatar, bannerColor, bannerImage, theme, era, customCss } = parsed.data;
         const userId = (request.user as { sub: string }).sub;
         const updateData = {
             ...(bio !== undefined ? { bio } : {}),
             ...(avatar !== undefined ? { avatar: avatar || null } : {}),
+            ...(bannerColor !== undefined ? { bannerColor: bannerColor || null } : {}),
+            ...(bannerImage !== undefined ? { bannerImage: bannerImage || null } : {}),
             ...(theme !== undefined ? { theme } : {}),
             ...(era !== undefined ? { era } : {}),
             ...(customCss !== undefined ? { customCss } : {}),
@@ -78,6 +84,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 dateOfBirth: true,
                 bio: true,
                 avatar: true,
+                bannerColor: true,
+                bannerImage: true,
                 cred: true,
                 era: true,
                 theme: true,
@@ -88,6 +96,34 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         return { user };
+    });
+
+    // Get user by ID (public profile)
+    fastify.get('/:id', async (request, reply) => {
+        const { id } = request.params as { id: string };
+
+        const user = await fastify.prisma.user.findUnique({
+            where: { id },
+            select: {
+                id: true,
+                username: true,
+                firstName: true,
+                lastName: true,
+                bio: true,
+                avatar: true,
+                bannerColor: true,
+                bannerImage: true,
+                cred: true,
+                era: true,
+                createdAt: true,
+            }
+        });
+
+        if (!user) {
+            return reply.status(404).send({ error: 'User not found' });
+        }
+
+        return user;
     });
 
     // Get Cred History

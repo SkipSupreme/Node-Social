@@ -45,6 +45,8 @@ const baseUserSelect = {
   cred: true,
   era: true,
   theme: true,
+  bannerColor: true,
+  bannerImage: true,
 } as const;
 const isProd = process.env.NODE_ENV === 'production';
 const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;
@@ -319,6 +321,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           cred: user.cred,
           era: user.era,
           theme: user.theme,
+          bannerColor: user.bannerColor,
+          bannerImage: user.bannerImage,
         },
         token: accessToken,
         refreshToken,
@@ -491,19 +495,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const sanitizedUser = {
-          id: user.id,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          createdAt: user.createdAt,
-        };
-
         const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
 
         issueSessionCookies(reply, accessToken, refreshToken);
 
         return reply.send({
-          user: sanitizedUser,
+          user,
           token: accessToken,
           refreshToken,
         });
@@ -727,19 +724,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const sanitizedUser = {
-          id: user.id,
-          email: user.email,
-          emailVerified: user.emailVerified,
-          createdAt: user.createdAt,
-        };
-
         const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
 
         issueSessionCookies(reply, accessToken, refreshToken);
 
         return reply.send({
-          user: sanitizedUser,
+          user,
           token: accessToken,
           refreshToken,
         });

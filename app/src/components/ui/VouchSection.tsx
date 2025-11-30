@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Handshake, CheckCircle } from 'lucide-react-native';
+import { Handshake, CheckCircle, Network } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 import { getVouchStats, VouchStats } from '../../lib/api';
 import { VouchModal } from './VouchModal';
@@ -12,6 +12,7 @@ interface VouchSectionProps {
   currentUserCred: number;
   isOwnProfile: boolean;
   onVouchChange?: () => void;
+  onViewTrustGraph?: () => void;
 }
 
 const STAKE_TIERS = [100, 500, 1000];
@@ -23,6 +24,7 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
   currentUserCred,
   isOwnProfile,
   onVouchChange,
+  onViewTrustGraph,
 }) => {
   const [stats, setStats] = useState<VouchStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,8 +70,16 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Handshake size={20} color={COLORS.node.accent} />
-        <Text style={styles.title}>Web of Trust</Text>
+        <View style={styles.headerLeft}>
+          <Handshake size={20} color={COLORS.node.accent} />
+          <Text style={styles.title}>Web of Trust</Text>
+        </View>
+        {onViewTrustGraph && (
+          <TouchableOpacity style={styles.graphButton} onPress={onViewTrustGraph}>
+            <Network size={16} color={COLORS.node.accent} />
+            <Text style={styles.graphButtonText}>View Graph</Text>
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Stats */}
@@ -183,19 +193,42 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     padding: 16,
+    marginHorizontal: 16,
+    marginTop: 16,
     borderWidth: 1,
     borderColor: COLORS.node.border,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     marginBottom: 12,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   title: {
     fontSize: 16,
     fontWeight: 'bold',
     color: COLORS.node.text,
+  },
+  graphButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    borderWidth: 1,
+    borderColor: COLORS.node.accent,
+  },
+  graphButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: COLORS.node.accent,
   },
   statsRow: {
     flexDirection: 'row',

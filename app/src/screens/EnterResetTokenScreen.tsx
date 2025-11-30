@@ -8,9 +8,13 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Key, ArrowLeft } from "lucide-react-native";
 import { COLORS } from "../constants/theme";
+import { AuthLogo } from "../components/ui/AuthLogo";
+import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
 export const EnterResetTokenScreen: React.FC<{
   onTokenEntered: (token: string) => void;
@@ -26,12 +30,30 @@ export const EnterResetTokenScreen: React.FC<{
 
   return (
     <SafeAreaView style={styles.container}>
+      <NodeNetworkBackground />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
       >
-        <View style={styles.content}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Back Button */}
+          <TouchableOpacity onPress={goBack} style={styles.backButton}>
+            <ArrowLeft size={24} color={COLORS.node.muted} />
+          </TouchableOpacity>
+
+          {/* Logo */}
+          <View style={styles.logoContainer}>
+            <AuthLogo size={48} />
+          </View>
+
           <View style={styles.header}>
+            <Text style={styles.brandName}>NODE</Text>
+            <View style={styles.iconWrapper}>
+              <Key size={28} color={COLORS.node.accent} />
+            </View>
             <Text style={styles.title}>Enter reset token</Text>
             <Text style={styles.subtitle}>
               Paste the token from your email
@@ -41,7 +63,7 @@ export const EnterResetTokenScreen: React.FC<{
           <View style={styles.form}>
             <TextInput
               placeholder="Reset token"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={COLORS.node.muted}
               value={token}
               onChangeText={setToken}
               style={styles.input}
@@ -50,15 +72,22 @@ export const EnterResetTokenScreen: React.FC<{
               textAlignVertical="top"
             />
 
-            <TouchableOpacity style={styles.button} onPress={onSubmit}>
+            <TouchableOpacity
+              style={[styles.button, !token.trim() && styles.buttonDisabled]}
+              onPress={onSubmit}
+              disabled={!token.trim()}
+            >
               <Text style={styles.buttonText}>Continue</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={goBack} style={styles.backLink}>
-              <Text style={styles.linkText}>Back</Text>
-            </TouchableOpacity>
+            <View style={styles.footer}>
+              <Text style={styles.footerText}>Changed your mind? </Text>
+              <TouchableOpacity onPress={goBack}>
+                <Text style={styles.linkText}>Go back</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -72,23 +101,58 @@ const styles = StyleSheet.create({
   keyboardView: {
     flex: 1,
   },
-  content: {
-    flex: 1,
+  scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 60,
+    paddingVertical: 40,
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
+  backButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    padding: 8,
+    zIndex: 1,
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
   },
   header: {
-    marginBottom: 40,
+    marginBottom: 32,
+    alignItems: 'center',
+  },
+  brandName: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: '#ffffff',
+    letterSpacing: 6,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  iconWrapper: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: `${COLORS.node.accent}15`,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "600",
     color: COLORS.node.text,
-    marginBottom: 8,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     color: COLORS.node.muted,
+    textAlign: 'center',
   },
   form: {
     gap: 16,
@@ -117,14 +181,22 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "600",
   },
-  backLink: {
+  footer: {
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 24,
-    alignItems: "center",
+  },
+  footerText: {
+    color: COLORS.node.muted,
+    fontSize: 14,
   },
   linkText: {
     color: COLORS.node.accent,
@@ -132,4 +204,3 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
-

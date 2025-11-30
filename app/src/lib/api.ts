@@ -16,6 +16,8 @@ export type AuthResponse = {
     dateOfBirth?: string;
     bio?: string;
     avatar?: string;
+    bannerColor?: string;
+    bannerImage?: string;
     cred?: number;
     era?: string;
     theme?: string;
@@ -47,6 +49,10 @@ export type Post = {
   author: {
     id: string;
     email: string;
+    username?: string;
+    avatar?: string | null;
+    era?: string;
+    cred?: number;
   };
   nodeId?: string | null;
   node?: Node | null; // Node information if post is in a node
@@ -90,10 +96,13 @@ export type Comment = {
   author: {
     id: string;
     email: string;
+    username?: string;
+    avatar?: string | null;
   };
   parentId?: string | null;
   replyCount: number;
   createdAt: string;
+  replies?: Comment[];
 };
 
 const isWeb = Platform.OS === "web";
@@ -274,6 +283,8 @@ export function register(
 export function updateProfile(data: {
   bio?: string;
   avatar?: string;
+  bannerColor?: string;
+  bannerImage?: string;
   theme?: string;
   era?: string;
   customCss?: string;
@@ -282,6 +293,122 @@ export function updateProfile(data: {
     method: "PUT",
     body: JSON.stringify(data),
   });
+}
+
+export async function uploadAvatar(imageUri: string): Promise<{ success: boolean; user: AuthResponse["user"]; url: string }> {
+  // Import Platform inline to avoid circular deps
+  const { Platform } = await import('react-native');
+
+  const token = await getAuthToken();
+  const csrfToken = readCsrfToken();
+
+  // Create form data
+  const formData = new FormData();
+
+  // Get file extension and mime type from URI
+  // Handle both file paths and data URIs
+  let fileType = 'jpg';
+  if (imageUri.includes('.')) {
+    const uriParts = imageUri.split('.');
+    const ext = uriParts[uriParts.length - 1]?.toLowerCase().split('?')[0]; // Remove query params
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      fileType = ext === 'jpeg' ? 'jpg' : ext;
+    }
+  }
+  const mimeType = fileType === 'png' ? 'image/png' : fileType === 'gif' ? 'image/gif' : fileType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    // On web, we need to fetch the blob and create a File object
+    // expo-image-picker returns a blob URL or data URI on web
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const file = new File([blob], `avatar.${fileType}`, { type: mimeType });
+      formData.append('file', file);
+    } catch (err) {
+      console.error('Failed to process image for web upload:', err);
+      throw new Error('Failed to process image');
+    }
+  } else {
+    // On iOS/Android, use the file URI format that React Native expects
+    formData.append('file', {
+      uri: imageUri,
+      type: mimeType,
+      name: `avatar.${fileType}`,
+    } as any);
+  }
+
+  const response = await fetch(`${API_URL}/api/uploads/avatar`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+      // Don't set Content-Type - let the browser/RN set it with boundary
+    },
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload avatar');
+  }
+
+  return response.json();
+}
+
+export async function uploadBanner(imageUri: string): Promise<{ success: boolean; user: AuthResponse["user"]; url: string }> {
+  const { Platform } = await import('react-native');
+
+  const token = await getAuthToken();
+  const csrfToken = readCsrfToken();
+
+  const formData = new FormData();
+
+  let fileType = 'jpg';
+  if (imageUri.includes('.')) {
+    const uriParts = imageUri.split('.');
+    const ext = uriParts[uriParts.length - 1]?.toLowerCase().split('?')[0];
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      fileType = ext === 'jpeg' ? 'jpg' : ext;
+    }
+  }
+  const mimeType = fileType === 'png' ? 'image/png' : fileType === 'gif' ? 'image/gif' : fileType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const file = new File([blob], `banner.${fileType}`, { type: mimeType });
+      formData.append('file', file);
+    } catch (err) {
+      console.error('Failed to process image for web upload:', err);
+      throw new Error('Failed to process image');
+    }
+  } else {
+    formData.append('file', {
+      uri: imageUri,
+      type: mimeType,
+      name: `banner.${fileType}`,
+    } as any);
+  }
+
+  const response = await fetch(`${API_URL}/api/uploads/banner`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    },
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload banner');
+  }
+
+  return response.json();
 }
 
 export function login(email: string, password: string) {
@@ -501,10 +628,11 @@ export function createComment(postId: string, data: { content: string; parentId?
   });
 }
 
-export function getComments(postId: string, params: { parentId?: string; limit?: number } = {}) {
+export function getComments(postId: string, params: { parentId?: string; limit?: number; all?: boolean } = {}) {
   const searchParams = new URLSearchParams();
   if (params.parentId) searchParams.append("parentId", params.parentId);
   if (params.limit) searchParams.append("limit", params.limit.toString());
+  if (params.all) searchParams.append("all", "true");
 
   return request<Comment[]>(`/posts/${postId}/comments?${searchParams.toString()}`, {
     method: "GET",

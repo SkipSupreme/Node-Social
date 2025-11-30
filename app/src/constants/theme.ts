@@ -17,6 +17,15 @@ export const COLORS = {
 };
 
 export const ERAS: Record<string, { bg: string, border: string, text: string }> = {
+    // Account age based eras (auto-calculated)
+    'Newborn Era': { bg: 'rgba(236, 72, 153, 0.1)', border: 'rgba(236, 72, 153, 0.2)', text: '#f472b6' },   // Pink - < 7 days
+    'Explorer Era': { bg: 'rgba(6, 182, 212, 0.1)', border: 'rgba(6, 182, 212, 0.2)', text: '#22d3ee' },    // Cyan - 7-30 days
+    'Settler Era': { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.2)', text: '#60a5fa' },   // Blue - 30-90 days
+    'Citizen Era': { bg: 'rgba(16, 185, 129, 0.1)', border: 'rgba(16, 185, 129, 0.2)', text: '#34d399' },   // Green - 90-180 days
+    'Veteran Era': { bg: 'rgba(168, 85, 247, 0.1)', border: 'rgba(168, 85, 247, 0.2)', text: '#c084fc' },   // Purple - 180-365 days
+    'Elder Era': { bg: 'rgba(234, 179, 8, 0.1)', border: 'rgba(234, 179, 8, 0.2)', text: '#facc15' },       // Gold - 1-2 years
+    'Legend Era': { bg: 'rgba(251, 191, 36, 0.1)', border: 'rgba(251, 191, 36, 0.3)', text: '#fbbf24' },    // Amber - 2+ years
+    // Custom eras (user selectable)
     'Villain Era': { bg: 'rgba(239, 68, 68, 0.1)', border: 'rgba(239, 68, 68, 0.2)', text: '#f87171' },
     'Builder Era': { bg: 'rgba(59, 130, 246, 0.1)', border: 'rgba(59, 130, 246, 0.2)', text: '#60a5fa' },
     'Lurker Era': { bg: 'rgba(100, 116, 139, 0.1)', border: 'rgba(100, 116, 139, 0.2)', text: '#94a3b8' },

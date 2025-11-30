@@ -39,6 +39,7 @@ import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
 import { AppealsScreen } from './src/screens/AppealsScreen';
 import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
 import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
+import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 // PostTypeFilter removed from main feed - may be added to Vibe Validator expert mode later
 import { PostType } from './src/web/components/Feeds/PostTypeFilter';
@@ -53,7 +54,7 @@ const MainApp = () => {
   const [vibeVisible, setVibeVisible] = useState(false); // For Mobile Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // For Desktop Toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,6 +105,10 @@ const MainApp = () => {
     if (view === 'create') {
       setIsCreatePostOpen(true);
     } else {
+      // Clear viewParams when navigating to own profile (not another user's)
+      if (view === 'profile') {
+        setViewParams(null);
+      }
       setCurrentView(view);
     }
   };
@@ -478,7 +483,7 @@ const MainApp = () => {
               nodes={nodes}
               isDesktop={true}
               user={user}
-              onProfileClick={() => setCurrentView('profile')}
+              onProfileClick={() => { setViewParams(null); setCurrentView('profile'); }}
               selectedNodeId={selectedNodeId}
               onNodeSelect={handleNodeSelect}
               feedMode={feedMode}
@@ -608,6 +613,10 @@ const MainApp = () => {
                     setPosts(prev => prev.filter(p => p.id !== postId));
                   }}
                   onPostClick={handlePostClick}
+                  onAuthorClick={(authorId) => {
+                    setViewParams({ userId: authorId });
+                    setCurrentView('profile');
+                  }}
                   globalNodeId={nodes.find(n => n.slug === 'global')?.id}
                   onScroll={!isDesktop ? handleScroll : undefined}
                   headerOffset={!isDesktop ? 64 : 0}
@@ -615,8 +624,11 @@ const MainApp = () => {
               </View>
             ) : currentView === 'profile' ? (
               <ProfileScreen
+                key={viewParams?.userId || 'own-profile'}
                 onBack={() => setCurrentView('feed')}
                 onCredClick={() => setCurrentView('cred-history')}
+                userId={viewParams?.userId}
+                onViewTrustGraph={() => setCurrentView('trust-graph')}
               />
             ) : currentView === 'beta' ? (
               <BetaTestScreen onBack={() => setCurrentView('feed')} />
@@ -647,7 +659,14 @@ const MainApp = () => {
             ) : currentView === 'following' ? (
               <FollowingScreen onBack={() => setCurrentView('feed')} onPostClick={handlePostClick} />
             ) : currentView === 'post-detail' ? (
-              <PostDetailScreen postId={viewParams?.postId} onBack={() => setCurrentView('feed')} />
+              <PostDetailScreen
+                postId={viewParams?.postId}
+                onBack={() => setCurrentView('feed')}
+                onAuthorClick={(authorId) => {
+                  setViewParams({ userId: authorId });
+                  setCurrentView('profile');
+                }}
+              />
             ) : currentView === 'moderation' ? (
               <ModerationQueueScreen onBack={() => setCurrentView('feed')} />
             ) : currentView === 'appeals' ? (
@@ -665,6 +684,11 @@ const MainApp = () => {
                   setViewParams({ userId });
                   setCurrentView('profile');
                 }}
+              />
+            ) : currentView === 'trust-graph' ? (
+              <WebOfTrustScreen
+                onBack={() => setCurrentView('feed')}
+                userId={viewParams?.userId}
               />
             ) : null}
 
@@ -704,6 +728,7 @@ const MainApp = () => {
                 user={user}
                 onProfileClick={() => {
                   setMenuVisible(false);
+                  setViewParams(null);
                   setCurrentView('profile');
                 }}
                 selectedNodeId={selectedNodeId}
