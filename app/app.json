@@ -18,7 +18,9 @@
       "bundleIdentifier": "com.nodesocial.app",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSPhotoLibraryUsageDescription": "Allow Node Social to access your photos to upload profile pictures and banners.",
+        "NSCameraUsageDescription": "Allow Node Social to use your camera to take profile pictures."
       }
     },
     "android": {
@@ -48,7 +50,14 @@
     },
     "plugins": [
       "expo-secure-store",
-      "expo-apple-authentication"
+      "expo-apple-authentication",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Node Social to access your photos to upload profile pictures and banners.",
+          "cameraPermission": "Allow Node Social to use your camera to take profile pictures."
+        }
+      ]
     ],
     "extra": {
       "eas": {

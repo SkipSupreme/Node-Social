@@ -717,8 +717,8 @@ const MainApp = () => {
 
       {/* --- MOBILE MODALS --- */}
 
-      {/* Left Menu Modal */}
-      {!isTablet && (
+      {/* Left Menu Modal - show on mobile and tablet (not desktop) */}
+      {!isDesktop && (
         <Modal visible={menuVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
             <View style={styles.drawerLeft}>

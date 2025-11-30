@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Share, Dimensions, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Share, Dimensions, Alert, Platform, useWindowDimensions } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/auth';
 import { updateProfile, getUserCredHistory, getUserPosts, api, uploadBanner } from '../lib/api';
 import { ArrowLeft, Edit2, Share2, ChevronRight, Hexagon, Award, Users, TrendingUp, Clock, MessageSquare, Heart, Camera, ImageIcon, Upload, X } from 'lucide-react-native';
@@ -67,6 +67,11 @@ interface ProfileScreenProps {
 
 export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: propUser, userId, isEditable = false, onCredClick, onViewTrustGraph }) => {
     const { user: authUser, updateUser } = useAuthStore();
+    const insets = useSafeAreaInsets();
+    const { width } = useWindowDimensions();
+    const isDesktop = width >= 1024; // Match App.tsx breakpoint
+    // On mobile/tablet, App.tsx has a 64px header that covers the top of content
+    const mobileHeaderOffset = isDesktop ? 0 : 64;
     const [fetchedUser, setFetchedUser] = useState<any>(null);
     const [loadingUser, setLoadingUser] = useState(!!userId);
 
@@ -186,12 +191,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
     // Loading state for fetching other user's profile
     if (loadingUser) {
         return (
-            <SafeAreaView style={styles.container}>
-                <View style={styles.header}>
-                    <TouchableOpacity onPress={onBack} style={styles.backButton}>
+            <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+                <View style={[styles.loadingHeader, { marginTop: mobileHeaderOffset }]}>
+                    <TouchableOpacity onPress={onBack} style={[styles.backButton, { backgroundColor: COLORS.node.border }]}>
                         <ArrowLeft color={COLORS.node.text} size={24} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Profile</Text>
+                    <Text style={[styles.headerTitle, { color: COLORS.node.text }]}>Profile</Text>
                     <View style={{ width: 24 }} />
                 </View>
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
@@ -276,8 +281,8 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <ScrollView contentContainerStyle={styles.content}>
+        <SafeAreaView style={styles.container} edges={['left', 'right', 'bottom']}>
+            <ScrollView contentContainerStyle={[styles.content, { paddingTop: mobileHeaderOffset }]}>
                 {/* Profile Banner with overlaid header */}
                 <View style={styles.bannerSection}>
                     {/* Banner Image/Color */}
@@ -482,7 +487,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
 
             {/* Banner Editor - Floating overlay outside ScrollView */}
             {showBannerEditor && canEdit && (
-                <View style={styles.bannerEditorOverlay}>
+                <View style={[
+                    styles.bannerEditorOverlay,
+                    { top: mobileHeaderOffset + 56 }
+                ]}>
                     <View style={styles.bannerEditor}>
                         <View style={styles.bannerActions}>
                             <TouchableOpacity
@@ -569,6 +577,13 @@ const styles = StyleSheet.create({
         textShadowOffset: { width: 0, height: 1 },
         textShadowRadius: 3,
     },
+    loadingHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
     content: {
         paddingBottom: 100,
         gap: 0, // Sections handle their own marginTop
@@ -603,7 +618,6 @@ const styles = StyleSheet.create({
     },
     bannerEditorOverlay: {
         position: 'absolute',
-        top: 56,
         right: 16,
         zIndex: 1000,
     },
@@ -717,14 +731,16 @@ const styles = StyleSheet.create({
     },
     avatarEditHint: {
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
         bottom: 0,
-        borderRadius: 48,
-        backgroundColor: 'rgba(0,0,0,0.4)',
+        right: 0,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: COLORS.node.accent,
         alignItems: 'center',
         justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: COLORS.node.panel,
     },
     displayName: {
         fontSize: 22,
