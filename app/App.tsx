@@ -41,6 +41,9 @@ import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
 import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
 import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
+import { FeedHeader } from './src/components/ui/FeedHeader';
+import { WhatsVibing } from './src/components/ui/WhatsVibing';
+import { NodeLandingPage } from './src/components/ui/NodeLandingPage';
 // PostTypeFilter removed from main feed - may be added to Vibe Validator expert mode later
 import { PostType } from './src/web/components/Feeds/PostTypeFilter';
 
@@ -172,6 +175,7 @@ const MainApp = () => {
   const fetchNodes = async () => {
     try {
       const data = await getNodes();
+      console.log('[fetchNodes] Got', data.length, 'nodes:', data.map((n: any) => ({ id: n.id, name: n.name, slug: n.slug })));
       // Map API nodes to UI nodes (add color/vibeVelocity if missing)
       const mappedNodes = data.map((n: any) => ({
         ...n,
@@ -205,6 +209,7 @@ const MainApp = () => {
   }, [selectedNodeId]);
 
   const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global', postTypes?: PostType[]) => {
+    console.log('[fetchFeed] Called with:', { nodeId, mode, postTypes });
     setLoading(true);
     try {
       const params: any = {
@@ -272,6 +277,7 @@ const MainApp = () => {
           replies: []
         })) || []
       }));
+      console.log('[fetchFeed] Got', mappedPosts.length, 'posts');
       setPosts(mappedPosts);
     } catch (error) {
       console.error('Failed to fetch feed:', error);
@@ -297,6 +303,7 @@ const MainApp = () => {
   }, [algoSettings, settingsInitialized, selectedPostTypes]);
 
   const handleNodeSelect = (nodeId: string | null) => {
+    console.log('[handleNodeSelect] Called with nodeId:', nodeId);
     setSelectedNodeId(nodeId);
     setSearchQuery(''); // Clear search when changing nodes
     setCurrentView('feed'); // Always return to feed view when selecting a node
@@ -304,10 +311,12 @@ const MainApp = () => {
     // But if we are in discovery/following, maybe we should stay there?
     // For now, let's reset to global when picking a node to be safe/simple
     setFeedMode('global');
+    console.log('[handleNodeSelect] Calling fetchFeed with nodeId:', nodeId);
     fetchFeed(nodeId, 'global', selectedPostTypes);
   };
 
   const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
+    console.log('[handleFeedModeSelect] Called with mode:', mode);
     setFeedMode(mode);
     setSelectedNodeId(null); // Clear node selection
     setSearchQuery('');
@@ -516,99 +525,22 @@ const MainApp = () => {
         {/* Main Content Wrapper - Pushes Right Sidebar to edge */}
         <View style={{ flex: 1, alignItems: 'center', borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
 
-          {/* Header - Full Width (absolute on mobile, content scrolls underneath) */}
+          {/* Header - FeedHeader with collapsible Vibe Validator */}
           <Animated.View style={[
-            styles.header,
             !isDesktop && styles.mobileHeader,
             !isDesktop && { transform: [{ translateY: headerTranslateY }] }
           ]}>
-            {/* Mobile Header */}
-            {!isDesktop && !mobileSearchActive && (
-              <>
-                {/* Left: Menu + Logo */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingLeft: 12 }}>
-                  <TouchableOpacity onPress={() => setMenuVisible(true)}>
-                    <Menu size={24} color={COLORS.node.text} />
-                  </TouchableOpacity>
-                  <NodeLogo size="small" showText={true} />
-                </View>
-
-                {/* Right: Search + Preset Button */}
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingRight: 12 }}>
-                  <TouchableOpacity
-                    onPress={() => setMobileSearchActive(true)}
-                    style={styles.mobileIconButton}
-                  >
-                    <Search size={20} color={COLORS.node.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={() => setVibeVisible(true)}
-                    style={styles.presetButton}
-                  >
-                    <Text style={styles.presetButtonText} numberOfLines={1}>
-                      {getPresetDisplayName(algoSettings.preset as PresetType)}
-                    </Text>
-                    <ChevronDown size={14} color={COLORS.node.accent} />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-
-            {/* Mobile Search Active */}
-            {!isDesktop && mobileSearchActive && (
-              <View style={styles.mobileSearchContainer}>
-                <View style={styles.mobileSearchInputWrapper}>
-                  <Search size={16} color={COLORS.node.muted} />
-                  <TextInput
-                    style={styles.mobileSearchInput}
-                    placeholder="Search posts, users, nodes..."
-                    placeholderTextColor={COLORS.node.muted}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onSubmitEditing={handleSearch}
-                    autoFocus
-                  />
-                </View>
-                <TouchableOpacity
-                  onPress={() => {
-                    setMobileSearchActive(false);
-                    setSearchQuery('');
-                  }}
-                  style={styles.mobileSearchCancel}
-                >
-                  <Text style={styles.mobileSearchCancelText}>Cancel</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {/* Desktop Header */}
-            {isDesktop && (
-              <>
-                <View style={styles.searchContainerDesktop}>
-                  <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
-                  <TextInput
-                    style={styles.inputDesktop}
-                    placeholder="Search..."
-                    placeholderTextColor={COLORS.node.muted}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    onSubmitEditing={handleSearch}
-                  />
-                </View>
-
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16, paddingRight: 16 }}>
-                  <TouchableOpacity onPress={() => setCurrentView('messages')}>
-                    <MessageSquare size={24} color={COLORS.node.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setCurrentView('notifications')}>
-                    <Bell size={24} color={COLORS.node.text} />
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setRightPanelOpen(!rightPanelOpen)}>
-                    <PanelRight size={24} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
+            <FeedHeader
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              onSearch={handleSearch}
+              algoSettings={algoSettings}
+              onAlgoSettingsChange={setAlgoSettings}
+              onMessagesClick={() => setCurrentView('messages')}
+              onNotificationsClick={() => setCurrentView('notifications')}
+              onMenuClick={() => setMenuVisible(true)}
+              isDesktop={isDesktop}
+            />
           </Animated.View>
 
           {/* Scrollable Content - Full Width */}
@@ -705,10 +637,24 @@ const MainApp = () => {
           </View>
         </View>
 
-        {/* Desktop Right Panel */}
-        {isDesktop && rightPanelOpen && (
+        {/* Desktop Right Panel - Contextual: WhatsVibing (global) or NodeLandingPage (node selected) */}
+        {isDesktop && (
           <View style={styles.drawerRight}>
-            <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
+            {selectedNodeId ? (
+              <NodeLandingPage
+                nodeId={selectedNodeId}
+                onJoin={() => console.log('Join node:', selectedNodeId)}
+                onLeave={() => console.log('Leave node:', selectedNodeId)}
+                onMute={() => console.log('Mute node:', selectedNodeId)}
+                onMessageCouncil={() => {
+                  setCurrentView('council');
+                }}
+              />
+            ) : (
+              <WhatsVibing
+                onNodeClick={(nodeId) => handleNodeSelect(nodeId)}
+              />
+            )}
           </View>
         )}
 
