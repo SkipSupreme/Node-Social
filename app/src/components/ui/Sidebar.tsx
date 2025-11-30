@@ -128,7 +128,9 @@ export const Sidebar = ({
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
+        console.log('[Sidebar] handleNodeClick called with nodeId:', nodeId);
         if (onNodeSelect) {
+            console.log('[Sidebar] Calling onNodeSelect');
             onNodeSelect(nodeId);
         }
         if (onClose && !isDesktop) {
@@ -137,6 +139,7 @@ export const Sidebar = ({
     };
 
     const handleModeClick = (mode: 'global' | 'discovery' | 'following') => {
+        console.log('[Sidebar] handleModeClick called with mode:', mode);
         if (onFeedModeSelect) {
             onFeedModeSelect(mode);
         }
