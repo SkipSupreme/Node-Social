@@ -127,6 +127,11 @@ model Node {
   color       String?
   createdAt   DateTime @default(now())
 
+  // Node Identity (Phase B)
+  avatar      String?  // URL to uploaded avatar image
+  banner      String?  // URL to uploaded banner image (null = use gradient from color)
+  rules       Json     @default("[]")  // Array of rule strings: ["Rule 1", "Rule 2"]
+
   // Relations
   posts       Post[]
   creatorId   String?

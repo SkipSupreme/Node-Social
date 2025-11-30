@@ -90,6 +90,7 @@ export interface VibeValidatorSettings {
 export interface VibeValidatorProps {
     settings: VibeValidatorSettings;
     onUpdate: (settings: VibeValidatorSettings) => void;
+    onClose?: () => void; // Optional close handler - shows X button when provided
 }
 
 // ============================================
@@ -716,7 +717,7 @@ const expertStyles = StyleSheet.create({
 // MAIN COMPONENT
 // ============================================
 
-export const VibeValidator = ({ settings, onUpdate }: VibeValidatorProps) => {
+export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProps) => {
     const [mode, setMode] = useState<ValidatorMode>(settings.mode || 'simple');
     const [activePreset, setActivePreset] = useState<string | null>(settings.preset || 'balanced');
 
@@ -736,9 +737,16 @@ export const VibeValidator = ({ settings, onUpdate }: VibeValidatorProps) => {
         <View style={styles.container}>
             {/* Header */}
             <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Waypoints size={20} color={COLORS.node.accent} />
-                    <Text style={styles.title}>Vibe Validator</Text>
+                <View style={styles.headerTop}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Waypoints size={20} color={COLORS.node.accent} />
+                        <Text style={styles.title}>Vibe Validator</Text>
+                    </View>
+                    {onClose && (
+                        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                            <Text style={styles.closeX}>✕</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
                 <Text style={styles.subtitle}>Control your feed algorithm</Text>
             </View>
@@ -791,6 +799,25 @@ const styles = StyleSheet.create({
         padding: 16,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.node.border,
+    },
+    headerTop: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    closeButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: COLORS.node.border,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    closeX: {
+        fontSize: 20,
+        fontWeight: '600',
+        color: COLORS.node.text,
+        lineHeight: 22,
     },
     title: {
         color: COLORS.node.text,

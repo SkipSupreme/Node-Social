@@ -12,7 +12,7 @@ import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
 import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { VerifyEmailScreen } from './src/screens/VerifyEmailScreen';
 import * as Linking from 'expo-linking';
-import { COLORS, SCOPE_COLORS } from './src/constants/theme';
+import { COLORS } from './src/constants/theme';
 import { MobileBottomNav } from './src/components/ui/MobileBottomNav';
 import { getPresetDisplayName, PresetType } from './src/components/ui/PresetBottomSheet';
 import { NodeLogo } from './src/components/ui/NodeLogo';
@@ -40,6 +40,7 @@ import { AppealsScreen } from './src/screens/AppealsScreen';
 import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
 import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
 import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
+import { NodeSettingsScreen } from './src/screens/NodeSettingsScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 import { FeedHeader } from './src/components/ui/FeedHeader';
 import { WhatsVibing } from './src/components/ui/WhatsVibing';
@@ -57,7 +58,7 @@ const MainApp = () => {
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeLanding' | 'nodeSettings'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -174,12 +175,12 @@ const MainApp = () => {
     try {
       const data = await getNodes();
       console.log('[fetchNodes] Got', data.length, 'nodes:', data.map((n: any) => ({ id: n.id, name: n.name, slug: n.slug })));
-      // Map API nodes to UI nodes (add color/vibeVelocity if missing)
+      // Map API nodes to UI nodes (preserve avatar/color, add defaults if missing)
       const mappedNodes = data.map((n: any) => ({
         ...n,
         type: 'child', // Default type
         vibeVelocity: Math.floor(Math.random() * 100), // Mock velocity
-        color: SCOPE_COLORS[Math.floor(Math.random() * SCOPE_COLORS.length)] // Mock color
+        color: n.color || '#6366f1', // Use API color or consistent fallback (matches NodeLandingPage)
       }));
       setNodes(mappedNodes);
     } catch (error) {
@@ -698,6 +699,11 @@ const MainApp = () => {
                 onBack={() => setCurrentView('feed')}
                 userId={viewParams?.userId}
               />
+            ) : currentView === 'nodeSettings' && selectedNodeId ? (
+              <NodeSettingsScreen
+                nodeId={selectedNodeId}
+                onBack={() => setCurrentView('feed')}
+              />
             ) : null}
 
           </View>
@@ -709,9 +715,9 @@ const MainApp = () => {
             {selectedNodeId ? (
               <NodeLandingPage
                 nodeId={selectedNodeId}
-                onJoin={() => console.log('Join node:', selectedNodeId)}
-                onLeave={() => console.log('Leave node:', selectedNodeId)}
-                onMute={() => console.log('Mute node:', selectedNodeId)}
+                onNavigateToSettings={() => {
+                  setCurrentView('nodeSettings');
+                }}
                 onMessageCouncil={() => {
                   setCurrentView('council');
                 }}
@@ -806,19 +812,25 @@ const MainApp = () => {
         initialNodeId={selectedNodeId}
       />
 
-      {/* Mobile Vibe Validator - Full screen bottom sheet (no overlay on desktop - uses dropdown) */}
+      {/* Mobile Vibe Validator - 90% height bottom sheet with X button */}
       {!isDesktop && (
         <Modal visible={vibeVisible} animationType="slide" transparent>
-          <TouchableOpacity
-            style={styles.vibeModalOverlay}
-            activeOpacity={1}
-            onPress={() => setVibeVisible(false)}
-          >
-            <TouchableOpacity activeOpacity={1} style={styles.vibeModalContent}>
-              <View style={styles.vibeModalHandle} />
-              <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
-            </TouchableOpacity>
-          </TouchableOpacity>
+          <View style={styles.vibeModalOverlay}>
+            {/* Tap outside area to close */}
+            <TouchableOpacity
+              style={styles.vibeModalTopSpacer}
+              activeOpacity={1}
+              onPress={() => setVibeVisible(false)}
+            />
+            {/* Content */}
+            <View style={styles.vibeModalContent}>
+              <VibeValidator
+                settings={algoSettings}
+                onUpdate={setAlgoSettings}
+                onClose={() => setVibeVisible(false)}
+              />
+            </View>
+          </View>
         </Modal>
       )}
 
@@ -934,6 +946,8 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.node.border,
     backgroundColor: COLORS.node.bg,
     width: '100%',
+    zIndex: 10000,
+    position: 'relative',
   },
   searchContainerDesktop: {
     flex: 1,
@@ -1023,12 +1037,12 @@ const styles = StyleSheet.create({
   },
   // Desktop Vibe Validator Dropdown (like banner editor)
   dropdownBackdrop: {
-    position: 'absolute',
-    top: -1000,
-    left: -1000,
-    right: -1000,
-    bottom: -1000,
-    zIndex: 999,
+    position: 'fixed' as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 9998,
   },
   vibeDropdown: {
     position: 'absolute',
@@ -1036,7 +1050,6 @@ const styles = StyleSheet.create({
     right: 0,
     marginTop: 8,
     width: 400,
-    maxHeight: 600,
     backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
@@ -1046,28 +1059,21 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 8,
-    zIndex: 1000,
-    overflow: 'hidden',
+    zIndex: 9999,
   },
-  // Mobile Vibe Validator - Full screen bottom sheet (no black overlay)
+  // Mobile Vibe Validator - 90% height bottom sheet
   vibeModalOverlay: {
     flex: 1,
     backgroundColor: 'transparent',
     justifyContent: 'flex-end',
   },
+  vibeModalTopSpacer: {
+    height: '10%',
+  },
   vibeModalContent: {
     backgroundColor: COLORS.node.panel,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
-    height: '100%',
-    paddingTop: 8,
-  },
-  vibeModalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: COLORS.node.border,
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 8,
+    height: '90%',
   },
 });

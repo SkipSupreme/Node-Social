@@ -215,6 +215,32 @@ export const Sidebar = ({
                         active={currentView === 'beta'}
                         onPress={onBetaClick}
                     />
+                    {/* Node avatars - right after nav items */}
+                    {nodes.length > 0 && (
+                        <View style={styles.collapsedNodes}>
+                            <View style={styles.collapsedDivider} />
+                            {nodes.slice(0, 5).map(node => (
+                                <TouchableOpacity
+                                    key={node.id}
+                                    style={[
+                                        styles.collapsedNodeItem,
+                                        selectedNodeId === node.id && styles.collapsedNodeItemActive
+                                    ]}
+                                    onPress={() => handleNodeClick(node.id)}
+                                >
+                                    <View style={[styles.collapsedNodeAvatar, { backgroundColor: node.color || '#6366f1' }]}>
+                                        {node.avatar ? (
+                                            <Image source={{ uri: node.avatar }} style={styles.collapsedNodeAvatarImage} />
+                                        ) : (
+                                            <Text style={styles.collapsedNodeAvatarText}>
+                                                {node.name?.charAt(0).toUpperCase() || 'N'}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    )}
                 </View>
 
                 {/* User avatar at bottom */}
@@ -369,7 +395,15 @@ export const Sidebar = ({
                             style={[styles.nodeItem, selectedNodeId === node.id && styles.nodeItemActive]}
                             onPress={() => handleNodeClick(node.id)}
                         >
-                            <View style={[styles.nodeDot, { backgroundColor: node.color || '#6366f1' }]} />
+                            <View style={[styles.nodeAvatar, { backgroundColor: node.color || '#6366f1' }]}>
+                                {node.avatar ? (
+                                    <Image source={{ uri: node.avatar }} style={styles.nodeAvatarImage} />
+                                ) : (
+                                    <Text style={styles.nodeAvatarText}>
+                                        {node.name?.charAt(0).toUpperCase() || 'N'}
+                                    </Text>
+                                )}
+                            </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.nodeName, selectedNodeId === node.id && styles.nodeNameActive]}>{node.name}</Text>
                                 {node.subscriberCount !== undefined && (
@@ -470,6 +504,23 @@ const styles = StyleSheet.create({
     nodeItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
     nodeItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
     nodeDot: { width: 8, height: 8, borderRadius: 4 },
+    nodeAvatar: {
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    nodeAvatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    nodeAvatarText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#fff',
+    },
     nodeName: { fontSize: 14, fontWeight: '500', color: COLORS.node.text },
     nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
     nodeSubscribers: { fontSize: 11, color: COLORS.node.muted, marginTop: 2 },
@@ -516,6 +567,44 @@ const styles = StyleSheet.create({
     },
     collapsedNavItemActive: {
         backgroundColor: 'rgba(99, 102, 241, 0.1)',
+    },
+    collapsedNodes: {
+        alignItems: 'center',
+        paddingTop: 8,
+    },
+    collapsedDivider: {
+        width: 24,
+        height: 1,
+        backgroundColor: COLORS.node.border,
+        marginBottom: 8,
+    },
+    collapsedNodeItem: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 4,
+    },
+    collapsedNodeItemActive: {
+        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+    },
+    collapsedNodeAvatar: {
+        width: 28,
+        height: 28,
+        borderRadius: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    collapsedNodeAvatarImage: {
+        width: '100%',
+        height: '100%',
+    },
+    collapsedNodeAvatarText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#fff',
     },
     collapsedFooter: {
         paddingTop: 12,

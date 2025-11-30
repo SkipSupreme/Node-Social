@@ -37,9 +37,61 @@ export type Node = {
   slug: string;
   description: string | null;
   color?: string | null;
+  avatar?: string | null;
+  banner?: string | null;
   subscriberCount?: number;
   isSubscribed?: boolean;
   myRole?: string | null;
+};
+
+// Enhanced node details (from GET /nodes/:id)
+export type NodeDetails = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  avatar: string | null;
+  banner: string | null;
+  rules: string[];
+  createdAt: string;
+  stats: {
+    memberCount: number;
+    growthThisWeek: number;
+    postCount: number;
+  };
+  council: {
+    userId: string;
+    username: string;
+    avatar: string | null;
+    role: string;
+    joinedAt: string;
+    tenure: string;
+  }[];
+  currentUserMembership: {
+    isMember: boolean;
+    role: string | null;
+    joinedAt: string | null;
+  } | null;
+  recentModActions: {
+    id: string;
+    action: string;
+    targetType: string;
+    reason: string | null;
+    moderatorUsername: string;
+    createdAt: string;
+  }[];
+};
+
+export type ModLogAction = {
+  id: string;
+  action: string;
+  targetType: string;
+  targetId: string;
+  reason: string | null;
+  moderatorId: string | null;
+  moderatorUsername: string;
+  createdAt: string;
 };
 
 export type Post = {
@@ -536,6 +588,175 @@ export function getNodeMembers(nodeId: string, limit = 20, cursor?: string) {
   if (cursor) params.append("cursor", cursor);
   return request<{ members: any[]; nextCursor: string | null; hasMore: boolean }>(
     `/nodes/${nodeId}/members?${params}`,
+    { method: "GET" }
+  );
+}
+
+// Get enhanced node details with stats, council, membership
+export function getNodeDetails(idOrSlug: string) {
+  return request<NodeDetails>(`/nodes/${idOrSlug}`, {
+    method: "GET",
+  });
+}
+
+// Update node settings (admin only)
+export function updateNode(nodeId: string, data: {
+  name?: string;
+  description?: string;
+  color?: string;
+  rules?: string[];
+}) {
+  return request<Node>(`/nodes/${nodeId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// Join a node
+export function joinNode(nodeId: string) {
+  return request<{ success: boolean; membership: { role: string; joinedAt: string } }>(
+    `/nodes/${nodeId}/join`,
+    { method: "POST", body: JSON.stringify({}) }
+  );
+}
+
+// Leave a node
+export function leaveNode(nodeId: string) {
+  return request<{ success: boolean }>(`/nodes/${nodeId}/leave`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+// Upload node avatar (admin only)
+export async function uploadNodeAvatar(nodeId: string, imageUri: string): Promise<{ success: boolean; avatarUrl: string }> {
+  const { Platform } = await import('react-native');
+  const token = await storage.getItem("token");
+  const csrfToken = readCsrfToken();
+
+  const formData = new FormData();
+
+  let fileType = 'jpg';
+  if (imageUri.includes('.')) {
+    const uriParts = imageUri.split('.');
+    const ext = uriParts[uriParts.length - 1]?.toLowerCase().split('?')[0];
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      fileType = ext === 'jpeg' ? 'jpg' : ext;
+    }
+  }
+  const mimeType = fileType === 'png' ? 'image/png' : fileType === 'gif' ? 'image/gif' : fileType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const file = new File([blob], `node_avatar.${fileType}`, { type: mimeType });
+      formData.append('file', file);
+    } catch (err) {
+      throw new Error('Failed to process image');
+    }
+  } else {
+    formData.append('file', {
+      uri: imageUri,
+      type: mimeType,
+      name: `node_avatar.${fileType}`,
+    } as any);
+  }
+
+  const response = await fetch(`${API_URL}/nodes/${nodeId}/avatar`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    },
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload avatar');
+  }
+
+  return response.json();
+}
+
+// Upload node banner (admin only)
+export async function uploadNodeBanner(nodeId: string, imageUri: string): Promise<{ success: boolean; bannerUrl: string }> {
+  const { Platform } = await import('react-native');
+  const token = await storage.getItem("token");
+  const csrfToken = readCsrfToken();
+
+  const formData = new FormData();
+
+  let fileType = 'jpg';
+  if (imageUri.includes('.')) {
+    const uriParts = imageUri.split('.');
+    const ext = uriParts[uriParts.length - 1]?.toLowerCase().split('?')[0];
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      fileType = ext === 'jpeg' ? 'jpg' : ext;
+    }
+  }
+  const mimeType = fileType === 'png' ? 'image/png' : fileType === 'gif' ? 'image/gif' : fileType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const file = new File([blob], `node_banner.${fileType}`, { type: mimeType });
+      formData.append('file', file);
+    } catch (err) {
+      throw new Error('Failed to process image');
+    }
+  } else {
+    formData.append('file', {
+      uri: imageUri,
+      type: mimeType,
+      name: `node_banner.${fileType}`,
+    } as any);
+  }
+
+  const response = await fetch(`${API_URL}/nodes/${nodeId}/banner`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    },
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload banner');
+  }
+
+  return response.json();
+}
+
+// Delete node avatar (admin only)
+export function deleteNodeAvatar(nodeId: string) {
+  return request<{ success: boolean }>(`/nodes/${nodeId}/avatar`, {
+    method: "DELETE",
+  });
+}
+
+// Delete node banner (admin only)
+export function deleteNodeBanner(nodeId: string) {
+  return request<{ success: boolean }>(`/nodes/${nodeId}/banner`, {
+    method: "DELETE",
+  });
+}
+
+// Get node mod log
+export function getNodeModLog(nodeId: string, params?: { limit?: number; cursor?: string; action?: string }) {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.append("limit", params.limit.toString());
+  if (params?.cursor) searchParams.append("cursor", params.cursor);
+  if (params?.action) searchParams.append("action", params.action);
+
+  return request<{ actions: ModLogAction[]; nextCursor: string | null }>(
+    `/nodes/${nodeId}/mod-log?${searchParams.toString()}`,
     { method: "GET" }
   );
 }
@@ -1159,6 +1380,58 @@ export const APPEAL_CONSTANTS = {
   VOTING_PERIOD_HOURS: 48,
   MIN_JUROR_CRED: 100,
 };
+
+// ====== Trending/Discovery API ======
+
+export type VelocitySpike = {
+  vibe: string;
+  vibeEmoji: string;
+  percentageChange: number;
+  nodeId: string;
+  nodeSlug: string;
+  nodeName: string;
+  nodeColor: string | null;
+  hashtags: string[];
+};
+
+export type RisingNode = {
+  id: string;
+  slug: string;
+  name: string;
+  avatar: string | null;
+  color: string | null;
+  memberCount: number;
+  growthToday: number;
+};
+
+export type NodeRecommendation = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  avatar: string | null;
+  color: string | null;
+  memberCount: number;
+  matchReason: string;
+};
+
+export function getTrendingVibes() {
+  return request<{ spikes: VelocitySpike[]; calculatedAt: string }>("/trending/vibes", {
+    method: "GET",
+  });
+}
+
+export function getTrendingNodes() {
+  return request<{ nodes: RisingNode[]; calculatedAt: string }>("/trending/nodes", {
+    method: "GET",
+  });
+}
+
+export function getDiscoverNodes() {
+  return request<{ recommendations: NodeRecommendation[]; calculatedAt: string }>("/discover/nodes", {
+    method: "GET",
+  });
+}
 
 export const api = {
   get: <T>(url: string) => request<T>(url, { method: "GET" }),
