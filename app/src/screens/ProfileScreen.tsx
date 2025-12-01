@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Share, Dimensions, Alert, Platform, useWindowDimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, ActivityIndicator, Image, Share, Dimensions, Platform, useWindowDimensions } from 'react-native';
+import { showAlert } from '../lib/alert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/auth';
 import { updateProfile, getUserCredHistory, getUserPosts, api, uploadBanner } from '../lib/api';
@@ -237,7 +238,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
         try {
             const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
             if (!permissionResult.granted) {
-                Alert.alert('Permission Required', 'Please allow access to your photos to upload a banner.');
+                showAlert('Permission Required', 'Please allow access to your photos to upload a banner.');
                 return;
             }
 
@@ -257,7 +258,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({ onBack, user: prop
                     setShowBannerEditor(false);
                 } catch (err: any) {
                     console.error('Banner upload failed:', err);
-                    Alert.alert('Upload Failed', err.message || 'Failed to upload banner');
+                    showAlert('Upload Failed', err.message || 'Failed to upload banner');
                 } finally {
                     setSavingBanner(false);
                 }

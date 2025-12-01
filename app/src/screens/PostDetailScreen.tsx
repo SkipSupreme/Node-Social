@@ -9,13 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
-  Alert,
   Image,
   Share,
   Modal,
   Dimensions,
   Linking,
 } from "react-native";
+import { showAlert } from "../lib/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, MessageSquare, Share2, Bookmark, X, ImageIcon, Camera, Smile, Play } from "lucide-react-native";
 import { getPost, getComments, createComment, Post, Comment, savePost } from "../lib/api";
@@ -288,7 +288,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
         setPost({ ...post, commentCount: post.commentCount + 1 });
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to post comment.");
+      showAlert("Error", "Failed to post comment.");
     } finally {
       setSending(false);
     }
@@ -319,7 +319,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
         setPost({ ...post, commentCount: post.commentCount + 1 });
       }
     } catch (error) {
-      Alert.alert("Error", "Failed to post reply.");
+      showAlert("Error", "Failed to post reply.");
     } finally {
       setSendingModalReply(false);
     }

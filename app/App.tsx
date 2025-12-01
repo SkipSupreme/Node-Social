@@ -41,6 +41,7 @@ import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
 import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
 import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
 import { NodeSettingsScreen } from './src/screens/NodeSettingsScreen';
+import { ModLogScreen } from './src/screens/ModLogScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 import { FeedHeader } from './src/components/ui/FeedHeader';
 import { WhatsVibing } from './src/components/ui/WhatsVibing';
@@ -58,7 +59,7 @@ const MainApp = () => {
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeLanding' | 'nodeSettings'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeLanding' | 'nodeSettings' | 'modLog'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -704,6 +705,12 @@ const MainApp = () => {
                 nodeId={selectedNodeId}
                 onBack={() => setCurrentView('feed')}
               />
+            ) : currentView === 'modLog' && selectedNodeId ? (
+              <ModLogScreen
+                nodeId={selectedNodeId}
+                nodeName={nodes.find(n => n.id === selectedNodeId)?.slug || 'node'}
+                onBack={() => setCurrentView('nodeLanding')}
+              />
             ) : null}
 
           </View>
@@ -718,8 +725,21 @@ const MainApp = () => {
                 onNavigateToSettings={() => {
                   setCurrentView('nodeSettings');
                 }}
+                onNavigateToModLog={() => {
+                  setCurrentView('modLog');
+                }}
                 onMessageCouncil={() => {
                   setCurrentView('council');
+                }}
+                onStartChat={async (userId) => {
+                  try {
+                    const { startConversation } = await import('./src/lib/api');
+                    const conversation = await startConversation(userId);
+                    setViewParams({ conversationId: conversation.id });
+                    setCurrentView('chat');
+                  } catch (error) {
+                    console.error('Failed to start conversation:', error);
+                  }
                 }}
               />
             ) : (

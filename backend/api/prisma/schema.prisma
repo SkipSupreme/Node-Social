@@ -74,6 +74,7 @@ model User {
 
   // Node Subscriptions
   nodeSubscriptions NodeSubscription[]
+  mutedNodes        NodeMute[]
 
   // Reports
   reports Report[]
@@ -141,6 +142,7 @@ model Node {
   modQueueItems ModQueueItem[]
   vectorConfig  NodeVectorConfig?
   subscriptions NodeSubscription[] // Users subscribed to this node
+  muters        NodeMute[] // Users who have muted this node
 
   @@map("nodes")
 }
@@ -159,6 +161,21 @@ model NodeSubscription {
   @@unique([userId, nodeId])
   @@index([nodeId])
   @@map("node_subscriptions")
+}
+
+// Node Mutes - Users hiding nodes from their feed without leaving
+model NodeMute {
+  id        String   @id @default(uuid())
+  userId    String
+  nodeId    String
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  node      Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, nodeId])
+  @@index([userId])
+  @@map("node_mutes")
 }
 
 model Post {

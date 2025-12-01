@@ -9,8 +9,8 @@ import {
   Image,
   ScrollView,
   ActivityIndicator,
-  Alert,
 } from 'react-native';
+import { showAlert } from '../../lib/alert';
 import { X, Camera, Link2, Check, Upload } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/theme';
@@ -87,7 +87,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permissionResult.granted) {
-        Alert.alert('Permission Required', 'Please allow access to your photos to upload an avatar.');
+        showAlert('Permission Required', 'Please allow access to your photos to upload an avatar.');
         return;
       }
 

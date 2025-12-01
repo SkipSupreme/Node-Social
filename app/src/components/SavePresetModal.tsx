@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
+import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import { api } from '../lib/api';
@@ -18,7 +19,7 @@ export const SavePresetModal: React.FC<SavePresetModalProps> = ({ visible, onClo
 
     const handleSave = async () => {
         if (!name.trim()) {
-            Alert.alert('Error', 'Please enter a name');
+            showAlert('Error', 'Please enter a name');
             return;
         }
 
@@ -30,14 +31,14 @@ export const SavePresetModal: React.FC<SavePresetModalProps> = ({ visible, onClo
                 isPublic,
                 config: currentConfig,
             });
-            Alert.alert('Success', 'Preset saved!');
+            showAlert('Success', 'Preset saved!');
             onClose();
             setName('');
             setDescription('');
             setIsPublic(false);
         } catch (error) {
             console.error('Failed to save preset:', error);
-            Alert.alert('Error', 'Failed to save preset');
+            showAlert('Error', 'Failed to save preset');
         } finally {
             setSaving(false);
         }

@@ -260,17 +260,22 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       const sub = await fastify.prisma.nodeSubscription.findUnique({
         where: { userId_nodeId: { userId, nodeId: node.id } },
       });
+      const mute = await fastify.prisma.nodeMute.findUnique({
+        where: { userId_nodeId: { userId, nodeId: node.id } },
+      });
       if (sub) {
         currentUserMembership = {
           isMember: true,
           role: sub.role,
           joinedAt: sub.joinedAt,
+          isMuted: !!mute,
         };
       } else {
         currentUserMembership = {
           isMember: false,
           role: null,
           joinedAt: null,
+          isMuted: !!mute,
         };
       }
     }
@@ -667,6 +672,52 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
     });
 
     return reply.send({ success: true });
+  });
+
+  // Mute node (hide from feed without leaving)
+  fastify.post('/:id/mute', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = (request.user as { sub: string }).sub;
+
+    const node = await fastify.prisma.node.findUnique({ where: { id } });
+    if (!node) {
+      return reply.status(404).send({ error: 'Node not found' });
+    }
+
+    // Check if already muted
+    const existing = await fastify.prisma.nodeMute.findUnique({
+      where: { userId_nodeId: { userId, nodeId: id } },
+    });
+
+    if (existing) {
+      return reply.send({ success: true, muted: true });
+    }
+
+    await fastify.prisma.nodeMute.create({
+      data: { userId, nodeId: id },
+    });
+
+    return reply.send({ success: true, muted: true });
+  });
+
+  // Unmute node
+  fastify.delete('/:id/mute', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = (request.user as { sub: string }).sub;
+
+    const existing = await fastify.prisma.nodeMute.findUnique({
+      where: { userId_nodeId: { userId, nodeId: id } },
+    });
+
+    if (!existing) {
+      return reply.send({ success: true, muted: false });
+    }
+
+    await fastify.prisma.nodeMute.delete({
+      where: { userId_nodeId: { userId, nodeId: id } },
+    });
+
+    return reply.send({ success: true, muted: false });
   });
 
   // Get node members

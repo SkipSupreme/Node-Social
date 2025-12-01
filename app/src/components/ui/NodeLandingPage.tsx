@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle } from './Icons';
+import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare } from './Icons';
 import { COLORS } from '../../constants/theme';
 import { getNodeDetails, joinNode, leaveNode, NodeDetails } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
+import { NodeOverflowMenu } from './NodeOverflowMenu';
+import { ModLogPreview } from './ModLogPreview';
 
 interface NodeLandingPageProps {
   nodeId: string;
   onNavigateToSettings?: () => void;
   onNavigateToModLog?: () => void;
   onMessageCouncil?: () => void;
+  onStartChat?: (userId: string) => void;
 }
 
 // Generate gradient from color
@@ -29,6 +32,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   onNavigateToSettings,
   onNavigateToModLog,
   onMessageCouncil,
+  onStartChat,
 }) => {
   const { user } = useAuthStore();
   const [nodeData, setNodeData] = useState<NodeDetails | null>(null);
@@ -36,6 +40,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const [showAllRules, setShowAllRules] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
 
   useEffect(() => {
     fetchNodeData();
@@ -92,7 +97,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
     );
   }
 
-  const isMember = nodeData.currentUserMembership?.isMember;
+  const isMember = nodeData.currentUserMembership?.isMember ?? false;
   const isAdmin = nodeData.currentUserMembership?.role === 'admin';
   const nodeColor = nodeData.color || '#6366f1';
   const displayRules = showAllRules ? nodeData.rules : nodeData.rules.slice(0, 3);
@@ -172,8 +177,37 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
               <Settings size={18} color={COLORS.node.text} />
             </TouchableOpacity>
           )}
+          <TouchableOpacity style={styles.menuButton} onPress={() => setShowMenu(true)}>
+            <MoreHorizontal size={18} color={COLORS.node.text} />
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Overflow Menu */}
+      <NodeOverflowMenu
+        nodeId={nodeData.id}
+        nodeName={nodeData.name}
+        nodeSlug={nodeData.slug}
+        isMember={isMember}
+        isMuted={nodeData.currentUserMembership?.isMuted || false}
+        isAdmin={isAdmin}
+        visible={showMenu}
+        onClose={() => setShowMenu(false)}
+        onMuteChange={(muted) => {
+          if (nodeData.currentUserMembership) {
+            setNodeData({
+              ...nodeData,
+              currentUserMembership: {
+                ...nodeData.currentUserMembership,
+                isMuted: muted,
+              },
+            });
+          }
+        }}
+        onLeave={() => {
+          fetchNodeData();
+        }}
+      />
 
       {/* Rules Section */}
       {nodeData.rules.length > 0 && (
@@ -233,6 +267,14 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
                     {member.role.charAt(0).toUpperCase() + member.role.slice(1)} · {member.tenure}
                   </Text>
                 </View>
+                {onStartChat && member.userId !== user?.id && (
+                  <TouchableOpacity
+                    style={styles.councilMessageButton}
+                    onPress={() => onStartChat(member.userId)}
+                  >
+                    <MessageSquare size={16} color={COLORS.node.accent} />
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
           </View>
@@ -241,6 +283,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
         )}
         {onMessageCouncil && nodeData.council.length > 0 && (
           <TouchableOpacity style={styles.messageCouncilButton} onPress={onMessageCouncil}>
+            <MessageSquare size={14} color={COLORS.node.accent} style={{ marginRight: 6 }} />
             <Text style={styles.messageCouncilText}>Message Council</Text>
           </TouchableOpacity>
         )}
@@ -252,34 +295,10 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
           <FileText size={16} color={COLORS.node.accent} />
           <Text style={styles.sectionTitle}>Recent Mod Actions</Text>
         </View>
-        {nodeData.recentModActions.length > 0 ? (
-          <View style={styles.modLogList}>
-            {nodeData.recentModActions.map((action) => (
-              <View key={action.id} style={styles.modLogItem}>
-                <View style={styles.modLogHeader}>
-                  <Text style={styles.modLogAction}>
-                    {action.action.charAt(0).toUpperCase() + action.action.slice(1)}
-                  </Text>
-                  <Text style={styles.modLogTime}>
-                    {new Date(action.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-                {action.reason && (
-                  <Text style={styles.modLogReason}>Reason: {action.reason}</Text>
-                )}
-                <Text style={styles.modLogMod}>by @{action.moderatorUsername}</Text>
-              </View>
-            ))}
-          </View>
-        ) : (
-          <Text style={styles.emptyText}>No recent moderation actions</Text>
-        )}
-        {onNavigateToModLog && (
-          <TouchableOpacity style={styles.viewFullLogButton} onPress={onNavigateToModLog}>
-            <Text style={styles.viewFullLogText}>View full mod log</Text>
-            <ChevronRight size={14} color={COLORS.node.accent} />
-          </TouchableOpacity>
-        )}
+        <ModLogPreview
+          actions={nodeData.recentModActions}
+          onViewFullLog={onNavigateToModLog}
+        />
       </View>
 
       {/* Bottom padding */}
@@ -446,6 +465,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  menuButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.node.bg,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   section: {
     padding: 16,
     borderBottomWidth: 1,
@@ -530,6 +559,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  councilMessageButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: COLORS.node.bg,
+  },
   emptyText: {
     color: COLORS.node.muted,
     fontSize: 13,
@@ -541,7 +575,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     borderWidth: 1,
     borderColor: COLORS.node.border,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   messageCouncilText: {
     color: COLORS.node.text,

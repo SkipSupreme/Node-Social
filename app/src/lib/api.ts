@@ -72,6 +72,7 @@ export type NodeDetails = {
     isMember: boolean;
     role: string | null;
     joinedAt: string | null;
+    isMuted: boolean;
   } | null;
   recentModActions: {
     id: string;
@@ -624,6 +625,22 @@ export function joinNode(nodeId: string) {
 export function leaveNode(nodeId: string) {
   return request<{ success: boolean }>(`/nodes/${nodeId}/leave`, {
     method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+// Mute a node (hide from feed without leaving)
+export function muteNode(nodeId: string) {
+  return request<{ success: boolean; muted: boolean }>(`/nodes/${nodeId}/mute`, {
+    method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+// Unmute a node
+export function unmuteNode(nodeId: string) {
+  return request<{ success: boolean; muted: boolean }>(`/nodes/${nodeId}/mute`, {
+    method: "DELETE",
     body: JSON.stringify({}),
   });
 }
@@ -1430,6 +1447,73 @@ export function getTrendingNodes() {
 export function getDiscoverNodes() {
   return request<{ recommendations: NodeRecommendation[]; calculatedAt: string }>("/discover/nodes", {
     method: "GET",
+  });
+}
+
+// ========== Messaging / Conversations ==========
+
+export interface Conversation {
+  id: string;
+  createdAt: string;
+  updatedAt: string;
+  participants: {
+    userId: string;
+    user: {
+      id: string;
+      username: string;
+      avatar: string | null;
+      firstName?: string;
+      lastName?: string;
+    };
+  }[];
+  messages?: {
+    id: string;
+    content: string;
+    createdAt: string;
+    senderId: string;
+  }[];
+}
+
+export interface Message {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  content: string;
+  createdAt: string;
+  sender: {
+    id: string;
+    username: string;
+    avatar: string | null;
+  };
+}
+
+// Get all conversations for the current user
+export function getConversations() {
+  return request<Conversation[]>("/api/conversations", {
+    method: "GET",
+  });
+}
+
+// Get messages for a specific conversation
+export function getConversationMessages(conversationId: string) {
+  return request<Message[]>(`/api/conversations/${conversationId}`, {
+    method: "GET",
+  });
+}
+
+// Start or find a conversation with a user
+export function startConversation(recipientId: string) {
+  return request<Conversation>("/api/conversations", {
+    method: "POST",
+    body: JSON.stringify({ recipientId }),
+  });
+}
+
+// Send a message in a conversation
+export function sendMessage(conversationId: string, content: string) {
+  return request<Message>(`/api/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ content }),
   });
 }
 

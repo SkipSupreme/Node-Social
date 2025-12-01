@@ -302,7 +302,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Block/Mute Enforcement - Hide posts from blocked/muted users
-      const [blocks, mutes] = await Promise.all([
+      const [blocks, mutes, mutedNodes] = await Promise.all([
         fastify.prisma.userBlock.findMany({
           where: { blockerId: userId },
           select: { blockedId: true },
@@ -310,6 +310,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         fastify.prisma.userMute.findMany({
           where: { muterId: userId },
           select: { mutedId: true },
+        }),
+        // Get muted nodes to filter from feed
+        fastify.prisma.nodeMute.findMany({
+          where: { userId },
+          select: { nodeId: true },
         }),
       ]);
 
@@ -332,6 +337,13 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         } else {
           where.authorId = { notIn: excludedUserIds };
         }
+      }
+
+      // Node Mute Enforcement - Hide posts from muted nodes (unless viewing that specific node)
+      const mutedNodeIds = mutedNodes.map((m) => m.nodeId);
+      if (mutedNodeIds.length > 0 && !nodeId) {
+        // Only filter muted nodes when viewing the global feed, not when viewing a specific node
+        where.nodeId = { notIn: mutedNodeIds };
       }
 
       // Fetch posts with metrics for scoring

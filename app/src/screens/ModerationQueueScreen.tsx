@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { api } from '../lib/api';
@@ -31,7 +32,7 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
             setItems(response.items);
         } catch (error) {
             console.error('Failed to fetch mod queue:', error);
-            Alert.alert('Error', 'Failed to fetch moderation queue');
+            showAlert('Error', 'Failed to fetch moderation queue');
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -47,10 +48,10 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
             await api.post(`/api/v1/mod/queue/${itemId}/resolve`, { action });
             // Optimistic update
             setItems(prev => prev.filter(item => item.id !== itemId));
-            Alert.alert('Success', `Item ${action}`);
+            showAlert('Success', `Item ${action}`);
         } catch (error) {
             console.error('Failed to resolve item:', error);
-            Alert.alert('Error', 'Failed to resolve item');
+            showAlert('Error', 'Failed to resolve item');
         }
     };
 

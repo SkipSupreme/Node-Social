@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import { api } from '../lib/api';
@@ -40,7 +41,7 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
             setPresets(response.presets);
         } catch (error) {
             console.error('Failed to fetch marketplace:', error);
-            Alert.alert('Error', 'Failed to load marketplace');
+            showAlert('Error', 'Failed to load marketplace');
         } finally {
             setLoading(false);
         }
@@ -50,12 +51,12 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
         setInstalling(preset.id);
         try {
             await api.post(`/presets/${preset.id}/install`, {});
-            Alert.alert('Success', `Installed "${preset.name}"`);
+            showAlert('Success', `Installed "${preset.name}"`);
             onInstall(preset);
             onClose();
         } catch (error) {
             console.error('Failed to install preset:', error);
-            Alert.alert('Error', 'Failed to install preset');
+            showAlert('Error', 'Failed to install preset');
         } finally {
             setInstalling(null);
         }
