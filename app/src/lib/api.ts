@@ -1085,7 +1085,7 @@ export type ReportReason = 'spam' | 'harassment' | 'hate_speech' | 'misinformati
 export type ReportTargetType = 'post' | 'comment' | 'user';
 
 export function reportContent(targetType: ReportTargetType, targetId: string, reason: ReportReason, details?: string) {
-  return request<{ message: string; reportId: string }>('/reports', {
+  return request<{ message: string; reportId: string }>('/api/v1/reports', {
     method: "POST",
     body: JSON.stringify({ targetType, targetId, reason, details }),
   });

@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, Modal, TextInput, Platform } from 'react-native';
 import { showAlert } from '../lib/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, X } from 'lucide-react-native';
 import { api } from '../lib/api';
 import { PostCard } from '../components/PostCard';
 import { COLORS } from '../constants/theme';
@@ -21,10 +21,20 @@ interface ModerationQueueScreenProps {
     onBack: () => void;
 }
 
+type ActionType = 'approved' | 'removed' | 'warned' | 'banned';
+
+interface PendingAction {
+    itemId: string;
+    action: ActionType;
+}
+
 export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) => {
     const [items, setItems] = useState<ModQueueItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
+    const [reasonModalVisible, setReasonModalVisible] = useState(false);
+    const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+    const [reason, setReason] = useState('');
 
     const fetchQueue = async () => {
         try {
@@ -43,15 +53,60 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
         fetchQueue();
     }, []);
 
-    const handleResolve = async (itemId: string, action: 'approved' | 'removed' | 'warned' | 'banned') => {
+    const handleResolve = (itemId: string, action: ActionType) => {
+        if (action === 'approved') {
+            // Approve doesn't need a reason
+            executeAction(itemId, action);
+        } else {
+            // Remove, warn, ban need a reason
+            setPendingAction({ itemId, action });
+            setReason('');
+            setReasonModalVisible(true);
+        }
+    };
+
+    const executeAction = async (itemId: string, action: ActionType, actionReason?: string) => {
         try {
-            await api.post(`/api/v1/mod/queue/${itemId}/resolve`, { action });
+            await api.post(`/api/v1/mod/queue/${itemId}/resolve`, { action, reason: actionReason });
             // Optimistic update
             setItems(prev => prev.filter(item => item.id !== itemId));
-            showAlert('Success', `Item ${action}`);
+
+            const messages: Record<ActionType, string> = {
+                approved: 'Post approved',
+                removed: 'Post removed and author notified',
+                warned: 'Warning sent to author',
+                banned: 'User banned from node',
+            };
+            showAlert('Success', messages[action]);
         } catch (error) {
             console.error('Failed to resolve item:', error);
             showAlert('Error', 'Failed to resolve item');
+        }
+    };
+
+    const handleSubmitAction = () => {
+        if (!pendingAction) return;
+        setReasonModalVisible(false);
+        executeAction(pendingAction.itemId, pendingAction.action, reason);
+        setPendingAction(null);
+        setReason('');
+    };
+
+    const getActionTitle = (action?: ActionType) => {
+        switch (action) {
+            case 'removed': return 'Remove Post';
+            case 'warned': return 'Warn User';
+            case 'banned': return 'Ban User';
+            default: return 'Take Action';
+        }
+    };
+
+    const getReasonPlaceholder = (action?: ActionType) => {
+        switch (action) {
+            case 'removed': return 'Reason for removal (e.g., "Violates community guidelines")';
+            case 'warned': return 'Warning message (e.g., "Please be respectful to other users")';
+            case 'banned': return 'Reason for ban (e.g., "Repeated violations of community rules")';
+            default: return 'Enter reason...';
         }
     };
 
@@ -138,6 +193,75 @@ export const ModerationQueueScreen = ({ onBack }: ModerationQueueScreenProps) =>
                     }
                 />
             )}
+
+            {/* Reason Modal */}
+            <Modal
+                visible={reasonModalVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setReasonModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContent, { backgroundColor: COLORS.node.bg }]}>
+                        <View style={styles.modalHeader}>
+                            <Text style={[styles.modalTitle, { color: COLORS.node.text }]}>
+                                {getActionTitle(pendingAction?.action)}
+                            </Text>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setReasonModalVisible(false);
+                                    setPendingAction(null);
+                                }}
+                                style={styles.modalClose}
+                            >
+                                <X size={20} color={COLORS.node.muted} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.modalLabel, { color: COLORS.node.muted }]}>
+                            {pendingAction?.action === 'warned'
+                                ? 'This message will be sent to the user as a notification:'
+                                : 'Provide a reason for this action:'}
+                        </Text>
+
+                        <TextInput
+                            style={[styles.reasonInput, { color: COLORS.node.text, borderColor: COLORS.node.border }]}
+                            value={reason}
+                            onChangeText={setReason}
+                            placeholder={getReasonPlaceholder(pendingAction?.action)}
+                            placeholderTextColor={COLORS.node.muted}
+                            multiline
+                            numberOfLines={3}
+                            textAlignVertical="top"
+                        />
+
+                        <View style={styles.modalActions}>
+                            <TouchableOpacity
+                                style={[styles.modalButton, styles.cancelButton]}
+                                onPress={() => {
+                                    setReasonModalVisible(false);
+                                    setPendingAction(null);
+                                }}
+                            >
+                                <Text style={[styles.cancelButtonText, { color: COLORS.node.muted }]}>Cancel</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.modalButton,
+                                    styles.submitButton,
+                                    { backgroundColor: pendingAction?.action === 'warned' ? '#FF9800' : '#F44336' }
+                                ]}
+                                onPress={handleSubmitAction}
+                            >
+                                <Text style={styles.submitButtonText}>
+                                    {pendingAction?.action === 'warned' ? 'Send Warning' :
+                                     pendingAction?.action === 'banned' ? 'Ban User' : 'Remove Post'}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -221,5 +345,69 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         marginTop: 40,
         fontSize: 16,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+    },
+    modalContent: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 16,
+        padding: 20,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: 'bold',
+    },
+    modalClose: {
+        padding: 4,
+    },
+    modalLabel: {
+        fontSize: 14,
+        marginBottom: 12,
+    },
+    reasonInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        padding: 12,
+        fontSize: 14,
+        minHeight: 80,
+        backgroundColor: COLORS.node.panel,
+    },
+    modalActions: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 12,
+        marginTop: 16,
+    },
+    modalButton: {
+        paddingVertical: 10,
+        paddingHorizontal: 20,
+        borderRadius: 8,
+    },
+    cancelButton: {
+        backgroundColor: COLORS.node.panel,
+    },
+    cancelButtonText: {
+        fontWeight: '600',
+    },
+    submitButton: {
+        backgroundColor: '#F44336',
+    },
+    submitButtonText: {
+        color: '#fff',
+        fontWeight: 'bold',
     },
 });

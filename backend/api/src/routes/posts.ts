@@ -279,6 +279,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       const where: Prisma.PostWhereInput = {
         deletedAt: null, // Exclude deleted posts
+        visibility: { not: 'removed' }, // Exclude mod-removed posts
       };
 
       if (nodeId) where.nodeId = nodeId;

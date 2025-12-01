@@ -643,7 +643,17 @@ const MainApp = () => {
             ) : currentView === 'beta' ? (
               <BetaTestScreen onBack={() => setCurrentView('feed')} />
             ) : currentView === 'notifications' ? (
-              <NotificationsScreen onBack={() => setCurrentView('feed')} />
+              <NotificationsScreen
+                onBack={() => setCurrentView('feed')}
+                onNavigateToPost={(postId) => {
+                  setViewParams({ postId });
+                  setCurrentView('post-detail');
+                }}
+                onNavigateToUser={(userId) => {
+                  setViewParams({ userId });
+                  setCurrentView('profile');
+                }}
+              />
             ) : currentView === 'saved' ? (
               <SavedPostsScreen onBack={() => setCurrentView('feed')} />
             ) : currentView === 'cred-history' ? (

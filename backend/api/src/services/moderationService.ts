@@ -209,15 +209,82 @@ export class ModerationService {
             // 2. Apply action to Post/User
             if (action === 'removed') {
                 // Soft delete post or mark as hidden
-                // For now, let's assume we have a visibility field or just delete
-                // Schema has `visibility` default "public"
                 await tx.post.update({
                     where: { id: item.postId },
                     data: { visibility: 'removed' }
                 });
+
+                // Notify the author their post was removed
+                const post = await tx.post.findUnique({
+                    where: { id: item.postId },
+                    select: { authorId: true }
+                });
+
+                if (post) {
+                    await tx.notification.create({
+                        data: {
+                            userId: post.authorId,
+                            actorId: resolverId,
+                            type: 'mod_removed',
+                            content: reason || 'Your post was removed by a moderator.',
+                            postId: item.postId,
+                        }
+                    });
+                }
             }
 
-            // TODO: Handle 'warned' and 'banned' (User actions)
+            if (action === 'warned') {
+                // Get the post to find the author
+                const post = await tx.post.findUnique({
+                    where: { id: item.postId },
+                    select: { authorId: true }
+                });
+
+                if (post) {
+                    // Create a warning notification for the user
+                    await tx.notification.create({
+                        data: {
+                            userId: post.authorId,
+                            actorId: resolverId,
+                            type: 'warning',
+                            content: reason || 'You have received a warning from a moderator.',
+                            postId: item.postId,
+                        }
+                    });
+                }
+            }
+
+            if (action === 'banned') {
+                // Get the post to find the author
+                const post = await tx.post.findUnique({
+                    where: { id: item.postId },
+                    select: { authorId: true, nodeId: true }
+                });
+
+                if (post && post.nodeId) {
+                    // Ban user from the node by updating their subscription
+                    await tx.nodeSubscription.updateMany({
+                        where: {
+                            userId: post.authorId,
+                            nodeId: post.nodeId,
+                        },
+                        data: {
+                            role: 'banned',
+                        }
+                    });
+
+                    // Create a ban notification
+                    await tx.notification.create({
+                        data: {
+                            userId: post.authorId,
+                            actorId: resolverId,
+                            type: 'banned',
+                            content: reason || 'You have been banned from this community.',
+                            postId: item.postId,
+                        }
+                    });
+                }
+            }
         });
     }
 }
