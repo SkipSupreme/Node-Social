@@ -3,18 +3,39 @@ import { z } from 'zod';
 import { ModerationService } from '../services/moderationService.js';
 
 const moderationRoutes: FastifyPluginAsync = async (fastify) => {
+  // Helper to check moderator access
+  // Returns: { isSiteMod: boolean, adminNodeIds: string[] }
+  async function getModeratorAccess(userId: string) {
+    const [user, nodeSubscriptions] = await Promise.all([
+      fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { isModerator: true }
+      }),
+      // Get nodes where user is admin or moderator
+      fastify.prisma.nodeSubscription.findMany({
+        where: {
+          userId,
+          role: { in: ['admin', 'moderator'] }
+        },
+        select: { nodeId: true, role: true }
+      })
+    ]);
+
+    return {
+      isSiteMod: user?.isModerator ?? false,
+      adminNodeIds: nodeSubscriptions.map(s => s.nodeId)
+    };
+  }
+
   // GET /mod/queue
   fastify.get('/queue', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    // Check if user is a moderator
     const userId = (request.user as { sub: string }).sub;
-    const user = await fastify.prisma.user.findUnique({
-      where: { id: userId },
-      select: { isModerator: true }
-    });
+    const { isSiteMod, adminNodeIds } = await getModeratorAccess(userId);
 
-    if (!user?.isModerator) {
+    // Must be site mod OR admin of at least one node
+    if (!isSiteMod && adminNodeIds.length === 0) {
       return reply.status(403).send({ error: 'Forbidden: Moderator access required' });
     }
 
@@ -30,13 +51,32 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid query parameters', details: parsed.error });
     }
 
-    const { nodeId, status, limit, cursor } = parsed.data;
+    let { nodeId, status, limit, cursor } = parsed.data;
+
+    // If not a site mod, restrict to their admin nodes
+    if (!isSiteMod) {
+      if (nodeId) {
+        // If requesting a specific node, verify they have access
+        if (!adminNodeIds.includes(nodeId)) {
+          return reply.status(403).send({ error: 'Forbidden: You are not a moderator of this node' });
+        }
+      } else {
+        // No specific node requested - we'll filter to their nodes in the service
+        // For now, just get the first node they admin (TODO: support multiple nodes)
+        nodeId = adminNodeIds[0];
+      }
+    }
 
     const items = await ModerationService.getModQueue(nodeId, status, limit, cursor);
 
+    // If not site mod, filter items to only their nodes (extra safety)
+    const filteredItems = isSiteMod
+      ? items
+      : items.filter(item => item.post?.nodeId && adminNodeIds.includes(item.post.nodeId));
+
     return {
-      items,
-      nextCursor: items.length === limit ? items[items.length - 1]?.id : undefined,
+      items: filteredItems,
+      nextCursor: filteredItems.length === limit ? filteredItems[filteredItems.length - 1]?.id : undefined,
     };
   });
 
@@ -44,14 +84,10 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post('/queue/:itemId/resolve', {
     onRequest: [fastify.authenticate]
   }, async (request, reply) => {
-    // Check if user is a moderator
     const userId = (request.user as { sub: string }).sub;
-    const user = await fastify.prisma.user.findUnique({
-      where: { id: userId },
-      select: { isModerator: true }
-    });
+    const { isSiteMod, adminNodeIds } = await getModeratorAccess(userId);
 
-    if (!user?.isModerator) {
+    if (!isSiteMod && adminNodeIds.length === 0) {
       return reply.status(403).send({ error: 'Forbidden: Moderator access required' });
     }
 
@@ -76,6 +112,22 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
 
     const { itemId } = parsedParams.data;
     const { action, reason } = parsedBody.data;
+
+    // If not site mod, verify they have access to this item's node
+    if (!isSiteMod) {
+      const item = await fastify.prisma.modQueueItem.findUnique({
+        where: { id: itemId },
+        include: { post: { select: { nodeId: true } } }
+      });
+
+      if (!item) {
+        return reply.status(404).send({ error: 'Mod queue item not found' });
+      }
+
+      if (item.post?.nodeId && !adminNodeIds.includes(item.post.nodeId)) {
+        return reply.status(403).send({ error: 'Forbidden: You are not a moderator of this node' });
+      }
+    }
 
     await ModerationService.resolveItem(itemId, userId, action, reason);
 
