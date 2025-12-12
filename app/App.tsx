@@ -655,9 +655,10 @@ const MainApp = () => {
       }
 
       // Map the raw post to the UI format
+      // Use null (not undefined) for missing node ID to match postNodeId above
       const mappedPost = {
         id: newPost.id,
-        node: { id: newPost.node?.id, name: newPost.node?.name || 'Global', slug: newPost.node?.slug || 'global', color: '#6366f1' },
+        node: { id: postNodeId, name: newPost.node?.name || 'Global', slug: newPost.node?.slug || 'global', color: '#6366f1' },
         author: {
           id: newPost.author.id,
           username: newPost.author.username || 'User',

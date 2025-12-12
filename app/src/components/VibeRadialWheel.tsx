@@ -133,6 +133,12 @@ export const VibeRadialWheel = ({
             return;
         }
 
+        // Validate targetId before making API call
+        if (!targetId) {
+            console.error('[VibeRadialWheel] Cannot submit reaction: no contentId or postId provided');
+            return;
+        }
+
         try {
             // Convert intensities from 0-100 to 0-1 range for API
             // Only include nodeId if it's a valid UUID (backend will default to global otherwise)
@@ -155,9 +161,9 @@ export const VibeRadialWheel = ({
 
             let result;
             if (contentType === 'comment') {
-                result = await createCommentReaction(targetId!, intensityData);
+                result = await createCommentReaction(targetId, intensityData);
             } else {
-                result = await createPostReaction(targetId!, intensityData);
+                result = await createPostReaction(targetId, intensityData);
             }
             onComplete?.(finalIntensities);
         } catch (error: any) {
