@@ -897,3 +897,75 @@ model AppealVote {
   @@index([appealId])
   @@map("appeal_votes")
 }
+
+// ============================================
+// CONTENT CURATOR SYSTEM
+// ============================================
+
+// Staging area for harvested content
+model CurationQueue {
+  id            String   @id @default(uuid())
+
+  // Source info
+  sourceType    String   // "reddit" | "hackernews" | "bluesky" | "rss" | "youtube"
+  sourceId      String   // Original post ID from source (for dedup)
+  sourceUrl     String   // Link back to original
+  sourceScore   Int?     // Upvotes/points from source platform
+  subreddit     String?  // For Reddit: which subreddit
+
+  // Content
+  title         String
+  content       String?  @db.Text // Body text or description
+  linkUrl       String?  // External link if it's a link post
+  mediaUrl      String?  // Image/video URL if applicable
+
+  // Curation
+  suggestedNode String?  // Which node slug this might belong to
+  aiScore       Int?     // 1-10 score from Claude
+  aiReason      String?  @db.Text // Why Claude scored it this way
+  status        String   @default("pending") // "pending" | "approved" | "rejected" | "posted"
+
+  // Hybrid mode
+  confidence    Float?   // How confident Claude is (0-1)
+  needsReview   Boolean  @default(false)
+
+  // Metadata
+  createdAt     DateTime @default(now())
+  curatedAt     DateTime?
+  postedAt      DateTime?
+  postedById    String?  // Which bot user posted it
+  postId        String?  // Resulting Post ID if posted
+
+  feedback      CurationFeedback[]
+
+  @@unique([sourceType, sourceId])
+  @@index([status, createdAt])
+  @@index([needsReview, status])
+  @@index([suggestedNode])
+  @@map("curation_queue")
+}
+
+// Track pagination cursors per source
+model HarvestCursor {
+  id          String   @id @default(uuid())
+  sourceType  String   @unique // "reddit:r/technology" | "hackernews" | etc
+  lastSeenId  String?  // Last item ID we processed
+  lastRunAt   DateTime @default(now())
+  metadata    Json?    // Additional cursor data (e.g., after tokens)
+
+  @@map("harvest_cursors")
+}
+
+// Track Q's feedback for learning
+model CurationFeedback {
+  id            String   @id @default(uuid())
+  queueItemId   String
+  queueItem     CurationQueue @relation(fields: [queueItemId], references: [id], onDelete: Cascade)
+  decision      String   // "approved" | "rejected"
+  reason        String?  // "clickbait" | "boring" | "wrong-node" | "duplicate" | "valuable"
+  createdAt     DateTime @default(now())
+
+  @@index([queueItemId])
+  @@index([createdAt])
+  @@map("curation_feedback")
+}
