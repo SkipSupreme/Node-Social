@@ -472,6 +472,7 @@ const MainApp = () => {
         poll: p.poll,
         myReaction: p.myReaction,
         vibeAggregate: p.vibeAggregate,
+        isSaved: p.isSaved ?? false,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -574,6 +575,7 @@ const MainApp = () => {
         poll: p.poll,
         myReaction: p.myReaction,
         vibeAggregate: p.vibeAggregate,
+        isSaved: p.isSaved ?? false,
         comments: p.comments?.map((c: any) => ({
           id: c.id,
           author: {
@@ -660,6 +662,7 @@ const MainApp = () => {
         poll: newPost.poll,
         myReaction: null,
         vibeAggregate: null, // New posts start with no aggregate
+        isSaved: false, // New posts start unsaved
         comments: []
       };
 
@@ -836,6 +839,12 @@ const MainApp = () => {
                   onPostClick={handlePostClick}
                   onAuthorClick={(authorId) => {
                     navigateTo('profile', { userId: authorId });
+                  }}
+                  onSaveToggle={(postId, saved) => {
+                    // Update post's saved state in feed
+                    setPosts(prev => prev.map(p =>
+                      p.id === postId ? { ...p, isSaved: saved } : p
+                    ));
                   }}
                   globalNodeId={nodes.find(n => n.slug === 'global')?.id}
                   onScroll={!isDesktop ? handleScroll : undefined}
