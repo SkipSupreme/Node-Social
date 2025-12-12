@@ -42,7 +42,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const handleVote = async (optionId: string) => {
     if (voting || !post.poll) return;
 
-    const hasVoted = post.poll.votes && post.poll.votes.length > 0;
+    const hasVoted = post.poll?.votes?.length > 0;
     if (hasVoted) return; // Already voted
 
     // Save current state for revert (deep copy to avoid mutation)

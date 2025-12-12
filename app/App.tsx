@@ -947,7 +947,7 @@ const MainApp = () => {
               <ModLogScreen
                 nodeId={selectedNodeId}
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Node'}
-                onBack={() => setCurrentView('nodeLanding')}
+                onBack={() => setCurrentView('feed')}
               />
             ) : null}
 
