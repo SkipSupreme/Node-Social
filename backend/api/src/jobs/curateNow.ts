@@ -32,15 +32,25 @@ function getSourceAttribution(item: any): string {
   return '📡 curated';
 }
 
-function cleanTitle(title: string): string {
-  return title
+function cleanText(text: string): string {
+  return text
+    // Strip HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Fix HTML entities
     .replace(/&#8216;|&#8217;/g, "'")
     .replace(/&#8220;|&#8221;/g, '"')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
-    .replace(/🤯/g, '')
+    .replace(/&nbsp;/g, ' ')
     .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    // Remove emojis that don't render well
+    .replace(/🤯/g, '')
+    // Clean up CDATA
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    // Clean up multiple whitespace
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
@@ -165,44 +175,52 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     reasons.push('shopping/gift content');
   }
 
-  // Fix miscategorized items
+  // Fix miscategorized items - USE SUBREDDIT AS PRIMARY SOURCE OF TRUTH
   let correctNode = item.suggestedNode;
+  const subreddit = item.subreddit?.toLowerCase();
 
-  // MTG content
-  if (/magic.*gathering|mtg|commander|edh|mana|spell|creature type|magictcg/.test(combined) || item.subreddit === 'magicTCG') {
+  // Subreddit-based categorization (most reliable)
+  if (subreddit === 'magictcg' || subreddit === 'magicarena' || subreddit === 'edh' || subreddit === 'modernmagic' || subreddit === 'competitiveedh') {
     correctNode = 'mtg';
-  }
-  // Blender
-  if ((/blender|geometry nodes|sculpting/.test(combined) && item.subreddit === 'blender') || item.subreddit === 'blender') {
+  } else if (subreddit === 'blender' || subreddit === 'blenderhelp' || subreddit === '3dmodeling') {
     correctNode = 'blender';
-  }
-  // Art
-  if (/digital art|painting|watercolour|watercolor|illustration|sketch|drawing|digitalart/.test(combined) || item.subreddit === 'DigitalArt' || item.subreddit === 'Art') {
+  } else if (subreddit === 'digitalart' || subreddit === 'art' || subreddit === 'artporn' || subreddit === 'imaginarylandscapes' || subreddit === 'conceptart') {
     correctNode = 'art';
-  }
-  // Science
-  if ((/study|research|scientists|experiment|protein|cell|brain|physics|chemistry|biology/.test(combined) && !/ai|machine learning/.test(combined)) || item.subreddit === 'science') {
+  } else if (subreddit === 'science' || subreddit === 'everythingscience') {
     correctNode = 'science';
-  }
-  // Programming
-  if (/code|programming|developer|typescript|javascript|python|rust|golang|api|backend|frontend|nextjs|react/.test(combined)) {
+  } else if (subreddit === 'programming' || subreddit === 'learnprogramming' || subreddit === 'webdev' || subreddit === 'javascript' || subreddit === 'typescript' || subreddit === 'rust' || subreddit === 'python') {
     correctNode = 'programming';
-  }
-  // AI (override programming if AI-related)
-  if (/\bai\b|machine learning|llm|gpt|claude|model|training data|neural|chatgpt|openai|singularity/.test(combined) || item.subreddit === 'singularity' || item.subreddit === 'ChatGPT') {
+  } else if (subreddit === 'machinelearning' || subreddit === 'localllama' || subreddit === 'artificial' || subreddit === 'chatgpt' || subreddit === 'claudeai' || subreddit === 'singularity') {
     correctNode = 'ai';
-  }
-  // Technology
-  if (/google|apple|microsoft|meta|android|ios|windows|steamos|startup|tech company/.test(combined) && !correctNode) {
+  } else if (subreddit === 'technology' || subreddit === 'tech' || subreddit === 'gadgets' || subreddit === 'futurology') {
     correctNode = 'technology';
-  }
-  // Godot
-  if (/godot/.test(combined) || item.subreddit === 'godot') {
+  } else if (subreddit === 'godot' || subreddit === 'gamedev' || subreddit === 'indiegaming' || subreddit === 'indiedev') {
     correctNode = 'godot';
-  }
-  // Astronomy
-  if (/space|astronomy|nasa|telescope|planet|star|galaxy|cosmic/.test(combined) || item.subreddit === 'space' || item.subreddit === 'Astronomy') {
+  } else if (subreddit === 'astronomy' || subreddit === 'space' || subreddit === 'astrophotography' || subreddit === 'spacex' || subreddit === 'nasa') {
     correctNode = 'astronomy';
+  } else if (subreddit === 'graphic_design' || subreddit === 'design' || subreddit === 'typography' || subreddit === 'logodesign') {
+    correctNode = 'graphic-design';
+  } else if (subreddit === 'userexperience' || subreddit === 'ui_design' || subreddit === 'uxdesign' || subreddit === 'web_design') {
+    correctNode = 'ui-ux';
+  } else if (subreddit === 'spirituality' || subreddit === 'meditation' || subreddit === 'philosophy' || subreddit === 'stoicism' || subreddit === 'buddhism') {
+    correctNode = 'spirituality';
+  } else if (subreddit === 'math' || subreddit === 'learnmath' || subreddit === 'mathematics' || subreddit === 'matheducation') {
+    correctNode = 'math';
+  }
+
+  // Keyword-based fallback only for non-reddit sources (RSS, Bluesky, HN)
+  if (!subreddit && item.sourceType !== 'reddit') {
+    if (/\bgpt|chatgpt|openai|claude|llm|machine learning|\bai\b|neural|anthropic/.test(combined)) {
+      correctNode = 'ai';
+    } else if (/\bgodot\b|gdscript/.test(combined)) {
+      correctNode = 'godot';
+    } else if (/\bblender\b|geometry nodes/.test(combined)) {
+      correctNode = 'blender';
+    } else if (/programming|typescript|javascript|python|rust|golang|developer|coding/.test(combined)) {
+      correctNode = 'programming';
+    } else if (/nasa|telescope|james webb|jwst|asteroid|galaxy|cosmic|astronomy/.test(combined)) {
+      correctNode = 'astronomy';
+    }
   }
 
   const shouldPost = score >= 7;
@@ -240,10 +258,9 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
       return false;
     }
 
-    const title = cleanTitle(item.title);
-    const attribution = getSourceAttribution(item);
-    let content = item.content ? cleanTitle(item.content.slice(0, 300)) : '';
-    content = (content + '\n\n---\n' + attribution).trim();
+    const title = cleanText(item.title);
+    // Clean content - strip HTML, no attribution (node is already shown in UI)
+    let content = item.content ? cleanText(item.content.slice(0, 500)) : '';
 
     const isVideo = item.linkUrl?.includes('youtube.com') ||
                    item.linkUrl?.includes('youtu.be') ||

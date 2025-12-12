@@ -28,10 +28,10 @@ export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPo
             // Map API posts to UI posts
             const mappedPosts = data.posts.map((p: any) => ({
                 id: p.id,
-                node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
+                node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
                 author: {
                     id: p.author.id,
-                    username: p.author.username || p.author.email.split('@')[0],
+                    username: p.author.username || 'User',
                     avatar: p.author.avatar,
                     era: p.author.era || 'Lurker Era',
                     cred: p.author.cred || 0

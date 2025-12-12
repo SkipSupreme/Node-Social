@@ -94,8 +94,7 @@ const MainApp = () => {
 
   // Handle post click to open detail view
   const handlePostClick = (post: any) => {
-    setViewParams({ postId: post.id });
-    setCurrentView('post-detail');
+    navigateTo('post-detail', { postId: post.id });
   };
 
   // Handle scroll to hide/show header on mobile
@@ -447,7 +446,7 @@ const MainApp = () => {
 
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
-        node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
+        node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
         author: {
           id: p.author.id,
           username: p.author.username || 'User',
@@ -559,7 +558,7 @@ const MainApp = () => {
       const data = await searchPosts(searchQuery);
       const mappedPosts = data.posts.map((p: any) => ({
         id: p.id,
-        node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
+        node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
         author: {
           id: p.author.id,
           username: p.author.username || 'User',
@@ -647,7 +646,7 @@ const MainApp = () => {
       // Map the raw post to the UI format
       const mappedPost = {
         id: newPost.id,
-        node: { id: newPost.node?.id, name: newPost.node?.name || 'Global', color: '#6366f1' },
+        node: { id: newPost.node?.id, name: newPost.node?.name || 'Global', slug: newPost.node?.slug || 'global', color: '#6366f1' },
         author: {
           id: newPost.author.id,
           username: newPost.author.username || 'User',
@@ -720,19 +719,19 @@ const MainApp = () => {
               nodes={nodes}
               isDesktop={true}
               user={user}
-              onProfileClick={() => { setViewParams(null); setCurrentView('profile'); }}
+              onProfileClick={() => navigateTo('profile')}
               selectedNodeId={selectedNodeId}
               onNodeSelect={handleNodeSelect}
               feedMode={feedMode}
               onFeedModeSelect={handleFeedModeSelect}
-              onThemesClick={() => setCurrentView('themes')}
-              onSavedClick={() => setCurrentView('saved')}
-              onBetaClick={() => setCurrentView('beta')}
+              onThemesClick={() => navigateTo('themes')}
+              onSavedClick={() => navigateTo('saved')}
+              onBetaClick={() => navigateTo('beta')}
               onNewPostClick={() => setIsCreatePostOpen(true)}
-              onModerationClick={() => setCurrentView('moderation')}
-              onAppealsClick={() => setCurrentView('appeals')}
-              onCouncilClick={() => setCurrentView('council')}
-              onVouchesClick={() => setCurrentView('vouches')}
+              onModerationClick={() => navigateTo('moderation')}
+              onAppealsClick={() => navigateTo('appeals')}
+              onCouncilClick={() => navigateTo('council')}
+              onVouchesClick={() => navigateTo('vouches')}
               currentView={currentView}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -770,10 +769,10 @@ const MainApp = () => {
 
               {/* Center: Nav Icons */}
               <View style={styles.navIconsDesktop}>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setCurrentView('messages')}>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => navigateTo('messages')}>
                   <MessageSquare size={20} color={COLORS.node.text} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setCurrentView('notifications')}>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => navigateTo('notifications')}>
                   <Bell size={20} color={COLORS.node.text} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setRightPanelOpen(!rightPanelOpen)}>
@@ -859,52 +858,49 @@ const MainApp = () => {
               <ProfileScreen
                 key={viewParams?.userId || 'own-profile'}
                 onBack={goBack}
-                onCredClick={() => setCurrentView('cred-history')}
+                onCredClick={() => navigateTo('cred-history')}
                 userId={viewParams?.userId}
-                onViewTrustGraph={() => setCurrentView('trust-graph')}
+                onViewTrustGraph={() => navigateTo('trust-graph')}
               />
             ) : currentView === 'beta' ? (
-              <BetaTestScreen onBack={() => setCurrentView('feed')} />
+              <BetaTestScreen onBack={goBack} />
             ) : currentView === 'notifications' ? (
               <NotificationsScreen
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onNavigateToPost={(postId) => {
-                  setViewParams({ postId });
-                  setCurrentView('post-detail');
+                  navigateTo('post-detail', { postId });
                 }}
                 onNavigateToUser={(userId) => {
-                  setViewParams({ userId });
-                  setCurrentView('profile');
+                  navigateTo('profile', { userId });
                 }}
               />
             ) : currentView === 'saved' ? (
               <SavedPostsScreen
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onPostClick={handlePostClick}
                 onAuthorClick={(authorId) => navigateTo('profile', { userId: authorId })}
               />
             ) : currentView === 'cred-history' ? (
-              <CredHistoryScreen onBack={() => setCurrentView('profile')} />
+              <CredHistoryScreen onBack={goBack} />
             ) : currentView === 'themes' ? (
-              <ThemesScreen onBack={() => setCurrentView('feed')} />
+              <ThemesScreen onBack={goBack} />
             ) : currentView === 'messages' ? (
               <MessagesScreen
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onNavigate={(screen, params) => {
-                  setCurrentView(screen as any);
-                  setViewParams(params);
+                  navigateTo(screen as typeof currentView, params);
                 }}
               />
             ) : currentView === 'chat' ? (
               <ChatScreen
-                onBack={() => setCurrentView('messages')}
+                onBack={goBack}
                 conversationId={viewParams?.conversationId}
                 recipient={viewParams?.recipient}
               />
             ) : currentView === 'discovery' ? (
-              <DiscoveryScreen onBack={() => setCurrentView('feed')} onPostClick={handlePostClick} />
+              <DiscoveryScreen onBack={goBack} onPostClick={handlePostClick} />
             ) : currentView === 'following' ? (
-              <FollowingScreen onBack={() => setCurrentView('feed')} onPostClick={handlePostClick} />
+              <FollowingScreen onBack={goBack} onPostClick={handlePostClick} />
             ) : currentView === 'post-detail' ? (
               <PostDetailScreen
                 postId={viewParams?.postId}
@@ -920,38 +916,37 @@ const MainApp = () => {
                 }}
               />
             ) : currentView === 'moderation' ? (
-              <ModerationQueueScreen onBack={() => setCurrentView('feed')} />
+              <ModerationQueueScreen onBack={goBack} />
             ) : currentView === 'appeals' ? (
-              <AppealsScreen onBack={() => setCurrentView('feed')} />
+              <AppealsScreen onBack={goBack} />
             ) : currentView === 'council' ? (
               <NodeCouncilScreen
                 nodeId={selectedNodeId || 'global'}
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Global'}
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
               />
             ) : currentView === 'vouches' ? (
               <MyVouchesScreen
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onViewProfile={(userId) => {
-                  setViewParams({ userId });
-                  setCurrentView('profile');
+                  navigateTo('profile', { userId });
                 }}
               />
             ) : currentView === 'trust-graph' ? (
               <WebOfTrustScreen
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 userId={viewParams?.userId}
               />
             ) : currentView === 'nodeSettings' && selectedNodeId ? (
               <NodeSettingsScreen
                 nodeId={selectedNodeId}
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
               />
             ) : currentView === 'modLog' && selectedNodeId ? (
               <ModLogScreen
                 nodeId={selectedNodeId}
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Node'}
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
               />
             ) : null}
 
@@ -965,20 +960,19 @@ const MainApp = () => {
               <NodeLandingPage
                 nodeId={selectedNodeId}
                 onNavigateToSettings={() => {
-                  setCurrentView('nodeSettings');
+                  navigateTo('nodeSettings');
                 }}
                 onNavigateToModLog={() => {
-                  setCurrentView('modLog');
+                  navigateTo('modLog');
                 }}
                 onMessageCouncil={() => {
-                  setCurrentView('council');
+                  navigateTo('council');
                 }}
                 onStartChat={async (userId) => {
                   try {
                     const { startConversation } = await import('./src/lib/api');
                     const conversation = await startConversation(userId);
-                    setViewParams({ conversationId: conversation.id });
-                    setCurrentView('chat');
+                    navigateTo('chat', { conversationId: conversation.id });
                   } catch (error) {
                     console.error('Failed to start conversation:', error);
                   }
@@ -1018,8 +1012,7 @@ const MainApp = () => {
                 user={user}
                 onProfileClick={() => {
                   setMenuVisible(false);
-                  setViewParams(null);
-                  setCurrentView('profile');
+                  navigateTo('profile');
                 }}
                 selectedNodeId={selectedNodeId}
                 onNodeSelect={handleNodeSelect}
@@ -1027,31 +1020,31 @@ const MainApp = () => {
                 onFeedModeSelect={handleFeedModeSelect}
                 onThemesClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('themes');
+                  navigateTo('themes');
                 }}
                 onSavedClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('saved');
+                  navigateTo('saved');
                 }}
                 onBetaClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('beta');
+                  navigateTo('beta');
                 }}
                 onModerationClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('moderation');
+                  navigateTo('moderation');
                 }}
                 onAppealsClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('appeals');
+                  navigateTo('appeals');
                 }}
                 onCouncilClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('council');
+                  navigateTo('council');
                 }}
                 onVouchesClick={() => {
                   setMenuVisible(false);
-                  setCurrentView('vouches');
+                  navigateTo('vouches');
                 }}
                 currentView={currentView}
               />

@@ -156,7 +156,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
       )}
 
       {post.content && (
-        <Text style={styles.content} numberOfLines={5}>
+        <Text style={styles.content} numberOfLines={post.content.length > 6000 ? 20 : undefined}>
           {post.content}
         </Text>
       )}
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
     marginBottom: 12,
-    color: COLORS.node.text,
+    color: '#e2e8f0', // Brighter than muted, good contrast on dark bg
   },
   pollContainer: {
     marginTop: 8,
