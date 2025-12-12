@@ -50,7 +50,10 @@ function describeWedge(x: number, y: number, startRadius: number, endRadius: num
 }
 
 interface VibeRadialWheelProps {
-    postId: string;
+    /** ID of the content (post ID when contentType='post', comment ID when contentType='comment') */
+    contentId: string;
+    /** @deprecated Use contentId instead */
+    postId?: string;
     nodeId?: string;
     initialReaction?: { [key: string]: number } | null;
     onComplete?: (intensities: Record<string, number>) => void;
@@ -77,7 +80,8 @@ const getIntensitiesFromReaction = (reaction: { [key: string]: number } | null |
 };
 
 export const VibeRadialWheel = ({
-    postId,
+    contentId,
+    postId, // deprecated, use contentId
     nodeId = 'global',
     initialReaction,
     onComplete,
@@ -85,6 +89,8 @@ export const VibeRadialWheel = ({
     compact = false,
     contentType = 'post'
 }: VibeRadialWheelProps) => {
+    // Support both contentId (new) and postId (deprecated) for backwards compatibility
+    const targetId = contentId || postId;
     const [isActive, setIsActive] = useState(false);
     const [center, setCenter] = useState({ x: 0, y: 0 });
     const [drag, setDrag] = useState({ x: 0, y: 0 });
@@ -149,9 +155,9 @@ export const VibeRadialWheel = ({
 
             let result;
             if (contentType === 'comment') {
-                result = await createCommentReaction(postId, intensityData);
+                result = await createCommentReaction(targetId!, intensityData);
             } else {
-                result = await createPostReaction(postId, intensityData);
+                result = await createPostReaction(targetId!, intensityData);
             }
             onComplete?.(finalIntensities);
         } catch (error: any) {

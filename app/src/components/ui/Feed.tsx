@@ -525,7 +525,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
                         <View style={styles.actionRow}>
                             <VibeRadialWheel
                                 key={`${comment.id}-${comment.myReaction ? 'reacted' : 'none'}`}
-                                postId={comment.id}
+                                contentId={comment.id}
                                 nodeId={globalNodeId}
                                 initialReaction={comment.myReaction}
                                 buttonLabel=""
@@ -1076,7 +1076,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
 
                     {/* Vibe button with radial wheel */}
                     <VibeRadialWheel
-                        postId={post.id}
+                        contentId={post.id}
                         nodeId={post.node.id || globalNodeId}
                         initialReaction={post.myReaction}
                         buttonLabel="Vibe"

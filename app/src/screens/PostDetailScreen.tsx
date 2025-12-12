@@ -476,7 +476,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
 
               <VibeRadialWheel
                 key={`${item.id}-${item.myReaction ? 'reacted' : 'none'}`}
-                postId={item.id}
+                contentId={item.id}
                 nodeId="global"
                 initialReaction={item.myReaction}
                 buttonLabel=""
@@ -632,7 +632,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
           {/* Action bar */}
           <View style={styles.postActions}>
             <VibeRadialWheel
-              postId={post.id}
+              contentId={post.id}
               nodeId={post.node?.id || "global"}
               initialReaction={post.myReaction}
               buttonLabel="Vibe"

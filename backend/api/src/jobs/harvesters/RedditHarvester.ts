@@ -60,7 +60,8 @@ export class RedditHarvester extends BaseHarvester {
         const url = `https://www.reddit.com/r/${subreddit}/hot.json?limit=25`;
         const response = await fetch(url, {
           headers: {
-            'User-Agent': 'NodeSocial/1.0 (Content Curator)',
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json',
           },
         });
 
