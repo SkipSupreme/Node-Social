@@ -119,7 +119,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
           {/* Author info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorRow}>
-              <Text style={styles.author}>@{post.author.username || post.author.email.split("@")[0]}</Text>
+              <Text style={styles.author}>@{post.author.username || 'User'}</Text>
               {/* Cred badge */}
               {post.author.cred !== undefined && post.author.cred > 0 && (
                 <View style={styles.credBadge}>

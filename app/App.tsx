@@ -591,7 +591,9 @@ const MainApp = () => {
       await fetchNodes();
       await loadFeedPreferences();
       setSettingsInitialized(true);
-      // fetchFeed will be called by the algoSettings effect after preferences load
+      // Explicitly fetch feed after settings are loaded - don't rely solely on
+      // the debounced effect since algoSettings might not change if defaults match
+      fetchFeed(null, 'global');
     };
     init();
   }, []);
