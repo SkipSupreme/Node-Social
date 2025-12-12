@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { MessageSquare, BarChart2, Hexagon, Zap } from "lucide-react-native";
 import { Post, votePoll } from "../lib/api";
@@ -35,12 +35,17 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const [voting, setVoting] = useState(false);
 
   // Sync local state when initialPost prop changes (e.g., from socket updates or refetch)
-  // Skip sync while voting to preserve optimistic update during API call
+  // Use a ref to check voting state without adding it as a dependency - we only want
+  // this effect to run when initialPost changes, not when voting state changes
+  const votingRef = useRef(voting);
+  votingRef.current = voting;
+
   useEffect(() => {
-    if (!voting) {
+    // Skip sync while voting to preserve optimistic update during API call
+    if (!votingRef.current) {
       setPost(initialPost);
     }
-  }, [initialPost, voting]);
+  }, [initialPost]);
 
   const handleVote = async (optionId: string) => {
     if (voting || !post.poll) return;

@@ -90,6 +90,10 @@ model User {
   appealsCreated  Appeal[]      @relation("AppealAppellant")
   jurorDuties     AppealJuror[] @relation("AppealJuror")
   appealVotes     AppealVote[]  @relation("AppealVoter")
+
+  // Bot Configuration (Content Curator)
+  isBot         Boolean  @default(false)
+  botConfig     Json?    // { persona: "TechDigest", nodeSlug: "technology", nodeId: "..." }
 }
 
 model Notification {

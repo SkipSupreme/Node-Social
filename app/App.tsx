@@ -394,32 +394,39 @@ const MainApp = () => {
   // Refs to track latest values for the debounced effect (avoids stale closures)
   const feedModeRef = useRef(feedMode);
   const selectedNodeIdRef = useRef(selectedNodeId);
-  
+  const algoSettingsRef = useRef(algoSettings);
+
   // Keep refs in sync with state
   useEffect(() => {
     feedModeRef.current = feedMode;
   }, [feedMode]);
-  
+
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
   }, [selectedNodeId]);
 
+  useEffect(() => {
+    algoSettingsRef.current = algoSettings;
+  }, [algoSettings]);
+
   const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
+    // Use ref to get latest algoSettings to avoid stale closure issues during initialization
+    const settings = algoSettingsRef.current;
     console.log('[fetchFeed] Called with:', { nodeId, mode });
     setLoading(true);
     try {
       const params: any = {
         nodeId: nodeId || undefined,
-        qualityWeight: algoSettings.weights.quality,
-        recencyWeight: algoSettings.weights.recency,
-        engagementWeight: algoSettings.weights.engagement,
-        personalizationWeight: algoSettings.weights.personalization,
+        qualityWeight: settings.weights.quality,
+        recencyWeight: settings.weights.recency,
+        engagementWeight: settings.weights.engagement,
+        personalizationWeight: settings.weights.personalization,
         // Pass intermediate filters from algoSettings
-        timeRange: algoSettings.intermediate?.timeRange,
-        textOnly: algoSettings.intermediate?.textOnly,
-        mediaOnly: algoSettings.intermediate?.mediaOnly,
-        linksOnly: algoSettings.intermediate?.linksOnly,
-        hasDiscussion: algoSettings.intermediate?.hasDiscussion,
+        timeRange: settings.intermediate?.timeRange,
+        textOnly: settings.intermediate?.textOnly,
+        mediaOnly: settings.intermediate?.mediaOnly,
+        linksOnly: settings.intermediate?.linksOnly,
+        hasDiscussion: settings.intermediate?.hasDiscussion,
       };
 
       if (mode === 'discovery') {
