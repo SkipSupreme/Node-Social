@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal, Pressable } from 'react-native';
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
+import { Portal } from '@gorhom/portal';
 import { Hexagon, Lightbulb, Smile, Flame, Heart, Zap, HelpCircle } from './ui/Icons';
 import { COLORS } from '../constants/theme';
 import { createPostReaction, createCommentReaction } from '../lib/api';
@@ -205,7 +206,8 @@ export const VibeRadialWheel = ({
 
         const handleMouseMove = (e: MouseEvent) => {
             if (!isDraggingRef.current) return;
-            handleMoveLogic(e.pageX, e.pageY);
+            // Use clientX/clientY for viewport-relative coordinates (fixed overlay)
+            handleMoveLogic(e.clientX, e.clientY);
         };
 
         const handleMouseUp = () => {
@@ -227,18 +229,22 @@ export const VibeRadialWheel = ({
     const handleWebMouseDown = (e: any) => {
         if (Platform.OS !== 'web') return;
         e.preventDefault();
-        const pageX = e.nativeEvent?.pageX ?? e.pageX;
-        const pageY = e.nativeEvent?.pageY ?? e.pageY;
+        // Use clientX/clientY for viewport-relative coordinates (fixed overlay)
+        const clientX = e.nativeEvent?.clientX ?? e.clientX;
+        const clientY = e.nativeEvent?.clientY ?? e.clientY;
 
-        centerRef.current = { x: pageX, y: pageY };
-        setCenter({ x: pageX, y: pageY });
-        setDrag({ x: pageX, y: pageY });
+        centerRef.current = { x: clientX, y: clientY };
+        setCenter({ x: clientX, y: clientY });
+        setDrag({ x: clientX, y: clientY });
         setIsActive(true);
         isDraggingRef.current = true;
     };
 
     const panResponder = useRef(
         PanResponder.create({
+            // Capture phase - claim gesture before ScrollView can
+            onStartShouldSetPanResponderCapture: () => true,
+            onMoveShouldSetPanResponderCapture: () => true,
             onStartShouldSetPanResponder: () => true,
             onMoveShouldSetPanResponder: () => true,
             onPanResponderGrant: (evt) => {
@@ -282,6 +288,8 @@ export const VibeRadialWheel = ({
             onPanResponderTerminate: () => {
                 setIsActive(false);
             },
+            // Don't let ScrollView steal our gesture
+            onPanResponderTerminationRequest: () => false,
         })
     ).current;
 
@@ -318,12 +326,13 @@ export const VibeRadialWheel = ({
                 </TouchableOpacity>
             </View>
 
-            {/* Radial Wheel Overlay */}
+            {/* Radial Wheel Overlay - Portal renders at root level to escape parent z-index */}
             {isActive && (
-                Platform.OS === 'web' ? (
-                    // Web: Use fixed positioning to avoid scroll jump from Modal
-                    <View style={styles.webOverlay} pointerEvents="box-none">
-                        <Pressable style={StyleSheet.absoluteFill} onPress={() => setIsActive(false)} />
+                <Portal hostName="radialWheel">
+                {Platform.OS === 'web' ? (
+                    // Web: Use fixed positioning
+                    <View style={styles.webOverlay}>
+                        <Pressable style={styles.backdrop} onPress={() => setIsActive(false)} />
                         <View style={styles.overlay} pointerEvents="box-none">
                             <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
                                 {/* Connection Line */}
@@ -432,9 +441,11 @@ export const VibeRadialWheel = ({
                         </View>
                     </View>
                 ) : (
-                    // Native: Use Modal for proper overlay behavior
-                    <Modal transparent visible={isActive} animationType="none">
-                        <View style={styles.overlay} pointerEvents="box-none">
+                    // Native: Use Modal with gesture capture to prevent ScrollView interference
+                    <Modal transparent visible={isActive} animationType="none" onRequestClose={() => setIsActive(false)}>
+                        <View style={styles.overlay} {...panResponder.panHandlers}>
+                            {/* Invisible backdrop - tap outside radial to dismiss */}
+                            <Pressable style={styles.backdrop} onPress={() => setIsActive(false)} />
                             <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
                                 {/* Connection Line */}
                                 <Line
@@ -541,7 +552,8 @@ export const VibeRadialWheel = ({
                             </View>
                         </View>
                     </Modal>
-                )
+                )}
+                </Portal>
             )}
         </View>
     );
@@ -552,12 +564,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        paddingHorizontal: 16,
+        paddingHorizontal: 14,
         paddingVertical: 8,
         backgroundColor: COLORS.node.panel,
         borderWidth: 1,
         borderColor: COLORS.node.border,
-        borderRadius: 999,
+        borderRadius: 8,
     },
     triggerText: {
         fontSize: 14,
@@ -570,13 +582,13 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         bottom: 0,
-        zIndex: 9999,
+    },
+    backdrop: {
+        ...StyleSheet.absoluteFillObject,
         backgroundColor: 'transparent',
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        zIndex: 9999,
-        elevation: 9999,
     },
     helperTextContainer: {
         position: 'absolute',

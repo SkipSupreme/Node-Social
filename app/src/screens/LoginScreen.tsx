@@ -351,7 +351,7 @@ export const LoginScreen: React.FC<{
         >
           {/* Animated Logo with glow */}
           <View style={styles.logoContainer}>
-            <AuthLogo size={52} />
+            <AuthLogo size={72} />
           </View>
 
           <View style={styles.header}>

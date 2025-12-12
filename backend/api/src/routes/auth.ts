@@ -47,6 +47,10 @@ const baseUserSelect = {
   theme: true,
   bannerColor: true,
   bannerImage: true,
+  location: true,
+  website: true,
+  role: true,
+  customCss: true,
 } as const;
 const isProd = process.env.NODE_ENV === 'production';
 const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;

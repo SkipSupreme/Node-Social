@@ -21,9 +21,12 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 avatar: true,
                 bannerColor: true,
                 bannerImage: true,
+                location: true,
+                website: true,
                 cred: true,
                 era: true,
                 theme: true,
+                role: true,
                 emailVerified: true,
                 createdAt: true,
                 customCss: true,
@@ -49,6 +52,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             theme: z.string().optional(),
             era: z.string().optional(),
             customCss: z.string().max(5000).optional(),
+            location: z.string().max(100).optional().or(z.literal('')),
+            website: z.string().max(200).optional().or(z.literal('')),
         });
 
         const parsed = schema.safeParse(request.body);
@@ -56,7 +61,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
         }
 
-        const { bio, avatar, bannerColor, bannerImage, theme, era, customCss } = parsed.data;
+        const { bio, avatar, bannerColor, bannerImage, theme, era, customCss, location, website } = parsed.data;
         const userId = (request.user as { sub: string }).sub;
         const updateData = {
             ...(bio !== undefined ? { bio } : {}),
@@ -66,6 +71,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             ...(theme !== undefined ? { theme } : {}),
             ...(era !== undefined ? { era } : {}),
             ...(customCss !== undefined ? { customCss } : {}),
+            ...(location !== undefined ? { location: location || null } : {}),
+            ...(website !== undefined ? { website: website || null } : {}),
         };
 
         if (Object.keys(updateData).length === 0) {
@@ -86,9 +93,12 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 avatar: true,
                 bannerColor: true,
                 bannerImage: true,
+                location: true,
+                website: true,
                 cred: true,
                 era: true,
                 theme: true,
+                role: true,
                 emailVerified: true,
                 createdAt: true,
                 customCss: true,
@@ -102,6 +112,18 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
     fastify.get('/:id', async (request, reply) => {
         const { id } = request.params as { id: string };
 
+        // Try to get current user ID for isFollowing check
+        let currentUserId: string | null = null;
+        try {
+            const authHeader = request.headers.authorization;
+            if (authHeader?.startsWith('Bearer ')) {
+                const decoded = await fastify.jwt.verify(authHeader.slice(7)) as { sub: string };
+                currentUserId = decoded.sub;
+            }
+        } catch {
+            // Not authenticated, that's fine
+        }
+
         const user = await fastify.prisma.user.findUnique({
             where: { id },
             select: {
@@ -113,8 +135,11 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 avatar: true,
                 bannerColor: true,
                 bannerImage: true,
+                location: true,
+                website: true,
                 cred: true,
                 era: true,
+                role: true,
                 createdAt: true,
             }
         });
@@ -123,7 +148,22 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(404).send({ error: 'User not found' });
         }
 
-        return user;
+        // Check if current user is following this user
+        let isFollowing = false;
+        if (currentUserId && currentUserId !== id) {
+            const follow = await fastify.prisma.userFollow.findUnique({
+                where: { followerId_followingId: { followerId: currentUserId, followingId: id } }
+            });
+            isFollowing = !!follow;
+        }
+
+        // Check if user has been vouched for (for verification badge)
+        const vouchCount = await fastify.prisma.vouch.count({
+            where: { voucheeId: id, active: true }
+        });
+        const isVouched = vouchCount > 0;
+
+        return { ...user, isFollowing, isVouched };
     });
 
     // Get Cred History
@@ -276,14 +316,122 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 author: {
                     select: {
                         id: true,
+                        email: true,
                         username: true,
                         avatar: true,
+                        era: true,
+                        cred: true,
                     }
                 }
             }
         });
 
         return { posts };
+    });
+
+    // Get user's profile stats (posts, followers, reactions, etc.)
+    fastify.get('/:userId/stats', async (request, reply) => {
+        const { userId } = request.params as { userId: string };
+
+        // Run all queries in parallel for performance
+        const [
+            postsCount,
+            commentsCount,
+            followersCount,
+            followingCount,
+            reactionsReceived,
+            nodeSubscriptions,
+            vouchesReceived,
+        ] = await Promise.all([
+            // Count user's posts
+            fastify.prisma.post.count({
+                where: { authorId: userId, deletedAt: null }
+            }),
+            // Count user's comments
+            fastify.prisma.comment.count({
+                where: { authorId: userId, deletedAt: null }
+            }),
+            // Count followers
+            fastify.prisma.userFollow.count({
+                where: { followingId: userId }
+            }),
+            // Count following
+            fastify.prisma.userFollow.count({
+                where: { followerId: userId }
+            }),
+            // Count reactions received on user's posts
+            fastify.prisma.vibeReaction.count({
+                where: {
+                    post: { authorId: userId }
+                }
+            }),
+            // Count node memberships
+            fastify.prisma.nodeSubscription.count({
+                where: { userId }
+            }),
+            // Get total vouch stake received
+            fastify.prisma.vouch.aggregate({
+                where: { voucheeId: userId, active: true },
+                _sum: { stake: true },
+                _count: true,
+            }),
+        ]);
+
+        return {
+            postsCount,
+            commentsCount,
+            followersCount,
+            followingCount,
+            reactionsReceived,
+            nodeSubscriptions,
+            vouchesReceived: vouchesReceived._count,
+            totalVouchStake: vouchesReceived._sum.stake || 0,
+        };
+    });
+
+    // Get user's comments (for profile scrolling)
+    fastify.get('/:userId/comments', async (request, reply) => {
+        const { userId } = request.params as { userId: string };
+        const { limit = '10', cursor } = request.query as { limit?: string; cursor?: string };
+
+        const take = Math.min(parseInt(limit) || 10, 50);
+
+        const comments = await fastify.prisma.comment.findMany({
+            where: {
+                authorId: userId,
+                deletedAt: null,
+                ...(cursor ? { createdAt: { lt: new Date(cursor) } } : {}),
+            },
+            orderBy: { createdAt: 'desc' },
+            take,
+            include: {
+                post: {
+                    select: {
+                        id: true,
+                        title: true,
+                        content: true,
+                        node: {
+                            select: {
+                                id: true,
+                                name: true,
+                                slug: true,
+                            }
+                        }
+                    }
+                },
+                reactions: {
+                    select: {
+                        intensities: true,
+                    }
+                }
+            }
+        });
+
+        const nextCursor = comments.length === take && comments.length > 0
+            ? comments[comments.length - 1]!.createdAt.toISOString()
+            : null;
+
+        return { comments, nextCursor };
     });
 };
 

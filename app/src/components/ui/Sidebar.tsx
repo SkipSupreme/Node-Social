@@ -3,7 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake } from './Icons';
-import { COLORS } from '../../constants/theme';
+import { COLORS, ERAS } from '../../constants/theme';
 
 interface SidebarProps {
     nodes: any[];
@@ -245,9 +245,9 @@ export const Sidebar = ({
 
                 {/* User avatar at bottom */}
                 <TouchableOpacity style={styles.collapsedFooter} onPress={onProfileClick}>
-                    <View style={[styles.collapsedAvatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981' }]}>
+                    <View style={[styles.collapsedAvatar, { backgroundColor: COLORS.node.border }]}>
                         {user?.avatar ? (
-                            <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={{ width: '100%', height: '100%' }} />
+                            <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.collapsedAvatarImage} />
                         ) : (
                             <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
                                 {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
@@ -417,21 +417,32 @@ export const Sidebar = ({
             </ScrollView>
 
             {/* User Footer */}
-            <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
-                <View style={[styles.avatar, { backgroundColor: user?.era === 'Builder Era' ? '#6366f1' : '#10B981', justifyContent: 'center', alignItems: 'center', overflow: 'hidden' }]}>
-                    {user?.avatar ? (
-                        <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={{ width: '100%', height: '100%' }} />
-                    ) : (
-                        <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                            {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
-                        </Text>
-                    )}
-                </View>
-                <View>
-                    <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
-                    <Text style={styles.footerEra}>{user?.era || 'Lurker Era'}</Text>
-                </View>
-            </TouchableOpacity>
+            {(() => {
+                const userEra = user?.era || 'Lurker Era';
+                const eraStyle = ERAS[userEra] || ERAS['Default'];
+                return (
+                    <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
+                        <View style={[styles.avatar, { borderColor: COLORS.node.accent, borderWidth: 2 }]}>
+                            {user?.avatar ? (
+                                <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.avatarImage} />
+                            ) : (
+                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                                    {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
+                                </Text>
+                            )}
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
+                            <View style={[styles.footerEraBadge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border }]}>
+                                <Hexagon size={10} color={eraStyle.text} />
+                                <Text style={[styles.footerEraText, { color: eraStyle.text }]}>
+                                    {userEra.replace(' Era', '')}
+                                </Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                );
+            })()}
         </SafeAreaView>
     );
 };
@@ -525,9 +536,11 @@ const styles = StyleSheet.create({
     nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
     nodeSubscribers: { fontSize: 11, color: COLORS.node.muted, marginTop: 2 },
     footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    avatar: { width: 32, height: 32, borderRadius: 8, backgroundColor: '#374151' },
-    footerUser: { color: '#fff', fontWeight: 'bold' },
-    footerEra: { color: COLORS.node.muted, fontSize: 12 },
+    avatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.node.border, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    avatarImage: { width: '100%', height: '100%', borderRadius: 8 },
+    footerUser: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
+    footerEraBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, marginTop: 3, alignSelf: 'flex-start' },
+    footerEraText: { fontSize: 10, fontWeight: '600' },
     // Collapsed sidebar styles
     collapsedContainer: {
         width: 56,
@@ -615,9 +628,14 @@ const styles = StyleSheet.create({
     collapsedAvatar: {
         width: 32,
         height: 32,
-        borderRadius: 16,
+        borderRadius: 8,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
+    },
+    collapsedAvatarImage: {
+        width: '100%',
+        height: '100%',
+        borderRadius: 8,
     },
 });

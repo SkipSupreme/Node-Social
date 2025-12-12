@@ -4,6 +4,7 @@ import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, S
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { PortalProvider, PortalHost } from '@gorhom/portal';
 import { Menu, PanelRight, Search, ChevronDown, MessageSquare, Bell } from './src/components/ui/Icons';
 import { useAuthStore } from './src/store/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
@@ -130,36 +131,212 @@ const MainApp = () => {
     preset: 'balanced',
     weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
     mode: 'simple',
+    intermediate: {
+      timeRange: 'all',
+      discoveryRate: 15,
+      hideMutedWords: true,
+      showSeenPosts: false,
+      textOnly: false,
+      mediaOnly: false,
+      linksOnly: false,
+      hasDiscussion: false,
+    },
+    advanced: {
+      authorCredWeight: 50,
+      vectorQualityWeight: 35,
+      confidenceWeight: 15,
+      timeDecay: 60,
+      velocity: 25,
+      freshness: 15,
+      halfLifeHours: 12,
+      decayFunction: 'exponential',
+      intensity: 40,
+      discussionDepth: 30,
+      shareWeight: 20,
+      expertCommentBonus: 10,
+      followingWeight: 50,
+      alignment: 20,
+      affinity: 15,
+      trustNetwork: 15,
+      vectorMultipliers: {
+        insightful: 100,
+        joy: 100,
+        fire: 100,
+        support: 100,
+        shock: 100,
+        questionable: 100,
+      },
+      antiAlignmentPenalty: 20,
+    },
+    expert: {
+      maxPostsPerAuthor: 3,
+      topicClusteringPenalty: 20,
+      textRatio: 40,
+      imageRatio: 25,
+      videoRatio: 20,
+      linkRatio: 15,
+      explorationPool: 'global',
+      enableExperiments: false,
+      timeBasedProfiles: false,
+      moodToggle: 'normal',
+    },
   });
 
-  // Load feed preferences from backend on mount
+  // Map frontend preset IDs to backend preset IDs
+  // Frontend uses user-friendly names, backend has different naming
+  const mapPresetToBackend = (preset: string | undefined): "latest" | "balanced" | "popular" | "expert" | "personal" | "custom" => {
+    switch (preset) {
+      case 'latest': return 'latest';
+      case 'balanced': return 'balanced';
+      case 'trending': return 'popular';  // Frontend "What's Hot" -> Backend "popular"
+      case 'expert': return 'expert';
+      case 'network': return 'personal';  // Frontend "My Network" -> Backend "personal"
+      case 'custom': return 'custom';
+      default: return 'custom';  // Any unknown preset treated as custom
+    }
+  };
+
+  // Map backend preset IDs to frontend preset IDs (for loading)
+  const mapPresetFromBackend = (preset: string | null | undefined): string => {
+    switch (preset) {
+      case 'latest': return 'latest';
+      case 'balanced': return 'balanced';
+      case 'popular': return 'trending';  // Backend "popular" -> Frontend "trending"
+      case 'expert': return 'expert';
+      case 'personal': return 'network';  // Backend "personal" -> Frontend "network"
+      case 'custom': return 'custom';
+      default: return 'balanced';  // Default fallback
+    }
+  };
+
+  // Load ALL feed preferences from backend on mount
   const loadFeedPreferences = async () => {
     try {
       const prefs = await getFeedPreferences();
-      setAlgoSettings(prev => ({
-        ...prev,
-        preset: prefs.presetMode || 'balanced',
+      setAlgoSettings({
+        preset: mapPresetFromBackend(prefs.presetMode),
         weights: {
           quality: prefs.qualityWeight,
           recency: prefs.recencyWeight,
           engagement: prefs.engagementWeight,
           personalization: prefs.personalizationWeight,
-        }
-      }));
+        },
+        mode: 'simple', // Mode is UI-only, not persisted
+        intermediate: {
+          timeRange: (prefs.timeRange as any) || 'all',
+          discoveryRate: prefs.discoveryRate ?? 15,
+          hideMutedWords: prefs.hideMutedWords ?? true,
+          showSeenPosts: prefs.showSeenPosts ?? false,
+          textOnly: prefs.textOnly ?? false,
+          mediaOnly: prefs.mediaOnly ?? false,
+          linksOnly: prefs.linksOnly ?? false,
+          hasDiscussion: prefs.hasDiscussion ?? false,
+        },
+        advanced: {
+          authorCredWeight: prefs.authorCredWeight ?? 50,
+          vectorQualityWeight: prefs.vectorQualityWeight ?? 35,
+          confidenceWeight: prefs.confidenceWeight ?? 15,
+          timeDecay: prefs.timeDecay ?? 60,
+          velocity: prefs.velocity ?? 25,
+          freshness: prefs.freshness ?? 15,
+          halfLifeHours: prefs.halfLifeHours ?? 12,
+          decayFunction: (prefs.decayFunction as any) ?? 'exponential',
+          intensity: prefs.intensity ?? 40,
+          discussionDepth: prefs.discussionDepth ?? 30,
+          shareWeight: prefs.shareWeight ?? 20,
+          expertCommentBonus: prefs.expertCommentBonus ?? 10,
+          followingWeight: prefs.followingWeight ?? 50,
+          alignment: prefs.alignment ?? 20,
+          affinity: prefs.affinity ?? 15,
+          trustNetwork: prefs.trustNetwork ?? 15,
+          vectorMultipliers: prefs.vectorMultipliers ?? {
+            insightful: 100,
+            joy: 100,
+            fire: 100,
+            support: 100,
+            shock: 100,
+            questionable: 100,
+          },
+          antiAlignmentPenalty: prefs.antiAlignmentPenalty ?? 20,
+        },
+        expert: {
+          maxPostsPerAuthor: prefs.maxPostsPerAuthor ?? 3,
+          topicClusteringPenalty: prefs.topicClusteringPenalty ?? 20,
+          textRatio: prefs.textRatio ?? 40,
+          imageRatio: prefs.imageRatio ?? 25,
+          videoRatio: prefs.videoRatio ?? 20,
+          linkRatio: prefs.linkRatio ?? 15,
+          explorationPool: (prefs.explorationPool as any) ?? 'global',
+          enableExperiments: prefs.enableExperiments ?? false,
+          timeBasedProfiles: prefs.timeBasedProfiles ?? false,
+          moodToggle: (prefs.moodToggle as any) ?? 'normal',
+        },
+      });
     } catch (error) {
       console.log('Using default feed preferences');
     }
   };
 
-  // Save feed preferences to backend (debounced in effect)
+  // Save ALL feed preferences to backend (debounced in effect)
   const saveFeedPreferences = async (settings: typeof algoSettings) => {
     try {
       await updateFeedPreferences({
-        preset: settings.preset as any,
+        // Basic
+        preset: mapPresetToBackend(settings.preset),
         qualityWeight: settings.weights.quality,
         recencyWeight: settings.weights.recency,
         engagementWeight: settings.weights.engagement,
         personalizationWeight: settings.weights.personalization,
+
+        // Intermediate
+        timeRange: settings.intermediate?.timeRange,
+        discoveryRate: settings.intermediate?.discoveryRate,
+        hideMutedWords: settings.intermediate?.hideMutedWords,
+        showSeenPosts: settings.intermediate?.showSeenPosts,
+        textOnly: settings.intermediate?.textOnly,
+        mediaOnly: settings.intermediate?.mediaOnly,
+        linksOnly: settings.intermediate?.linksOnly,
+        hasDiscussion: settings.intermediate?.hasDiscussion,
+
+        // Advanced - Quality
+        authorCredWeight: settings.advanced?.authorCredWeight,
+        vectorQualityWeight: settings.advanced?.vectorQualityWeight,
+        confidenceWeight: settings.advanced?.confidenceWeight,
+
+        // Advanced - Recency
+        timeDecay: settings.advanced?.timeDecay,
+        velocity: settings.advanced?.velocity,
+        freshness: settings.advanced?.freshness,
+        halfLifeHours: settings.advanced?.halfLifeHours,
+        decayFunction: settings.advanced?.decayFunction,
+
+        // Advanced - Engagement
+        intensity: settings.advanced?.intensity,
+        discussionDepth: settings.advanced?.discussionDepth,
+        shareWeight: settings.advanced?.shareWeight,
+        expertCommentBonus: settings.advanced?.expertCommentBonus,
+
+        // Advanced - Personalization
+        followingWeight: settings.advanced?.followingWeight,
+        alignment: settings.advanced?.alignment,
+        affinity: settings.advanced?.affinity,
+        trustNetwork: settings.advanced?.trustNetwork,
+
+        // Advanced - Vectors
+        vectorMultipliers: settings.advanced?.vectorMultipliers,
+        antiAlignmentPenalty: settings.advanced?.antiAlignmentPenalty,
+
+        // Expert
+        maxPostsPerAuthor: settings.expert?.maxPostsPerAuthor,
+        topicClusteringPenalty: settings.expert?.topicClusteringPenalty,
+        textRatio: settings.expert?.textRatio,
+        imageRatio: settings.expert?.imageRatio,
+        videoRatio: settings.expert?.videoRatio,
+        linkRatio: settings.expert?.linkRatio,
+        explorationPool: settings.expert?.explorationPool,
+        enableExperiments: settings.expert?.enableExperiments,
+        timeBasedProfiles: settings.expert?.timeBasedProfiles,
+        moodToggle: settings.expert?.moodToggle,
       });
     } catch (error) {
       console.error('Failed to save feed preferences:', error);
@@ -217,7 +394,13 @@ const MainApp = () => {
         qualityWeight: algoSettings.weights.quality,
         recencyWeight: algoSettings.weights.recency,
         engagementWeight: algoSettings.weights.engagement,
-        personalizationWeight: algoSettings.weights.personalization
+        personalizationWeight: algoSettings.weights.personalization,
+        // Pass intermediate filters from algoSettings
+        timeRange: algoSettings.intermediate?.timeRange,
+        textOnly: algoSettings.intermediate?.textOnly,
+        mediaOnly: algoSettings.intermediate?.mediaOnly,
+        linksOnly: algoSettings.intermediate?.linksOnly,
+        hasDiscussion: algoSettings.intermediate?.hasDiscussion,
       };
 
       if (mode === 'discovery') {
@@ -226,9 +409,13 @@ const MainApp = () => {
         params.followingOnly = true;
       }
 
-      // Add post type filter if any selected
+      // Add post type filter if any selected (overrides intermediate filters)
       if (postTypes && postTypes.length > 0) {
         params.postTypes = postTypes;
+        // Clear conflicting filters when explicit postTypes are set
+        delete params.textOnly;
+        delete params.mediaOnly;
+        delete params.linksOnly;
       }
 
       const data = await getFeed(params);
@@ -912,6 +1099,7 @@ export default function App() {
 
   return (
     <SafeAreaProvider>
+      <PortalProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
         {!user ? (
@@ -959,7 +1147,10 @@ export default function App() {
             <MainApp />
           </SocketProvider>
         )}
+        {/* Portal host for overlays that need to escape parent z-index */}
+        <PortalHost name="radialWheel" />
       </QueryClientProvider>
+      </PortalProvider>
     </SafeAreaProvider>
   );
 }

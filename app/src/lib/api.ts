@@ -341,6 +341,8 @@ export function updateProfile(data: {
   theme?: string;
   era?: string;
   customCss?: string;
+  location?: string;
+  website?: string;
 }) {
   return request<{ user: AuthResponse["user"] }>("/users/me", {
     method: "PUT",
@@ -827,6 +829,12 @@ export function getFeed(params: {
   recencyWeight?: number;
   engagementWeight?: number;
   personalizationWeight?: number;
+  // Intermediate mode filters
+  timeRange?: string; // '1h', '6h', '24h', '7d', 'all'
+  textOnly?: boolean;
+  mediaOnly?: boolean;
+  linksOnly?: boolean;
+  hasDiscussion?: boolean;
 } = {}) {
   const searchParams = new URLSearchParams();
   if (params.cursor) searchParams.append("cursor", params.cursor);
@@ -842,6 +850,12 @@ export function getFeed(params: {
   if (params.recencyWeight !== undefined) searchParams.append("recencyWeight", params.recencyWeight.toString());
   if (params.engagementWeight !== undefined) searchParams.append("engagementWeight", params.engagementWeight.toString());
   if (params.personalizationWeight !== undefined) searchParams.append("personalizationWeight", params.personalizationWeight.toString());
+  // Intermediate mode filters
+  if (params.timeRange && params.timeRange !== 'all') searchParams.append("timeRange", params.timeRange);
+  if (params.textOnly) searchParams.append("textOnly", "true");
+  if (params.mediaOnly) searchParams.append("mediaOnly", "true");
+  if (params.linksOnly) searchParams.append("linksOnly", "true");
+  if (params.hasDiscussion) searchParams.append("hasDiscussion", "true");
 
   return request<{ posts: Post[]; nextCursor?: string; hasMore: boolean }>(
     `/posts?${searchParams.toString()}`,
@@ -878,30 +892,144 @@ export function getComments(postId: string, params: { parentId?: string; limit?:
 }
 
 // --- Feed Preferences Endpoints ---
+// Full Vibe Validator settings - supports Simple, Intermediate, Advanced, and Expert modes
+
+export type VectorMultipliers = {
+  insightful: number;
+  joy: number;
+  fire: number;
+  support: number;
+  shock: number;
+  questionable: number;
+};
 
 export type FeedPreference = {
   userId: string;
+
+  // Basic / Simple mode
   qualityWeight: number;
   recencyWeight: number;
   engagementWeight: number;
   personalizationWeight: number;
   presetMode: string | null;
-  recencyHalfLife: string;
+  recencyHalfLife: string; // Legacy
+
+  // Intermediate mode
+  timeRange: string; // '1h', '6h', '24h', '7d', 'all'
+  discoveryRate: number; // 0-100
+  hideMutedWords: boolean;
+  showSeenPosts: boolean;
+  textOnly: boolean;
+  mediaOnly: boolean;
+  linksOnly: boolean;
+  hasDiscussion: boolean;
   followingOnly: boolean;
   minCred: number | null;
+
+  // Advanced - Quality sub-signals
+  authorCredWeight: number;
+  vectorQualityWeight: number;
+  confidenceWeight: number;
+
+  // Advanced - Recency sub-signals
+  timeDecay: number;
+  velocity: number;
+  freshness: number;
+  halfLifeHours: number;
+  decayFunction: string; // 'exponential', 'linear', 'step'
+
+  // Advanced - Engagement sub-signals
+  intensity: number;
+  discussionDepth: number;
+  shareWeight: number;
+  expertCommentBonus: number;
+
+  // Advanced - Personalization sub-signals
+  followingWeight: number;
+  alignment: number;
+  affinity: number;
+  trustNetwork: number;
+
+  // Advanced - Vector multipliers
+  vectorMultipliers: VectorMultipliers;
+  antiAlignmentPenalty: number;
+
+  // Expert mode
+  maxPostsPerAuthor: number;
+  topicClusteringPenalty: number;
+  textRatio: number;
+  imageRatio: number;
+  videoRatio: number;
+  linkRatio: number;
+  explorationPool: string; // 'global', 'network', 'node'
+  moodToggle: string; // 'normal', 'chill', 'intense', 'discovery'
+  enableExperiments: boolean;
+  timeBasedProfiles: boolean;
+
   createdAt: string;
   updatedAt: string;
 };
 
 export type FeedPreferenceUpdate = {
+  // Basic / Simple mode
   preset?: "latest" | "balanced" | "popular" | "expert" | "personal" | "custom";
   qualityWeight?: number;
   recencyWeight?: number;
   engagementWeight?: number;
   personalizationWeight?: number;
-  recencyHalfLife?: "1h" | "6h" | "12h" | "24h" | "7d";
+  recencyHalfLife?: "1h" | "6h" | "12h" | "24h" | "7d"; // Legacy
+
+  // Intermediate mode
+  timeRange?: "1h" | "6h" | "24h" | "7d" | "all";
+  discoveryRate?: number; // 0-100
+  hideMutedWords?: boolean;
+  showSeenPosts?: boolean;
+  textOnly?: boolean;
+  mediaOnly?: boolean;
+  linksOnly?: boolean;
+  hasDiscussion?: boolean;
   followingOnly?: boolean;
   minCred?: number | null;
+
+  // Advanced - Quality sub-signals
+  authorCredWeight?: number;
+  vectorQualityWeight?: number;
+  confidenceWeight?: number;
+
+  // Advanced - Recency sub-signals
+  timeDecay?: number;
+  velocity?: number;
+  freshness?: number;
+  halfLifeHours?: number;
+  decayFunction?: "exponential" | "linear" | "step";
+
+  // Advanced - Engagement sub-signals
+  intensity?: number;
+  discussionDepth?: number;
+  shareWeight?: number;
+  expertCommentBonus?: number;
+
+  // Advanced - Personalization sub-signals
+  followingWeight?: number;
+  alignment?: number;
+  affinity?: number;
+  trustNetwork?: number;
+
+  // Advanced - Vector multipliers
+  vectorMultipliers?: Partial<VectorMultipliers>;
+  antiAlignmentPenalty?: number;
+
+  // Expert mode
+  maxPostsPerAuthor?: number;
+  topicClusteringPenalty?: number;
+  textRatio?: number;
+  imageRatio?: number;
+  videoRatio?: number;
+  linkRatio?: number;
+  explorationPool?: "global" | "network" | "node";
+  moodToggle?: "normal" | "chill" | "intense" | "discovery";
+  enableExperiments?: boolean;
+  timeBasedProfiles?: boolean;
 };
 
 export function getFeedPreferences() {
@@ -1144,6 +1272,70 @@ export async function getUserPosts(userId: string, limit = 10) {
     // Fallback: if endpoint doesn't exist, return empty array
     console.log('getUserPosts not available, using empty array');
     return [];
+  }
+}
+
+// User profile stats
+export type UserStats = {
+  postsCount: number;
+  commentsCount: number;
+  followersCount: number;
+  followingCount: number;
+  reactionsReceived: number;
+  nodeSubscriptions: number;
+  vouchesReceived: number;
+  totalVouchStake: number;
+};
+
+export async function getUserStats(userId: string): Promise<UserStats> {
+  try {
+    const res = await request<UserStats>(`/users/${userId}/stats`, {
+      method: "GET",
+    });
+    return res;
+  } catch (error) {
+    console.log('getUserStats not available, using defaults');
+    return {
+      postsCount: 0,
+      commentsCount: 0,
+      followersCount: 0,
+      followingCount: 0,
+      reactionsReceived: 0,
+      nodeSubscriptions: 0,
+      vouchesReceived: 0,
+      totalVouchStake: 0,
+    };
+  }
+}
+
+// User comments for profile
+export type UserComment = {
+  id: string;
+  content: string;
+  createdAt: string;
+  post: {
+    id: string;
+    title: string | null;
+    content: string | null;
+    node?: {
+      id: string;
+      name: string;
+      slug: string;
+    };
+  };
+};
+
+export async function getUserComments(userId: string, limit = 10, cursor?: string): Promise<{ comments: UserComment[]; nextCursor: string | null }> {
+  try {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (cursor) params.append('cursor', cursor);
+    const res = await request<{ comments: UserComment[]; nextCursor: string | null }>(`/users/${userId}/comments?${params}`, {
+      method: "GET",
+    });
+    return res;
+  } catch (error) {
+    console.log('getUserComments not available, using empty array');
+    return { comments: [], nextCursor: null };
   }
 }
 

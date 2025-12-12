@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from "react-native";
-import { MessageSquare, BarChart2 } from "lucide-react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from "react-native";
+import { MessageSquare, BarChart2, Hexagon, Zap } from "lucide-react-native";
 import { Post, votePoll } from "../lib/api";
 import { useAuthStore } from "../store/auth";
-import { COLORS } from "../constants/theme";
+import { COLORS, ERAS, SPACING, RADIUS } from "../constants/theme";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 
 // Helper to format relative time (e.g., "2h ago")
@@ -91,6 +91,10 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const totalVotes = post.poll?.options.reduce((acc, opt) => acc + (opt._count?.votes || 0), 0) || 0;
   const hasVoted = post.poll?.votes && post.poll.votes.length > 0;
 
+  // Get era styling
+  const authorEra = post.author.era || 'Default';
+  const eraStyle = ERAS[authorEra] || ERAS['Default'];
+
   return (
     <TouchableOpacity
       style={styles.container}
@@ -98,11 +102,43 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
-          <Text style={styles.author}>@{post.author.username || post.author.email.split("@")[0]}</Text>
-          {post.node && (
-            <Text style={styles.nodeName}>n/{post.node.slug}</Text>
-          )}
+        <TouchableOpacity style={styles.authorSection} onPress={() => onAuthorClick?.(post.author.id)}>
+          {/* Avatar with purple border */}
+          <View style={[styles.avatarContainer, { borderColor: COLORS.node.accent }]}>
+            {post.author.avatar ? (
+              <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+            ) : (
+              <View style={[styles.avatarPlaceholder, { backgroundColor: eraStyle.bg }]}>
+                <Text style={[styles.avatarText, { color: eraStyle.text }]}>
+                  {(post.author.username || post.author.email)?.[0]?.toUpperCase() || '?'}
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Author info */}
+          <View style={styles.authorInfo}>
+            <View style={styles.authorRow}>
+              <Text style={styles.author}>@{post.author.username || post.author.email.split("@")[0]}</Text>
+              {/* Cred badge */}
+              {post.author.cred !== undefined && post.author.cred > 0 && (
+                <View style={styles.credBadge}>
+                  <Zap size={10} color="#fbbf24" />
+                  <Text style={styles.credText}>{post.author.cred}</Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.metaRow}>
+              {/* Era badge */}
+              <View style={[styles.eraBadge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border }]}>
+                <Hexagon size={8} color={eraStyle.text} fill={eraStyle.text} />
+                <Text style={[styles.eraText, { color: eraStyle.text }]}>{authorEra.replace(' Era', '')}</Text>
+              </View>
+              {post.node && (
+                <Text style={styles.nodeName}>n/{post.node.slug}</Text>
+              )}
+            </View>
+          </View>
         </TouchableOpacity>
         <Text style={styles.time}>{formatTimeAgo(post.createdAt)}</Text>
       </View>
@@ -195,15 +231,85 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
+  authorSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  avatarContainer: {
+    marginRight: SPACING.sm,
+    width: 44,
+    height: 44,
+    borderRadius: RADIUS.md + 2,
+    borderWidth: 2,
+    padding: 1,
+    overflow: 'hidden',
+  },
+  avatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.md,
+  },
+  avatarPlaceholder: {
+    width: '100%',
+    height: '100%',
+    borderRadius: RADIUS.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  authorInfo: {
+    flex: 1,
+  },
+  authorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+  },
   author: {
     fontWeight: "600",
     fontSize: 14,
     color: COLORS.node.text,
   },
+  credBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: RADIUS.sm,
+  },
+  credText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fbbf24',
+  },
+  eraBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: RADIUS.sm,
+    borderWidth: 1,
+  },
+  eraText: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
   nodeName: {
     fontSize: 12,
     color: COLORS.node.accent,
-    marginTop: 2,
   },
   time: {
     color: COLORS.node.muted,

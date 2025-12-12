@@ -183,6 +183,12 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         recencyWeight: z.coerce.number().min(0).max(100).optional(),
         engagementWeight: z.coerce.number().min(0).max(100).optional(),
         personalizationWeight: z.coerce.number().min(0).max(100).optional(),
+        // Intermediate mode filters
+        timeRange: z.enum(['1h', '6h', '24h', '7d', 'all']).optional(),
+        textOnly: z.string().optional().transform(v => v === 'true'),
+        mediaOnly: z.string().optional().transform(v => v === 'true'),
+        linksOnly: z.string().optional().transform(v => v === 'true'),
+        hasDiscussion: z.string().optional().transform(v => v === 'true'),
       });
 
       const parsed = schema.safeParse(request.query);
@@ -190,7 +196,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { cursor, limit, nodeId, authorId, postType, postTypes } = parsed.data;
+      const { cursor, limit, nodeId, authorId, postType, postTypes, timeRange, textOnly, mediaOnly, linksOnly, hasDiscussion } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Phase 4.2 - Post Type Filtering
@@ -203,6 +209,16 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       } else if (postType) {
         // Single type
         postTypeFilter = [postType.trim()];
+      }
+
+      // Vibe Validator Intermediate Filters
+      // These override the general postTypeFilter if set
+      if (textOnly) {
+        postTypeFilter = ['text'];
+      } else if (mediaOnly) {
+        postTypeFilter = ['image', 'video'];
+      } else if (linksOnly) {
+        postTypeFilter = ['link'];
       }
 
       // Load user feed preferences or use defaults
@@ -288,6 +304,34 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       // Phase 4.2 - Post Type Filtering
       if (postTypeFilter && postTypeFilter.length > 0) {
         where.postType = { in: postTypeFilter };
+      }
+
+      // Vibe Validator: Time Range Filter
+      if (timeRange && timeRange !== 'all') {
+        const now = new Date();
+        let cutoff: Date;
+        switch (timeRange) {
+          case '1h':
+            cutoff = new Date(now.getTime() - 60 * 60 * 1000);
+            break;
+          case '6h':
+            cutoff = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+            break;
+          case '24h':
+            cutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+            break;
+          case '7d':
+            cutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+            break;
+          default:
+            cutoff = new Date(0); // No cutoff
+        }
+        where.createdAt = { gte: cutoff };
+      }
+
+      // Vibe Validator: Has Discussion Filter (posts with at least 1 comment)
+      if (hasDiscussion) {
+        where.comments = { some: {} };
       }
 
       // Following-Only Feed Filter

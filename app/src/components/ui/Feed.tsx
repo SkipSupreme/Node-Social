@@ -795,6 +795,16 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 </View>
 
                 <View style={styles.cardActions}>
+                    {/* Comments button first - most common action */}
+                    <TouchableOpacity
+                        style={[styles.pillBtn, showComments && { borderColor: COLORS.node.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
+                        onPress={() => setShowComments(!showComments)}
+                    >
+                        <MessageSquare size={20} color={showComments ? COLORS.node.accent : COLORS.node.muted} />
+                        <Text style={[styles.pillText, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
+                    </TouchableOpacity>
+
+                    {/* Vibe button with radial wheel */}
                     <VibeRadialWheel
                         postId={post.id}
                         nodeId={post.node.id || globalNodeId}
@@ -825,14 +835,6 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             }));
                         }}
                     />
-
-                    <TouchableOpacity
-                        style={[styles.pillBtn, showComments && { borderColor: COLORS.node.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
-                        onPress={() => setShowComments(!showComments)}
-                    >
-                        <MessageSquare size={20} color={showComments ? COLORS.node.accent : COLORS.node.muted} />
-                        <Text style={[styles.pillText, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
-                    </TouchableOpacity>
 
                     <TouchableOpacity style={styles.pillBtn} onPress={handleSave}>
                         <Bookmark size={20} color={isSaved ? COLORS.node.accent : COLORS.node.muted} fill={isSaved ? COLORS.node.accent : 'none'} />

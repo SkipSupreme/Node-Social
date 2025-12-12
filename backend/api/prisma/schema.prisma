@@ -27,9 +27,12 @@ model User {
   avatar          String?
   bannerColor     String?   // Hex color for profile banner background
   bannerImage     String?   // URL for custom banner image
+  location        String?   // User's location (e.g., "The Internet")
+  website         String?   // User's website URL
   cred            Int       @default(0)
   era             String    @default("Lurker Era")
   theme           String?
+  role            String    @default("user") // 'user', 'admin', 'moderator'
   nodeCredScores  Json      @default("{}") // Map<NodeId, number>
   lastActiveAt    DateTime  @default(now()) // For activity multiplier calculation
 
@@ -394,26 +397,103 @@ model ModActionLog {
 
 // User Feed Preferences: Vibe Validator settings
 // Per weighted_parameters_starter.md - Controls feed algorithm weights
+// Supports 4 complexity modes: Simple (presets), Intermediate, Advanced, Expert
 model UserFeedPreference {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // ============================================
+  // BASIC / SIMPLE MODE
+  // ============================================
   // Main weights (must sum to 100)
   qualityWeight         Float @default(35.0)
   recencyWeight         Float @default(30.0)
   engagementWeight      Float @default(20.0)
   personalizationWeight Float @default(15.0)
 
-  // Preset mode
-  presetMode String? // 'latest', 'balanced', 'popular', 'expert', 'personal', 'custom'
+  // Preset mode: 'latest', 'balanced', 'popular', 'expert', 'personal', 'custom'
+  presetMode String? @default("balanced")
 
-  // Recency settings
+  // Legacy field (kept for backwards compatibility with existing API)
   recencyHalfLife String @default("12h") // 1h, 6h, 12h, 24h, 7d
 
-  // Advanced settings (optional, defaults used if null)
-  followingOnly      Boolean @default(false)
-  minCred            Float?  // Optional minimum cred threshold
+  // ============================================
+  // INTERMEDIATE MODE
+  // ============================================
+  // Time range filter: '1h', '6h', '24h', '7d', 'all'
+  timeRange       String  @default("all")
+  // Discovery rate: 0-100 (% of posts from outside your network)
+  discoveryRate   Int     @default(15)
+  // Filter toggles
+  hideMutedWords  Boolean @default(true)
+  showSeenPosts   Boolean @default(false)
+  textOnly        Boolean @default(false)
+  mediaOnly       Boolean @default(false)
+  linksOnly       Boolean @default(false)
+  hasDiscussion   Boolean @default(false)
+  followingOnly   Boolean @default(false)
+  minCred         Float?  // Optional minimum cred threshold
 
+  // ============================================
+  // ADVANCED MODE - Sub-signals
+  // ============================================
+  // Quality sub-signals (should sum to 100)
+  authorCredWeight     Int @default(50)
+  vectorQualityWeight  Int @default(35)
+  confidenceWeight     Int @default(15)
+
+  // Recency sub-signals (should sum to 100)
+  timeDecay       Int    @default(60)
+  velocity        Int    @default(25)
+  freshness       Int    @default(15)
+  halfLifeHours   Int    @default(12)  // 1-168 hours
+  decayFunction   String @default("exponential") // 'exponential', 'linear', 'step'
+
+  // Engagement sub-signals (should sum to 100)
+  intensity           Int @default(40)
+  discussionDepth     Int @default(30)
+  shareWeight         Int @default(20)
+  expertCommentBonus  Int @default(10)
+
+  // Personalization sub-signals (should sum to 100)
+  followingWeight Int @default(50)
+  alignment       Int @default(20)
+  affinity        Int @default(15)
+  trustNetwork    Int @default(15)
+
+  // Vector multipliers (JSON: { insightful: 100, joy: 100, fire: 100, ... })
+  // Values 0-200, 100 = neutral, >100 = boost, <100 = suppress
+  vectorMultipliers Json @default("{\"insightful\": 100, \"joy\": 100, \"fire\": 100, \"support\": 100, \"shock\": 100, \"questionable\": 100}")
+
+  // Anti-alignment penalty (0-100): Reduce score of posts that anti-match your vibe
+  antiAlignmentPenalty Int @default(20)
+
+  // ============================================
+  // EXPERT MODE
+  // ============================================
+  // Diversity controls
+  maxPostsPerAuthor       Int @default(3)  // 1-10, max posts from same author in feed
+  topicClusteringPenalty  Int @default(20) // 0-100, penalize similar topics in sequence
+
+  // Content type ratios (targets, not hard filters) - should sum to 100
+  textRatio   Int @default(40)
+  imageRatio  Int @default(25)
+  videoRatio  Int @default(20)
+  linkRatio   Int @default(15)
+
+  // Exploration pool: 'global', 'network', 'node'
+  explorationPool String @default("global")
+
+  // Mood toggle: 'normal', 'chill', 'intense', 'discovery'
+  moodToggle String @default("normal")
+
+  // Experimental features
+  enableExperiments  Boolean @default(false)
+  timeBasedProfiles  Boolean @default(false) // Auto-switch profiles by time of day
+
+  // ============================================
+  // METADATA
+  // ============================================
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

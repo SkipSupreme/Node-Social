@@ -41,6 +41,33 @@ export interface VibeProfile {
 }
 
 /**
+ * Vector multipliers for boosting/suppressing specific vibe types
+ * 100 = neutral, >100 = boost, <100 = suppress
+ */
+export interface VectorMultipliers {
+  insightful: number;
+  joy: number;
+  fire: number;
+  support: number;
+  shock: number;
+  questionable: number;
+}
+
+/**
+ * Post vibe aggregate with reaction counts
+ */
+export interface PostVibeAggregate {
+  insightfulSum: number;
+  joySum: number;
+  fireSum: number;
+  supportSum: number;
+  shockSum: number;
+  questionableSum: number;
+  totalIntensity: number;
+  reactionCount: number;
+}
+
+/**
  * Post data needed for personalization
  */
 export interface PostPersonalizationData {
@@ -58,59 +85,34 @@ export interface PostPersonalizationData {
 }
 
 /**
- * Calculate personalization score for a post
- * Returns 0-100 based on how well the post matches user preferences
- */
-export function calculatePersonalizationScore(
-  post: PostPersonalizationData,
-  context: PersonalizationContext
-): number {
-  let score = 50; // Base neutral score
-
-  // 1. Following boost (0-25 points)
-  if (context.followingIds.has(post.authorId)) {
-    score += 25;
-  }
-
-  // 2. Node affinity boost (0-15 points)
-  // Users with more cred in a node see more content from that node
-  if (post.nodeId && context.userNodeCredScores) {
-    const userCredInNode = context.userNodeCredScores[post.nodeId] || 0;
-    // Cap at 1000 cred for max boost
-    const affinityBoost = Math.min(userCredInNode / 1000, 1) * 15;
-    score += affinityBoost;
-  }
-
-  // 3. Vibe alignment (0-10 points or -10 penalty)
-  // Posts that match user's vibe preferences get boosted
-  if (context.userVibeProfile && post.vibeAggregate && post.vibeAggregate.totalIntensity > 0) {
-    const alignment = calculateVibeAlignment(context.userVibeProfile, post.vibeAggregate);
-    // alignment is -1 to 1, scale to -10 to +10
-    score += alignment * 10;
-  }
-
-  // 4. Trust network bonus (0-10 points)
-  // Posts from vouched users or friends-of-friends
-  if (context.vouchNetwork && context.vouchNetwork.has(post.authorId)) {
-    const distance = context.vouchNetwork.get(post.authorId)!;
-    // Closer = better: distance 1 = 10 points, distance 2 = 5, distance 3+ = 2
-    const trustBoost = distance === 1 ? 10 : distance === 2 ? 5 : 2;
-    score += trustBoost;
-  }
-
-  // Clamp to 0-100
-  return Math.max(0, Math.min(100, score));
-}
-
-/**
  * Calculate cosine similarity between user's vibe profile and post's vibe aggregate
  * Returns -1 to 1 (negative = anti-aligned, positive = aligned)
+ *
+ * With vector multipliers:
+ * - Multipliers adjust user's vibe preferences before comparison
+ * - 100 = neutral, >100 = boost that vibe's importance, <100 = suppress
+ *
+ * With anti-alignment penalty:
+ * - Negative alignment gets multiplied by (1 + penalty/100)
+ * - Makes anti-aligned posts rank even lower
  */
-function calculateVibeAlignment(
+export function calculateVibeAlignment(
   userProfile: VibeProfile,
-  postAggregate: PostPersonalizationData['vibeAggregate']
+  postAggregate: PostVibeAggregate | null,
+  vectorMultipliers: VectorMultipliers,
+  antiAlignmentPenalty: number
 ): number {
   if (!postAggregate || postAggregate.totalIntensity === 0) return 0;
+
+  // Apply multipliers to user profile (adjusts what they want to see)
+  const weightedUser = {
+    insightful: userProfile.insightful * (vectorMultipliers.insightful / 100),
+    joy: userProfile.joy * (vectorMultipliers.joy / 100),
+    fire: userProfile.fire * (vectorMultipliers.fire / 100),
+    support: userProfile.support * (vectorMultipliers.support / 100),
+    shock: userProfile.shock * (vectorMultipliers.shock / 100),
+    questionable: userProfile.questionable * (vectorMultipliers.questionable / 100),
+  };
 
   // Normalize post aggregate to unit vector
   const total = postAggregate.totalIntensity;
@@ -123,22 +125,22 @@ function calculateVibeAlignment(
     questionable: postAggregate.questionableSum / total,
   };
 
-  // Cosine similarity
+  // Cosine similarity with weighted user profile
   const dotProduct =
-    userProfile.insightful * postVec.insightful +
-    userProfile.joy * postVec.joy +
-    userProfile.fire * postVec.fire +
-    userProfile.support * postVec.support +
-    userProfile.shock * postVec.shock +
-    userProfile.questionable * postVec.questionable;
+    weightedUser.insightful * postVec.insightful +
+    weightedUser.joy * postVec.joy +
+    weightedUser.fire * postVec.fire +
+    weightedUser.support * postVec.support +
+    weightedUser.shock * postVec.shock +
+    weightedUser.questionable * postVec.questionable;
 
   const userMag = Math.sqrt(
-    userProfile.insightful ** 2 +
-    userProfile.joy ** 2 +
-    userProfile.fire ** 2 +
-    userProfile.support ** 2 +
-    userProfile.shock ** 2 +
-    userProfile.questionable ** 2
+    weightedUser.insightful ** 2 +
+    weightedUser.joy ** 2 +
+    weightedUser.fire ** 2 +
+    weightedUser.support ** 2 +
+    weightedUser.shock ** 2 +
+    weightedUser.questionable ** 2
   );
 
   const postMag = Math.sqrt(
@@ -150,15 +152,341 @@ function calculateVibeAlignment(
     postVec.questionable ** 2
   );
 
+  // Handle edge case of zero magnitude (all multipliers are 0)
   if (userMag === 0 || postMag === 0) return 0;
 
-  return dotProduct / (userMag * postMag);
+  const similarity = dotProduct / (userMag * postMag);
+
+  // Apply anti-alignment penalty if negative
+  if (similarity < 0) {
+    return similarity * (1 + antiAlignmentPenalty / 100);
+  }
+  return similarity;
 }
 
 /**
- * Calculate recency score with exponential decay
+ * Legacy calculateVibeAlignment without multipliers (for backwards compatibility)
  */
-function calculateRecencyScore(
+function calculateVibeAlignmentLegacy(
+  userProfile: VibeProfile,
+  postAggregate: PostPersonalizationData['vibeAggregate']
+): number {
+  const defaultMultipliers: VectorMultipliers = {
+    insightful: 100,
+    joy: 100,
+    fire: 100,
+    support: 100,
+    shock: 100,
+    questionable: 100,
+  };
+  return calculateVibeAlignment(
+    userProfile,
+    postAggregate as PostVibeAggregate | null,
+    defaultMultipliers,
+    0
+  );
+}
+
+// ============================================================================
+// Phase 2: Sub-signal Functions
+// ============================================================================
+
+/**
+ * Quality sub-signal preferences
+ */
+export interface QualityPreferences {
+  authorCredWeight: number;      // 0-100, weight of author credibility
+  vectorQualityWeight: number;   // 0-100, weight of vibe quality ratio
+  confidenceWeight: number;      // 0-100, weight of reaction count confidence
+}
+
+/**
+ * Calculate quality score using sub-signals
+ * - authorCred: Author's credibility score (capped at 1000 = 100 score)
+ * - vectorQuality: Ratio of positive to negative vibes
+ * - confidence: How many reactions (more = higher confidence in score)
+ */
+export function calculateQualityScore(
+  post: { vibeAggregate: PostVibeAggregate | null },
+  author: { cred: number },
+  prefs: QualityPreferences
+): number {
+  // Author cred component (0-100 scale)
+  // Cap at 1000 cred = 100 score
+  const authorCredScore = Math.min(100, (author.cred || 0) / 10);
+
+  // Vector quality from PostVibeAggregate
+  // High insightful/support/joy = high quality, high shock/questionable = lower
+  const vibeAgg = post.vibeAggregate;
+  let vectorQualityScore = 50; // Default neutral
+  if (vibeAgg && vibeAgg.totalIntensity > 0) {
+    const positiveVibes = vibeAgg.insightfulSum + vibeAgg.supportSum + vibeAgg.joySum;
+    const negativeVibes = vibeAgg.shockSum + vibeAgg.questionableSum;
+    const ratio = positiveVibes / (positiveVibes + negativeVibes + 0.01);
+    vectorQualityScore = ratio * 100;
+  }
+
+  // Confidence = how many reactions (more reactions = more confidence in the score)
+  // 10+ reactions = full confidence
+  const reactionCount = vibeAgg?.reactionCount || 0;
+  const confidenceScore = Math.min(100, reactionCount * 10);
+
+  // Weighted combination (normalize by sum of weights)
+  const totalWeight = prefs.authorCredWeight + prefs.vectorQualityWeight + prefs.confidenceWeight;
+  if (totalWeight === 0) return 50; // Neutral if all weights are 0
+
+  return (
+    (authorCredScore * prefs.authorCredWeight) +
+    (vectorQualityScore * prefs.vectorQualityWeight) +
+    (confidenceScore * prefs.confidenceWeight)
+  ) / totalWeight;
+}
+
+/**
+ * Recency sub-signal preferences
+ */
+export interface RecencyPreferences {
+  halfLifeHours: number;         // 1-168, half-life in hours
+  decayFunction: 'exponential' | 'linear' | 'step';
+  timeDecay: number;             // 0-100, weight of decay component
+  velocity: number;              // 0-100, weight of reaction velocity
+  freshness: number;             // 0-100, weight of pure newness
+}
+
+/**
+ * Calculate recency score using sub-signals
+ * - timeDecay: How much the score decays over time
+ * - velocity: Reactions per hour (trending indicator)
+ * - freshness: Pure age score (newest = highest)
+ */
+export function calculateRecencyScore(
+  post: { createdAt: Date; vibeAggregate?: PostVibeAggregate },
+  prefs: RecencyPreferences
+): number {
+  const now = Date.now();
+  const ageMs = now - post.createdAt.getTime();
+  const halfLifeMs = prefs.halfLifeHours * 60 * 60 * 1000;
+
+  // Time decay component
+  let decayScore: number;
+  switch (prefs.decayFunction) {
+    case 'linear':
+      // Linear: 100 at age 0, 0 at age = 2 * halfLife
+      decayScore = Math.max(0, 100 - (ageMs / halfLifeMs) * 50);
+      break;
+    case 'step':
+      // Step: 100 if within halfLife, 50 if within 2x, 25 if within 4x, else 0
+      if (ageMs < halfLifeMs) decayScore = 100;
+      else if (ageMs < halfLifeMs * 2) decayScore = 50;
+      else if (ageMs < halfLifeMs * 4) decayScore = 25;
+      else decayScore = 0;
+      break;
+    case 'exponential':
+    default:
+      // Exponential: score = 2^(-age/halfLife) * 100
+      decayScore = Math.pow(2, -ageMs / halfLifeMs) * 100;
+  }
+
+  // Velocity component: reactions per hour since posted
+  let velocityScore = 0;
+  if (post.vibeAggregate && post.vibeAggregate.reactionCount > 0) {
+    const ageHours = ageMs / (60 * 60 * 1000);
+    const reactionsPerHour = post.vibeAggregate.reactionCount / Math.max(1, ageHours);
+    // 10 reactions/hour = 100 score
+    velocityScore = Math.min(100, reactionsPerHour * 10);
+  }
+
+  // Freshness: pure age score (100 if < 1 hour, decreases)
+  const freshnessScore = Math.max(0, 100 - (ageMs / (60 * 60 * 1000)));
+
+  // Weighted combination
+  const totalWeight = prefs.timeDecay + prefs.velocity + prefs.freshness;
+  if (totalWeight === 0) return decayScore; // Fallback to decay only
+
+  return (
+    (decayScore * prefs.timeDecay) +
+    (velocityScore * prefs.velocity) +
+    (freshnessScore * prefs.freshness)
+  ) / totalWeight;
+}
+
+/**
+ * Engagement sub-signal preferences
+ */
+export interface EngagementPreferences {
+  intensity: number;             // 0-100, weight of vibe intensity
+  discussionDepth: number;       // 0-100, weight of comment count
+  shareWeight: number;           // 0-100, weight of shares (future)
+  expertCommentBonus: number;    // 0-100, weight of expert comments
+}
+
+/**
+ * Calculate engagement score using sub-signals
+ * - intensity: Total vibe reaction intensity
+ * - discussionDepth: Comment count
+ * - shareWeight: Reserved for future share feature
+ * - expertCommentBonus: High-cred users commenting
+ */
+export function calculateEngagementScore(
+  post: {
+    commentCount: number;
+    vibeAggregate: PostVibeAggregate | null;
+    comments?: { author: { cred: number } }[];
+  },
+  prefs: EngagementPreferences
+): number {
+  // Intensity: total vibe intensity received
+  // 100 total intensity = 100 score
+  const vibeIntensity = post.vibeAggregate?.totalIntensity || 0;
+  const intensityScore = Math.min(100, vibeIntensity);
+
+  // Discussion depth: comment count
+  // 20 comments = 100 score
+  const discussionScore = Math.min(100, (post.commentCount || 0) * 5);
+
+  // Share weight: placeholder for future (always 0 for now)
+  const shareScore = 0;
+
+  // Expert comment bonus: if high-cred users commented
+  let expertScore = 0;
+  if (post.comments && post.comments.length > 0) {
+    const expertComments = post.comments.filter(c => (c.author?.cred || 0) >= 100);
+    // Each expert comment = 20 points, max 100
+    expertScore = Math.min(100, expertComments.length * 20);
+  }
+
+  // Weighted combination
+  const totalWeight = prefs.intensity + prefs.discussionDepth + prefs.shareWeight + prefs.expertCommentBonus;
+  if (totalWeight === 0) return 50;
+
+  return (
+    (intensityScore * prefs.intensity) +
+    (discussionScore * prefs.discussionDepth) +
+    (shareScore * prefs.shareWeight) +
+    (expertScore * prefs.expertCommentBonus)
+  ) / totalWeight;
+}
+
+/**
+ * Personalization sub-signal preferences
+ */
+export interface PersonalizationPreferences {
+  followingWeight: number;       // 0-100, weight of following relationship
+  alignment: number;             // 0-100, weight of vibe alignment
+  affinity: number;              // 0-100, weight of node affinity
+  trustNetwork: number;          // 0-100, weight of trust network
+}
+
+/**
+ * Calculate personalization score using sub-signals (ADVANCED version)
+ * Overload that accepts vector multipliers and personalization preferences
+ */
+export function calculatePersonalizationScore(
+  post: PostPersonalizationData,
+  context: PersonalizationContext,
+  vectorMultipliers: VectorMultipliers,
+  antiAlignmentPenalty: number,
+  prefs: PersonalizationPreferences
+): number;
+
+/**
+ * Calculate personalization score (LEGACY version without multipliers)
+ */
+export function calculatePersonalizationScore(
+  post: PostPersonalizationData,
+  context: PersonalizationContext
+): number;
+
+/**
+ * Calculate personalization score - implementation
+ */
+export function calculatePersonalizationScore(
+  post: PostPersonalizationData,
+  context: PersonalizationContext,
+  vectorMultipliers?: VectorMultipliers,
+  antiAlignmentPenalty?: number,
+  prefs?: PersonalizationPreferences
+): number {
+  // If no advanced params, use legacy behavior
+  if (!vectorMultipliers || !prefs) {
+    let score = 50; // Base neutral score
+
+    // 1. Following boost (0-25 points)
+    if (context.followingIds.has(post.authorId)) {
+      score += 25;
+    }
+
+    // 2. Node affinity boost (0-15 points)
+    if (post.nodeId && context.userNodeCredScores) {
+      const userCredInNode = context.userNodeCredScores[post.nodeId] || 0;
+      const affinityBoost = Math.min(userCredInNode / 1000, 1) * 15;
+      score += affinityBoost;
+    }
+
+    // 3. Vibe alignment (0-10 points or -10 penalty)
+    if (context.userVibeProfile && post.vibeAggregate && post.vibeAggregate.totalIntensity > 0) {
+      const alignment = calculateVibeAlignmentLegacy(context.userVibeProfile, post.vibeAggregate);
+      score += alignment * 10;
+    }
+
+    // 4. Trust network bonus (0-10 points)
+    if (context.vouchNetwork && context.vouchNetwork.has(post.authorId)) {
+      const distance = context.vouchNetwork.get(post.authorId)!;
+      const trustBoost = distance === 1 ? 10 : distance === 2 ? 5 : 2;
+      score += trustBoost;
+    }
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  // Advanced version with sub-signals
+  const penalty = antiAlignmentPenalty || 0;
+
+  // Following: 100 if following author, 0 if not
+  const followingScore = context.followingIds.has(post.authorId) ? 100 : 0;
+
+  // Alignment: vibe alignment (-100 to 100 scaled from -1 to 1)
+  let alignmentScore = 50; // Neutral default
+  if (context.userVibeProfile && post.vibeAggregate) {
+    const alignment = calculateVibeAlignment(
+      context.userVibeProfile,
+      post.vibeAggregate as PostVibeAggregate,
+      vectorMultipliers,
+      penalty
+    );
+    alignmentScore = (alignment + 1) * 50; // Scale -1..1 to 0..100
+  }
+
+  // Affinity: user's cred in post's node
+  let affinityScore = 50; // Neutral if no node
+  if (post.nodeId && context.userNodeCredScores) {
+    const userCredInNode = context.userNodeCredScores[post.nodeId] || 0;
+    affinityScore = Math.min(100, userCredInNode / 10); // 1000 cred = 100
+  }
+
+  // Trust network: proximity in vouch graph
+  let trustScore = 0;
+  if (context.vouchNetwork && context.vouchNetwork.has(post.authorId)) {
+    const distance = context.vouchNetwork.get(post.authorId)!;
+    trustScore = distance === 1 ? 100 : distance === 2 ? 50 : 25;
+  }
+
+  // Weighted combination
+  const totalWeight = prefs.followingWeight + prefs.alignment + prefs.affinity + prefs.trustNetwork;
+  if (totalWeight === 0) return 50;
+
+  return (
+    (followingScore * prefs.followingWeight) +
+    (alignmentScore * prefs.alignment) +
+    (affinityScore * prefs.affinity) +
+    (trustScore * prefs.trustNetwork)
+  ) / totalWeight;
+}
+
+/**
+ * Calculate recency score with exponential decay (LEGACY)
+ */
+function calculateRecencyScoreLegacy(
   createdAt: Date,
   halfLife: string
 ): number {
@@ -195,14 +523,14 @@ function calculateRecencyScore(
 }
 
 /**
- * Calculate combined feed score for a post
+ * Calculate combined feed score for a post (LEGACY)
  */
 export function calculateFeedScore(
   post: PostWithScores,
   preferences: FeedPreferences,
   boostMultiplier: number = 1.0
 ): number {
-  const recencyScore = calculateRecencyScore(post.createdAt, preferences.recencyHalfLife);
+  const recencyScore = calculateRecencyScoreLegacy(post.createdAt, preferences.recencyHalfLife);
 
   // Normalize scores to 0-100 range (they should already be in this range)
   const normalizedQuality = Math.max(0, Math.min(100, post.qualityScore));
@@ -220,14 +548,14 @@ export function calculateFeedScore(
 }
 
 /**
- * Calculate detailed score breakdown
+ * Calculate detailed score breakdown (LEGACY)
  */
 export function calculateScoreBreakdown(
   post: PostWithScores,
   preferences: FeedPreferences,
   boostMultiplier: number = 1.0
 ) {
-  const recencyScore = calculateRecencyScore(post.createdAt, preferences.recencyHalfLife);
+  const recencyScore = calculateRecencyScoreLegacy(post.createdAt, preferences.recencyHalfLife);
   const normalizedQuality = Math.max(0, Math.min(100, post.qualityScore));
   const normalizedEngagement = Math.max(0, Math.min(100, post.engagementScore / 10));
   const normalizedPersonalization = Math.max(0, Math.min(100, post.personalizationScore));
@@ -264,6 +592,218 @@ export function getDefaultPreferences(): FeedPreferences {
     personalizationWeight: 15.0,
     recencyHalfLife: '12h',
     followingOnly: false,
+  };
+}
+
+// ============================================================================
+// Phase 3: Diversity Controls
+// ============================================================================
+
+/**
+ * Diversity control preferences
+ */
+export interface DiversityPreferences {
+  maxPostsPerAuthor: number;        // 1-10, max posts from same author
+  topicClusteringPenalty: number;   // 0-100, penalty for similar consecutive posts
+  textRatio: number;                // 0-100, target % of text posts
+  imageRatio: number;               // 0-100, target % of image posts
+  videoRatio: number;               // 0-100, target % of video posts
+  linkRatio: number;                // 0-100, target % of link posts
+}
+
+/**
+ * Post with score for diversity processing
+ */
+export interface ScoredPost {
+  id: string;
+  authorId: string;
+  score: number;
+  postType?: string;
+  vibeAggregate?: PostVibeAggregate | null;
+}
+
+/**
+ * Get vibe signature from a post (normalized vibe vector)
+ */
+function getVibeSignature(post: ScoredPost): number[] {
+  const agg = post.vibeAggregate;
+  if (!agg || agg.totalIntensity === 0) {
+    return [0, 0, 0, 0, 0, 0]; // Neutral signature
+  }
+  const total = agg.totalIntensity;
+  return [
+    agg.insightfulSum / total,
+    agg.joySum / total,
+    agg.fireSum / total,
+    agg.supportSum / total,
+    agg.shockSum / total,
+    agg.questionableSum / total,
+  ];
+}
+
+/**
+ * Calculate cosine similarity between two vectors
+ */
+function vectorCosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length) return 0;
+
+  let dotProduct = 0;
+  let magA = 0;
+  let magB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dotProduct += (a[i] ?? 0) * (b[i] ?? 0);
+    magA += (a[i] ?? 0) * (a[i] ?? 0);
+    magB += (b[i] ?? 0) * (b[i] ?? 0);
+  }
+
+  magA = Math.sqrt(magA);
+  magB = Math.sqrt(magB);
+
+  if (magA === 0 || magB === 0) return 0;
+  return dotProduct / (magA * magB);
+}
+
+/**
+ * Apply diversity controls to scored posts
+ *
+ * - Limits posts per author
+ * - Applies penalty to similar consecutive posts (topic clustering)
+ * - Respects content type ratios (soft preference)
+ */
+export function applyDiversityControls(
+  posts: ScoredPost[],
+  prefs: DiversityPreferences,
+  limit: number
+): ScoredPost[] {
+  if (posts.length === 0) return [];
+
+  // Sort by score descending
+  const sorted = [...posts].sort((a, b) => b.score - a.score);
+
+  // Track posts per author
+  const authorCounts = new Map<string, number>();
+
+  // Track previous post's vibe signature for clustering penalty
+  let prevVibeSignature: number[] | null = null;
+
+  const result: ScoredPost[] = [];
+  const deferred: ScoredPost[] = []; // Posts that exceeded author limit
+
+  for (const post of sorted) {
+    // Check author limit
+    const authorCount = authorCounts.get(post.authorId) || 0;
+    if (authorCount >= prefs.maxPostsPerAuthor) {
+      deferred.push(post);
+      continue;
+    }
+
+    // Create a copy so we can modify the score
+    const processedPost = { ...post };
+
+    // Apply clustering penalty if similar to previous post
+    if (prevVibeSignature && prefs.topicClusteringPenalty > 0) {
+      const currentSignature = getVibeSignature(processedPost);
+      // Only apply penalty if both posts have vibe data
+      if (currentSignature.some(v => v !== 0)) {
+        const similarity = vectorCosineSimilarity(prevVibeSignature, currentSignature);
+        if (similarity > 0.8) {
+          // Very similar to prev post - apply penalty
+          processedPost.score *= (1 - prefs.topicClusteringPenalty / 100);
+        }
+      }
+    }
+
+    // Add to result
+    result.push(processedPost);
+    authorCounts.set(post.authorId, authorCount + 1);
+
+    // Update prev signature (only if this post has vibes)
+    const currentSig = getVibeSignature(processedPost);
+    if (currentSig.some(v => v !== 0)) {
+      prevVibeSignature = currentSig;
+    }
+
+    if (result.length >= limit) break;
+  }
+
+  // If we didn't fill the limit, add deferred posts
+  if (result.length < limit) {
+    for (const post of deferred) {
+      result.push(post);
+      if (result.length >= limit) break;
+    }
+  }
+
+  return result;
+}
+
+// ============================================================================
+// Phase 4: Mood Presets
+// ============================================================================
+
+/**
+ * Available mood types
+ */
+export type MoodType = 'normal' | 'chill' | 'intense' | 'discovery';
+
+/**
+ * Mood preset definitions
+ * Each mood overrides certain preferences to create a distinct browsing experience
+ */
+const MOOD_PRESETS: Record<MoodType, Partial<Record<string, number>>> = {
+  normal: {}, // No overrides, use user's settings
+
+  chill: {
+    // Relaxed browsing - less urgency, longer timeframes
+    recencyWeight: 20,
+    engagementWeight: 15,
+    personalizationWeight: 30,
+    halfLifeHours: 48,
+    velocity: 10,
+    intensity: 20,
+    maxPostsPerAuthor: 5,
+  },
+
+  intense: {
+    // What's hot right now
+    recencyWeight: 40,
+    engagementWeight: 35,
+    qualityWeight: 15,
+    personalizationWeight: 10,
+    halfLifeHours: 6,
+    velocity: 60,
+    intensity: 50,
+  },
+
+  discovery: {
+    // Find new stuff
+    personalizationWeight: 5,
+    qualityWeight: 40,
+    discoveryRate: 50,
+    maxPostsPerAuthor: 1,
+    followingWeight: 10,
+    trustNetwork: 5,
+  },
+};
+
+/**
+ * Apply mood preset overrides to user preferences
+ *
+ * @param userPrefs - The user's base preferences
+ * @param mood - The mood to apply
+ * @returns New preferences object with mood overrides applied
+ */
+export function applyMoodPreset<T extends Record<string, unknown>>(
+  userPrefs: T,
+  mood: MoodType
+): T {
+  if (mood === 'normal') return userPrefs;
+
+  const moodOverrides = MOOD_PRESETS[mood];
+  return {
+    ...userPrefs,
+    ...moodOverrides,
   };
 }
 

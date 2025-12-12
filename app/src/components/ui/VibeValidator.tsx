@@ -97,6 +97,13 @@ export interface VibeValidatorProps {
 // PRESETS
 // ============================================
 
+// IMPORTANT: These preset IDs must match PresetBottomSheet.tsx and backend feedPreferences.ts
+// Frontend ID -> Backend ID mapping:
+// - latest -> latest
+// - balanced -> balanced
+// - trending -> popular (backend uses 'popular' for engagement-focused)
+// - expert -> expert
+// - network -> personal (backend uses 'personal' for personalization-focused)
 const PRESETS = [
     {
         id: 'latest',
@@ -113,7 +120,7 @@ const PRESETS = [
         weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 }
     },
     {
-        id: 'hot',
+        id: 'trending',
         name: "What's Hot",
         description: 'Most engaging content right now',
         icon: Flame,
