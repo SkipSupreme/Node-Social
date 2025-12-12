@@ -131,10 +131,10 @@ const MainApp = () => {
     if (view === 'create') {
       setIsCreatePostOpen(true);
     } else {
-      // Clear navigation history when switching tabs via bottom nav
+      // Clear navigation history and view params when switching tabs via bottom nav
       // This is the expected UX: tapping a tab = "go to root of that tab"
       setNavigationHistory([]);
-      setViewParams(view === 'profile' ? null : viewParams);
+      setViewParams(null);
 
       // When navigating to feed, clear search and refresh feed data
       if (view === 'feed') {
@@ -422,11 +422,7 @@ const MainApp = () => {
     try {
       const params: any = {
         nodeId: nodeId || undefined,
-        qualityWeight: settings.weights.quality,
-        recencyWeight: settings.weights.recency,
-        engagementWeight: settings.weights.engagement,
-        personalizationWeight: settings.weights.personalization,
-        // Pass intermediate filters from algoSettings
+        // Pass intermediate filters from algoSettings (apply to all modes)
         timeRange: settings.intermediate?.timeRange,
         textOnly: settings.intermediate?.textOnly,
         mediaOnly: settings.intermediate?.mediaOnly,
@@ -435,9 +431,21 @@ const MainApp = () => {
       };
 
       if (mode === 'discovery') {
-        params.preset = 'popular'; // Or 'balanced'
+        // Use preset for discovery - let backend apply preset's default weights
+        params.preset = 'popular';
       } else if (mode === 'following') {
+        // Following mode uses user's weights but filters to followed users
         params.followingOnly = true;
+        params.qualityWeight = settings.weights.quality;
+        params.recencyWeight = settings.weights.recency;
+        params.engagementWeight = settings.weights.engagement;
+        params.personalizationWeight = settings.weights.personalization;
+      } else {
+        // Global mode uses user's custom algorithm weights
+        params.qualityWeight = settings.weights.quality;
+        params.recencyWeight = settings.weights.recency;
+        params.engagementWeight = settings.weights.engagement;
+        params.personalizationWeight = settings.weights.personalization;
       }
 
       const data = await getFeed(params);
