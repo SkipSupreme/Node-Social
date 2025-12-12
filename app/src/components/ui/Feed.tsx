@@ -689,11 +689,11 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     </TouchableOpacity>
 
                     {post.content && (
-                        <View style={{ maxHeight: isExpanded ? undefined : 80, overflow: 'hidden' }}>
+                        <View style={{ maxHeight: isExpanded ? undefined : (post.content.length > 6000 ? 400 : undefined), overflow: 'hidden' }}>
                             <Text style={styles.bodyText}>
                                 {post.content}
                             </Text>
-                            {!isExpanded && post.content.length > 300 && (
+                            {!isExpanded && post.content.length > 6000 && (
                                 <View
                                     style={{
                                         position: 'absolute',
@@ -706,7 +706,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             )}
                         </View>
                     )}
-                    {post.content && !isExpanded && post.content.length > 300 && (
+                    {post.content && !isExpanded && post.content.length > 6000 && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                             <Text style={{ color: COLORS.node.accent, fontSize: 12, fontWeight: '700' }}>Continue Reading</Text>
                             <ChevronDown size={12} color={COLORS.node.accent} />
@@ -1092,7 +1092,7 @@ const styles = StyleSheet.create({
     timestamp: { fontSize: 10, color: COLORS.node.muted },
     commentText: { fontSize: 14, color: 'rgba(226, 232, 240, 0.9)', lineHeight: 20 },
     title: { fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 4 },
-    bodyText: { fontSize: 14, color: COLORS.node.muted, lineHeight: 22 },
+    bodyText: { fontSize: 14, color: '#e2e8f0', lineHeight: 22 },
     subtext: { fontSize: 11, color: COLORS.node.muted },
     headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     userInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },

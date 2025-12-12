@@ -34,17 +34,17 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const [post, setPost] = useState(initialPost);
   const [voting, setVoting] = useState(false);
 
-  // Sync local state when initialPost prop changes (e.g., from socket updates or refetch)
-  // Use a ref to check voting state without adding it as a dependency - we only want
-  // this effect to run when initialPost changes, not when voting state changes
-  const votingRef = useRef(voting);
-  votingRef.current = voting;
+  // Track whether we should skip the next prop sync (during voting)
+  // This is more explicit than reading transient voting state via ref
+  const skipNextSyncRef = useRef(false);
 
   useEffect(() => {
     // Skip sync while voting to preserve optimistic update during API call
-    if (!votingRef.current) {
-      setPost(initialPost);
+    if (skipNextSyncRef.current) {
+      // Don't clear the flag here - it gets cleared when voting completes
+      return;
     }
+    setPost(initialPost);
   }, [initialPost]);
 
   const handleVote = async (optionId: string) => {
@@ -67,6 +67,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
     };
 
     setVoting(true);
+    skipNextSyncRef.current = true; // Block prop syncs during vote
 
     // Optimistic update with deep copy
     const newPoll = {
@@ -93,6 +94,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
       setPost(previousPost);
     } finally {
       setVoting(false);
+      skipNextSyncRef.current = false; // Re-enable prop syncs
     }
   };
 

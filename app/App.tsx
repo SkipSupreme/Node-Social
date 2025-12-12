@@ -58,7 +58,7 @@ const MainApp = () => {
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeLanding' | 'nodeSettings' | 'modLog'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
