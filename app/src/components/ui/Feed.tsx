@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
@@ -9,6 +9,9 @@ import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { useSocket } from '../../context/SocketContext';
 // Only import YouTube player on native platforms
 const YoutubePlayer = Platform.OS !== 'web' ? require('react-native-youtube-iframe').default : null;
+// Import expo-av for video playback (native only)
+const Video = Platform.OS !== 'web' ? require('expo-av').Video : null;
+const ResizeMode = Platform.OS !== 'web' ? require('expo-av').ResizeMode : null;
 
 // Auto-sizing image component that maintains aspect ratio
 const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
@@ -46,6 +49,239 @@ const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: numb
     );
 };
 
+// Zoomable image component - wraps image in TouchableOpacity to open modal
+const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: number }) => {
+    const [modalVisible, setModalVisible] = useState(false);
+    const [aspectRatio, setAspectRatio] = useState(16 / 9);
+    const screenWidth = Dimensions.get('window').width;
+    const screenHeight = Dimensions.get('window').height;
+
+    useEffect(() => {
+        Image.getSize(
+            uri,
+            (width, height) => {
+                setAspectRatio(width / height);
+            },
+            (error) => {
+                console.log('Failed to get image size:', error);
+            }
+        );
+    }, [uri]);
+
+    return (
+        <>
+            <TouchableOpacity onPress={() => setModalVisible(true)} activeOpacity={0.9}>
+                <Image
+                    source={{ uri }}
+                    style={[
+                        styles.postImage,
+                        {
+                            aspectRatio,
+                            height: undefined,
+                            maxHeight,
+                        }
+                    ]}
+                    resizeMode="contain"
+                />
+            </TouchableOpacity>
+
+            <Modal
+                visible={modalVisible}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setModalVisible(false)}
+                statusBarTranslucent
+            >
+                <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
+                <View style={styles.imageZoomModal}>
+                    <TouchableOpacity
+                        style={styles.imageZoomClose}
+                        onPress={() => setModalVisible(false)}
+                    >
+                        <X size={28} color="#fff" />
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        activeOpacity={1}
+                        style={styles.imageZoomContainer}
+                        onPress={() => setModalVisible(false)}
+                    >
+                        <Image
+                            source={{ uri }}
+                            style={{
+                                width: screenWidth,
+                                height: screenWidth / aspectRatio,
+                                maxHeight: screenHeight * 0.85,
+                            }}
+                            resizeMode="contain"
+                        />
+                    </TouchableOpacity>
+                </View>
+            </Modal>
+        </>
+    );
+};
+
+// Reddit Video Player component - handles v.redd.it URLs
+const RedditVideoPlayer = ({ url }: { url: string }) => {
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(false);
+    const [videoUrl, setVideoUrl] = useState<string | null>(null);
+    const videoRef = useRef<any>(null);
+    const screenWidth = Dimensions.get('window').width;
+    const playerWidth = Math.min(screenWidth - 32, 600);
+    const playerHeight = playerWidth * (9 / 16);
+
+    // Reddit videos need their HLS/DASH URL resolved
+    useEffect(() => {
+        const resolveRedditVideo = async () => {
+            try {
+                // v.redd.it URLs need to be fetched to get the actual video URL
+                // Try the DASH playlist first, fallback to direct mp4
+                const videoId = url.match(/v\.redd\.it\/([a-zA-Z0-9]+)/)?.[1];
+                if (videoId) {
+                    // Try HLS playlist (most reliable for mobile)
+                    const hlsUrl = `https://v.redd.it/${videoId}/HLSPlaylist.m3u8`;
+                    setVideoUrl(hlsUrl);
+                } else {
+                    setVideoUrl(url);
+                }
+                setLoading(false);
+            } catch (err) {
+                console.error('Failed to resolve Reddit video:', err);
+                setError(true);
+                setLoading(false);
+            }
+        };
+        resolveRedditVideo();
+    }, [url]);
+
+    // Web fallback - just link to Reddit
+    if (Platform.OS === 'web') {
+        return (
+            <TouchableOpacity
+                style={[styles.videoPreview, { width: playerWidth, height: playerHeight }]}
+                onPress={() => Linking.openURL(url)}
+            >
+                <View style={styles.videoPlaceholder} />
+                <View style={styles.playButtonOverlay}>
+                    <View style={styles.playButton}>
+                        <Play size={32} color="#fff" fill="#fff" />
+                    </View>
+                </View>
+                <View style={styles.videoLabel}>
+                    <Text style={styles.videoLabelText}>Reddit Video</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    }
+
+    if (loading) {
+        return (
+            <View style={[styles.videoPreview, { width: playerWidth, height: playerHeight, justifyContent: 'center', alignItems: 'center' }]}>
+                <ActivityIndicator size="large" color={COLORS.node.accent} />
+            </View>
+        );
+    }
+
+    if (error || !videoUrl || !Video) {
+        return (
+            <TouchableOpacity
+                style={[styles.videoPreview, { width: playerWidth, height: playerHeight }]}
+                onPress={() => Linking.openURL(url)}
+            >
+                <View style={styles.videoPlaceholder} />
+                <View style={styles.playButtonOverlay}>
+                    <View style={styles.playButton}>
+                        <Play size={32} color="#fff" fill="#fff" />
+                    </View>
+                </View>
+                <View style={styles.videoLabel}>
+                    <Text style={styles.videoLabelText}>Open on Reddit</Text>
+                </View>
+            </TouchableOpacity>
+        );
+    }
+
+    return (
+        <View style={[styles.videoContainer, { width: playerWidth, height: playerHeight }]}>
+            <Video
+                ref={videoRef}
+                source={{ uri: videoUrl }}
+                style={{ width: playerWidth, height: playerHeight, borderRadius: 12 }}
+                useNativeControls
+                resizeMode={ResizeMode?.CONTAIN || 'contain'}
+                isLooping
+                shouldPlay={false}
+                onError={(err: any) => {
+                    console.error('Video playback error:', err);
+                    setError(true);
+                }}
+            />
+        </View>
+    );
+};
+
+// Generic Video Player for direct mp4/webm URLs
+const GenericVideoPlayer = ({ url }: { url: string }) => {
+    const videoRef = useRef<any>(null);
+    const screenWidth = Dimensions.get('window').width;
+    const playerWidth = Math.min(screenWidth - 32, 600);
+    const playerHeight = playerWidth * (9 / 16);
+
+    // Web fallback
+    if (Platform.OS === 'web') {
+        return (
+            <View style={[styles.videoContainer, { width: playerWidth, height: playerHeight }]}>
+                <video
+                    src={url}
+                    controls
+                    style={{ width: playerWidth, height: playerHeight, borderRadius: 12 }}
+                />
+            </View>
+        );
+    }
+
+    if (!Video) {
+        return (
+            <TouchableOpacity
+                style={[styles.videoPreview, { width: playerWidth, height: playerHeight }]}
+                onPress={() => Linking.openURL(url)}
+            >
+                <View style={styles.videoPlaceholder} />
+                <View style={styles.playButtonOverlay}>
+                    <View style={styles.playButton}>
+                        <Play size={32} color="#fff" fill="#fff" />
+                    </View>
+                </View>
+            </TouchableOpacity>
+        );
+    }
+
+    return (
+        <View style={[styles.videoContainer, { width: playerWidth, height: playerHeight }]}>
+            <Video
+                ref={videoRef}
+                source={{ uri: url }}
+                style={{ width: playerWidth, height: playerHeight, borderRadius: 12 }}
+                useNativeControls
+                resizeMode={ResizeMode?.CONTAIN || 'contain'}
+                isLooping
+                shouldPlay={false}
+            />
+        </View>
+    );
+};
+
+// Helper to check if URL is a Reddit video
+const isRedditVideo = (url: string): boolean => {
+    return /v\.redd\.it\//i.test(url);
+};
+
+// Helper to check if URL is a direct video file
+const isDirectVideoUrl = (url: string): boolean => {
+    return /\.(mp4|webm|mov)(\?.*)?$/i.test(url);
+};
+
 // Helper to detect video URLs
 const isVideoUrl = (url: string): boolean => {
     const videoPatterns = [
@@ -53,6 +289,8 @@ const isVideoUrl = (url: string): boolean => {
         /youtube\.com\/watch\?v=/i,
         /youtu\.be\//i,
         /vimeo\.com\//i,
+        /v\.redd\.it\//i,  // Reddit hosted videos
+        /imgur\.com\/.*\.gifv/i,  // Imgur gifv
         /tiktok\.com\//i,
     ];
     return videoPatterns.some(pattern => pattern.test(url));
@@ -117,7 +355,15 @@ const YouTubeEmbed = ({ videoId }: { videoId: string }) => {
 
 // Helper to check if URL is an image
 const isImageUrl = (url: string): boolean => {
-    return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
+    // Direct image extensions
+    if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) return true;
+    // Reddit image hosting
+    if (/i\.redd\.it\//i.test(url)) return true;
+    // Imgur direct images
+    if (/i\.imgur\.com\//i.test(url) && !/\.gifv/i.test(url)) return true;
+    // Preview.redd.it images
+    if (/preview\.redd\.it\//i.test(url)) return true;
+    return false;
 };
 
 export interface UIAuthor {
@@ -716,13 +962,17 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     {/* Image/Video/Link Preview Rendering */}
                     {post.linkUrl && (
                         <View style={styles.linkPreviewContainer}>
-                            {/* Check if it's a direct image URL */}
+                            {/* Check if it's a direct image URL - now zoomable! */}
                             {isImageUrl(post.linkUrl) ? (
-                                <AutoSizeImage uri={post.linkUrl} maxHeight={500} />
+                                <ZoomableImage uri={post.linkUrl} maxHeight={500} />
                             ) : isVideoUrl(post.linkUrl) ? (
-                                /* Video URL - embed YouTube or show thumbnail for others */
+                                /* Video URL - embed YouTube, Reddit videos, or generic player */
                                 getYouTubeVideoId(post.linkUrl) ? (
                                     <YouTubeEmbed videoId={getYouTubeVideoId(post.linkUrl)!} />
+                                ) : isRedditVideo(post.linkUrl) ? (
+                                    <RedditVideoPlayer url={post.linkUrl} />
+                                ) : isDirectVideoUrl(post.linkUrl) ? (
+                                    <GenericVideoPlayer url={post.linkUrl} />
                                 ) : (
                                     <TouchableOpacity
                                         style={styles.videoPreview}
@@ -1289,6 +1539,35 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 12,
         fontWeight: '600',
+    },
+    // Video container for expo-av player
+    videoContainer: {
+        borderRadius: 12,
+        overflow: 'hidden',
+        backgroundColor: '#000',
+        alignSelf: 'center',
+    },
+    // Image zoom modal styles
+    imageZoomModal: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.95)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    imageZoomClose: {
+        position: 'absolute',
+        top: Platform.OS === 'ios' ? 50 : 20,
+        right: 20,
+        zIndex: 10,
+        padding: 8,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 20,
+    },
+    imageZoomContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
     },
     linkPreview: {
         backgroundColor: COLORS.node.bg,

@@ -126,14 +126,16 @@ const MainApp = () => {
   };
 
   // Handle bottom nav navigation
+  // Bottom nav acts as "tab switching" - clears history and goes directly to the view
   const handleBottomNavigation = (view: 'feed' | 'discovery' | 'create' | 'notifications' | 'profile') => {
     if (view === 'create') {
       setIsCreatePostOpen(true);
     } else {
-      // Clear viewParams when navigating to own profile (not another user's)
-      if (view === 'profile') {
-        setViewParams(null);
-      }
+      // Clear navigation history when switching tabs via bottom nav
+      // This is the expected UX: tapping a tab = "go to root of that tab"
+      setNavigationHistory([]);
+      setViewParams(view === 'profile' ? null : viewParams);
+
       // When navigating to feed, clear search and refresh feed data
       if (view === 'feed') {
         setSearchQuery('');

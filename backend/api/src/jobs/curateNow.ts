@@ -19,19 +19,6 @@ const BOT_MAP: Record<string, string> = {
   'youtube': 'TubeWatch'
 };
 
-function getSourceAttribution(item: any): string {
-  if (item.sourceType === 'reddit') {
-    return '📡 via r/' + (item.subreddit || 'reddit');
-  } else if (item.sourceType === 'hackernews') {
-    return '📡 via Hacker News';
-  } else if (item.sourceType === 'bluesky') {
-    return '📡 via Bluesky';
-  } else if (item.sourceType === 'rss') {
-    return '📡 via RSS';
-  }
-  return '📡 curated';
-}
-
 function cleanText(text: string): string {
   return text
     // Strip HTML tags
