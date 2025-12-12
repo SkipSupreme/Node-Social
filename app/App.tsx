@@ -47,8 +47,6 @@ import { useSocket, SocketProvider } from './src/context/SocketContext';
 import { FeedHeader } from './src/components/ui/FeedHeader';
 import { WhatsVibing } from './src/components/ui/WhatsVibing';
 import { NodeLandingPage } from './src/components/ui/NodeLandingPage';
-// PostTypeFilter removed from main feed - may be added to Vibe Validator expert mode later
-import { PostType } from './src/web/components/Feeds/PostTypeFilter';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
@@ -142,7 +140,7 @@ const MainApp = () => {
         setSearchQuery('');
         setFeedMode('global');
         setSelectedNodeId(null);
-        fetchFeed(null, 'global', selectedPostTypes);
+        fetchFeed(null, 'global');
       }
       setCurrentView(view);
     }
@@ -393,8 +391,6 @@ const MainApp = () => {
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
-  const [selectedPostTypes, setSelectedPostTypes] = useState<PostType[]>([]);
-
   // Refs to track latest values for the debounced effect (avoids stale closures)
   const feedModeRef = useRef(feedMode);
   const selectedNodeIdRef = useRef(selectedNodeId);
@@ -408,8 +404,8 @@ const MainApp = () => {
     selectedNodeIdRef.current = selectedNodeId;
   }, [selectedNodeId]);
 
-  const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global', postTypes?: PostType[]) => {
-    console.log('[fetchFeed] Called with:', { nodeId, mode, postTypes });
+  const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
+    console.log('[fetchFeed] Called with:', { nodeId, mode });
     setLoading(true);
     try {
       const params: any = {
@@ -430,15 +426,6 @@ const MainApp = () => {
         params.preset = 'popular'; // Or 'balanced'
       } else if (mode === 'following') {
         params.followingOnly = true;
-      }
-
-      // Add post type filter if any selected (overrides intermediate filters)
-      if (postTypes && postTypes.length > 0) {
-        params.postTypes = postTypes;
-        // Clear conflicting filters when explicit postTypes are set
-        delete params.textOnly;
-        delete params.mediaOnly;
-        delete params.linksOnly;
       }
 
       const data = await getFeed(params);
@@ -507,11 +494,11 @@ const MainApp = () => {
     const timer = setTimeout(() => {
       // Use refs to get latest feedMode/selectedNodeId without them as dependencies
       // This avoids duplicate fetches since handlers already call fetchFeed directly
-      fetchFeed(selectedNodeIdRef.current, feedModeRef.current, selectedPostTypes);
+      fetchFeed(selectedNodeIdRef.current, feedModeRef.current);
       saveFeedPreferences(algoSettings);
     }, 500);
     return () => clearTimeout(timer);
-  }, [algoSettings, settingsInitialized, selectedPostTypes]);
+  }, [algoSettings, settingsInitialized]);
 
   const handleNodeSelect = (nodeId: string | null) => {
     console.log('[handleNodeSelect] Called with nodeId:', nodeId);
@@ -523,7 +510,7 @@ const MainApp = () => {
     // For now, let's reset to global when picking a node to be safe/simple
     setFeedMode('global');
     console.log('[handleNodeSelect] Calling fetchFeed with nodeId:', nodeId);
-    fetchFeed(nodeId, 'global', selectedPostTypes);
+    fetchFeed(nodeId, 'global');
   };
 
   const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
@@ -539,7 +526,7 @@ const MainApp = () => {
       setCurrentView('following');
     } else {
       setCurrentView('feed');
-      fetchFeed(null, mode, selectedPostTypes);
+      fetchFeed(null, mode);
     }
   };
 
@@ -547,7 +534,7 @@ const MainApp = () => {
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
-      fetchFeed(selectedNodeId, feedMode, selectedPostTypes);
+      fetchFeed(selectedNodeId, feedMode);
       return;
     }
     setLoading(true);
@@ -1064,7 +1051,7 @@ const MainApp = () => {
         onSuccess={() => {
           setIsCreatePostOpen(false);
           queryClient.invalidateQueries({ queryKey: ['posts'] });
-          fetchFeed(selectedNodeId, feedMode, selectedPostTypes); // Refresh feed after posting
+          fetchFeed(selectedNodeId, feedMode); // Refresh feed after posting
         }}
         nodes={nodes}
         initialNodeId={selectedNodeId}
