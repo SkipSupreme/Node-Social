@@ -102,7 +102,8 @@ jobs:
       - name: Start backend and test health
         run: |
           cd backend/api
-          # Start the server in background
+          # Start the server in a new process group so we can kill all child processes
+          set -m
           NODE_ENV=test npm run dev &
           SERVER_PID=$!
 
@@ -116,12 +117,17 @@ jobs:
             echo "Health check passed!"
           else
             echo "Health check failed with status $HTTP_STATUS"
-            kill $SERVER_PID 2>/dev/null || true
+            # Kill process group to ensure child processes (tsx) are terminated
+            kill -- -$SERVER_PID 2>/dev/null || kill $SERVER_PID 2>/dev/null || true
             exit 1
           fi
 
-          # Stop server
-          kill $SERVER_PID 2>/dev/null || true
+          # Stop server - kill process group to ensure tsx child process is terminated
+          kill -- -$SERVER_PID 2>/dev/null || kill $SERVER_PID 2>/dev/null || true
+          # Give processes time to exit gracefully
+          sleep 2
+          # Force kill any remaining processes on port 3000
+          fuser -k 3000/tcp 2>/dev/null || true
         env:
           DATABASE_URL: postgresql://nodesocial:nodesocialpwd@localhost:5432/nodesocial_test?schema=public
           REDIS_URL: redis://localhost:6379

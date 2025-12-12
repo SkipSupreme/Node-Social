@@ -35,9 +35,12 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const [voting, setVoting] = useState(false);
 
   // Sync local state when initialPost prop changes (e.g., from socket updates or refetch)
+  // Skip sync while voting to preserve optimistic update during API call
   useEffect(() => {
-    setPost(initialPost);
-  }, [initialPost]);
+    if (!voting) {
+      setPost(initialPost);
+    }
+  }, [initialPost, voting]);
 
   const handleVote = async (optionId: string) => {
     if (voting || !post.poll) return;

@@ -486,10 +486,19 @@ const MainApp = () => {
 
   // Debounced feed refresh and preference save when algo settings change
   const [settingsInitialized, setSettingsInitialized] = useState(false);
+  const initialFetchDone = useRef(false);
   useEffect(() => {
     // Don't start the timer until settings are initialized
     // This prevents double-fetch: one with defaults, one with loaded preferences
     if (!settingsInitialized) return;
+
+    // On initial load, fetch immediately (no delay) to ensure we use fresh algoSettings
+    // Subsequent changes use debounce to avoid excessive API calls
+    if (!initialFetchDone.current) {
+      initialFetchDone.current = true;
+      fetchFeed(selectedNodeIdRef.current, feedModeRef.current);
+      return;
+    }
 
     const timer = setTimeout(() => {
       // Use refs to get latest feedMode/selectedNodeId without them as dependencies
@@ -590,10 +599,9 @@ const MainApp = () => {
     const init = async () => {
       await fetchNodes();
       await loadFeedPreferences();
+      // Setting this to true triggers the debounced effect which fetches immediately
+      // on first run (see initialFetchDone ref) - ensures fresh algoSettings are used
       setSettingsInitialized(true);
-      // Explicitly fetch feed after settings are loaded - don't rely solely on
-      // the debounced effect since algoSettings might not change if defaults match
-      fetchFeed(null, 'global');
     };
     init();
   }, []);
