@@ -34,14 +34,15 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
   const [post, setPost] = useState(initialPost);
   const [voting, setVoting] = useState(false);
 
-  // Track whether we should skip the next prop sync (during voting)
-  // This is more explicit than reading transient voting state via ref
-  const skipNextSyncRef = useRef(false);
+  // Track voting state and any pending prop updates that arrived during voting
+  const votingRef = useRef(false);
+  const pendingUpdateRef = useRef<typeof initialPost | null>(null);
 
   useEffect(() => {
     // Skip sync while voting to preserve optimistic update during API call
-    if (skipNextSyncRef.current) {
-      // Don't clear the flag here - it gets cleared when voting completes
+    // Store the update so we can apply it after voting completes
+    if (votingRef.current) {
+      pendingUpdateRef.current = initialPost;
       return;
     }
     setPost(initialPost);
@@ -67,7 +68,8 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
     };
 
     setVoting(true);
-    skipNextSyncRef.current = true; // Block prop syncs during vote
+    votingRef.current = true; // Block prop syncs during vote
+    pendingUpdateRef.current = null; // Clear any stale pending update
 
     // Optimistic update with deep copy
     const newPoll = {
@@ -94,7 +96,12 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
       setPost(previousPost);
     } finally {
       setVoting(false);
-      skipNextSyncRef.current = false; // Re-enable prop syncs
+      votingRef.current = false; // Re-enable prop syncs
+      // Apply any parent updates that arrived during voting
+      if (pendingUpdateRef.current) {
+        setPost(pendingUpdateRef.current);
+        pendingUpdateRef.current = null;
+      }
     }
   };
 

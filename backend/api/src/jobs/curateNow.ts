@@ -210,8 +210,8 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     }
   }
 
-  const shouldPost = score >= 7;
-  const needsReview = score >= 5 && score < 7;
+  const shouldPost = score >= 6;
+  const needsReview = score >= 4 && score < 6;
 
   return {
     score: Math.min(10, Math.max(1, Math.round(score))),

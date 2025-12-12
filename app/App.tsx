@@ -232,10 +232,11 @@ const MainApp = () => {
   };
 
   // Load ALL feed preferences from backend on mount
-  const loadFeedPreferences = async () => {
+  // Returns the loaded settings so caller can update ref synchronously
+  const loadFeedPreferences = async (): Promise<VibeValidatorSettings | null> => {
     try {
       const prefs = await getFeedPreferences();
-      setAlgoSettings({
+      const settings: VibeValidatorSettings = {
         preset: mapPresetFromBackend(prefs.presetMode),
         weights: {
           quality: prefs.qualityWeight,
@@ -293,9 +294,12 @@ const MainApp = () => {
           timeBasedProfiles: prefs.timeBasedProfiles ?? false,
           moodToggle: (prefs.moodToggle as any) ?? 'normal',
         },
-      });
+      };
+      setAlgoSettings(settings);
+      return settings;
     } catch (error) {
       console.log('Using default feed preferences');
+      return null;
     }
   };
 
@@ -606,7 +610,12 @@ const MainApp = () => {
   useEffect(() => {
     const init = async () => {
       await fetchNodes();
-      await loadFeedPreferences();
+      const loadedSettings = await loadFeedPreferences();
+      // Update ref synchronously before triggering the fetch effect
+      // This ensures fetchFeed uses the loaded settings, not defaults
+      if (loadedSettings) {
+        algoSettingsRef.current = loadedSettings;
+      }
       // Setting this to true triggers the debounced effect which fetches immediately
       // on first run (see initialFetchDone ref) - ensures fresh algoSettings are used
       setSettingsInitialized(true);
