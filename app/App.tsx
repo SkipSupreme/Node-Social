@@ -62,6 +62,29 @@ const MainApp = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
   const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeLanding' | 'nodeSettings' | 'modLog'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
+  const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
+
+  // Navigate to a new view, pushing current view to history stack
+  const navigateTo = (view: typeof currentView, params?: any) => {
+    setNavigationHistory(prev => [...prev, { view: currentView, params: viewParams }]);
+    setViewParams(params || null);
+    setCurrentView(view);
+  };
+
+  // Go back to previous view in history
+  const goBack = () => {
+    if (navigationHistory.length > 0) {
+      const history = [...navigationHistory];
+      const previous = history.pop()!;
+      setNavigationHistory(history);
+      setViewParams(previous.params);
+      setCurrentView(previous.view as typeof currentView);
+    } else {
+      setCurrentView('feed');
+      setViewParams(null);
+    }
+  };
+
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
@@ -632,6 +655,7 @@ const MainApp = () => {
         createdAt: newPost.createdAt,
         expertGated: false,
         vibes: [],
+        linkUrl: newPost.linkUrl,
         linkMeta: newPost.linkMeta,
         poll: newPost.poll,
         myReaction: null,
@@ -811,8 +835,7 @@ const MainApp = () => {
                   }}
                   onPostClick={handlePostClick}
                   onAuthorClick={(authorId) => {
-                    setViewParams({ userId: authorId });
-                    setCurrentView('profile');
+                    navigateTo('profile', { userId: authorId });
                   }}
                   globalNodeId={nodes.find(n => n.slug === 'global')?.id}
                   onScroll={!isDesktop ? handleScroll : undefined}
@@ -822,7 +845,7 @@ const MainApp = () => {
             ) : currentView === 'profile' ? (
               <ProfileScreen
                 key={viewParams?.userId || 'own-profile'}
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onCredClick={() => setCurrentView('cred-history')}
                 userId={viewParams?.userId}
                 onViewTrustGraph={() => setCurrentView('trust-graph')}
@@ -842,7 +865,11 @@ const MainApp = () => {
                 }}
               />
             ) : currentView === 'saved' ? (
-              <SavedPostsScreen onBack={() => setCurrentView('feed')} />
+              <SavedPostsScreen
+                onBack={() => setCurrentView('feed')}
+                onPostClick={handlePostClick}
+                onAuthorClick={(authorId) => navigateTo('profile', { userId: authorId })}
+              />
             ) : currentView === 'cred-history' ? (
               <CredHistoryScreen onBack={() => setCurrentView('profile')} />
             ) : currentView === 'themes' ? (
@@ -868,10 +895,15 @@ const MainApp = () => {
             ) : currentView === 'post-detail' ? (
               <PostDetailScreen
                 postId={viewParams?.postId}
-                onBack={() => setCurrentView('feed')}
+                onBack={goBack}
                 onAuthorClick={(authorId) => {
-                  setViewParams({ userId: authorId });
-                  setCurrentView('profile');
+                  navigateTo('profile', { userId: authorId });
+                }}
+                onCommentAdded={(postId) => {
+                  // Update comment count in feed's posts array
+                  setPosts(prev => prev.map(p =>
+                    p.id === postId ? { ...p, commentCount: p.commentCount + 1 } : p
+                  ));
                 }}
               />
             ) : currentView === 'moderation' ? (
@@ -905,7 +937,7 @@ const MainApp = () => {
             ) : currentView === 'modLog' && selectedNodeId ? (
               <ModLogScreen
                 nodeId={selectedNodeId}
-                nodeName={nodes.find(n => n.id === selectedNodeId)?.slug || 'node'}
+                nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Node'}
                 onBack={() => setCurrentView('nodeLanding')}
               />
             ) : null}

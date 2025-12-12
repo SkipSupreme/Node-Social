@@ -347,7 +347,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Block/Mute Enforcement - Hide posts from blocked/muted users
-      const [blocks, mutes, mutedNodes] = await Promise.all([
+      const [blocks, mutes, mutedNodes, savedPosts] = await Promise.all([
         fastify.prisma.userBlock.findMany({
           where: { blockerId: userId },
           select: { blockedId: true },
@@ -361,7 +361,14 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           where: { userId },
           select: { nodeId: true },
         }),
+        // Get saved posts to mark in feed
+        fastify.prisma.savedPost.findMany({
+          where: { userId },
+          select: { postId: true },
+        }),
       ]);
+
+      const savedPostIds = new Set(savedPosts.map(s => s.postId));
 
       const excludedUserIds = [
         ...blocks.map((b) => b.blockedId),
@@ -584,6 +591,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         myReaction: post.reactions[0]?.intensities || null,
         vibeAggregate: post.vibeAggregate,
         reactions: undefined,
+        isSaved: savedPostIds.has(post.id),
       }));
 
       return reply.send({

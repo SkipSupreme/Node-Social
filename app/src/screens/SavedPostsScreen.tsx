@@ -8,9 +8,11 @@ import { useAuthStore } from '../store/auth';
 
 interface SavedPostsScreenProps {
     onBack: () => void;
+    onPostClick?: (post: any) => void;
+    onAuthorClick?: (authorId: string) => void;
 }
 
-export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
+export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPostsScreenProps) => {
     const { user } = useAuthStore();
     const [posts, setPosts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
@@ -26,7 +28,7 @@ export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
             // Map API posts to UI posts
             const mappedPosts = data.posts.map((p: any) => ({
                 id: p.id,
-                node: { name: p.node?.name || 'Global', color: '#6366f1' },
+                node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
                 author: {
                     id: p.author.id,
                     username: p.author.username || p.author.email.split('@')[0],
@@ -43,13 +45,22 @@ export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
                 linkUrl: p.linkUrl,
                 linkMeta: p.linkMeta,
                 poll: p.poll,
-                comments: [] // Saved posts view doesn't need to load comments initially
+                comments: [],
+                isSaved: true, // All posts in saved view are saved
             }));
             setPosts(mappedPosts);
         } catch (error) {
             console.error('Failed to load saved posts:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    // Handle save toggle - remove post from list when unsaved
+    const handleSaveToggle = (postId: string, saved: boolean) => {
+        if (!saved) {
+            // Post was unsaved, remove from list
+            setPosts(prev => prev.filter(p => p.id !== postId));
         }
     };
 
@@ -71,7 +82,13 @@ export const SavedPostsScreen = ({ onBack }: SavedPostsScreenProps) => {
                     <Text style={styles.emptyText}>No saved posts yet.</Text>
                 </View>
             ) : (
-                <Feed posts={posts} currentUser={user} />
+                <Feed
+                    posts={posts}
+                    currentUser={user}
+                    onPostClick={onPostClick}
+                    onAuthorClick={onAuthorClick}
+                    onSaveToggle={handleSaveToggle}
+                />
             )}
         </View>
     );

@@ -187,6 +187,7 @@ export interface UIPost {
         image?: string | null;
         domain?: string | null;
     } | null;
+    isSaved?: boolean;
 }
 
 interface CommentNodeProps {
@@ -195,9 +196,10 @@ interface CommentNodeProps {
     isFirst?: boolean;
     onReply?: (comment: UIComment) => void;
     globalNodeId?: string;
+    onAuthorClick?: (authorId: string) => void;
 }
 
-const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, globalNodeId }: CommentNodeProps) => {
+const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, globalNodeId, onAuthorClick }: CommentNodeProps) => {
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const incomingColor = SCOPE_COLORS[(comment.depth - 1) % SCOPE_COLORS.length];
@@ -235,7 +237,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
                 {/* Header */}
                 <View style={styles.headerRow}>
-                    <View style={styles.avatarSmallContainer}>
+                    <TouchableOpacity style={styles.avatarSmallContainer} onPress={() => onAuthorClick?.(comment.author.id)}>
                         {comment.author.avatar ? (
                             <Image source={{ uri: comment.author.avatar }} style={styles.avatarImage} />
                         ) : (
@@ -245,10 +247,12 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
                                 </Text>
                             </View>
                         )}
-                    </View>
+                    </TouchableOpacity>
 
                     <View style={styles.userInfoRow}>
-                        <Text style={styles.usernameSmall}>{comment.author.username}</Text>
+                        <TouchableOpacity onPress={() => onAuthorClick?.(comment.author.id)}>
+                            <Text style={styles.usernameSmall}>{comment.author.username}</Text>
+                        </TouchableOpacity>
 
                         <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
                             <Text style={styles.badgeText}>{comment.author.cred} Cred</Text>
@@ -298,6 +302,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
                             isLast={idx === (comment.replies?.length || 0) - 1}
                             onReply={onReply}
                             globalNodeId={globalNodeId}
+                            onAuthorClick={onAuthorClick}
                         />
                     ))}
                 </View>
@@ -315,15 +320,16 @@ interface PostCardProps {
     onPress?: (post: UIPost) => void;
     onEdit?: (post: UIPost) => void;
     onAuthorClick?: (authorId: string) => void;
+    onSaveToggle?: (postId: string, saved: boolean) => void;
     globalNodeId?: string;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, globalNodeId }: PostCardProps) => {
+export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, onSaveToggle, globalNodeId }: PostCardProps) => {
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
     const [menuVisible, setMenuVisible] = useState(false);
-    const [isSaved, setIsSaved] = useState(false);
+    const [isSaved, setIsSaved] = useState(initialPost.isSaved ?? false);
     const [commentText, setCommentText] = useState('');
     const [replyingTo, setReplyingTo] = useState<UIComment | null>(null);
     const [submitting, setSubmitting] = useState(false);
@@ -345,6 +351,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
         setPost(initialPost);
         setLocalPoll(initialPost.poll);
         setLocalComments(initialPost.comments || []);
+        setIsSaved(initialPost.isSaved ?? false);
     }, [initialPost]);
 
     const fetchComments = async () => {
@@ -512,10 +519,19 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     };
 
     const handleSave = async () => {
+        // Optimistic update - toggle immediately for responsiveness
+        const newSavedState = !isSaved;
+        setIsSaved(newSavedState);
+
         try {
             const res = await savePost(post.id);
+            // Sync with server response (in case of race conditions)
             setIsSaved(res.saved);
+            // Notify parent of save state change
+            onSaveToggle?.(post.id, res.saved);
         } catch (error) {
+            // Revert on error
+            setIsSaved(!newSavedState);
             console.error('Failed to save post:', error);
         }
     };
@@ -912,6 +928,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             isLast={i === localComments.length - 1}
                             onReply={(comment) => setReplyingTo(comment)}
                             globalNodeId={globalNodeId}
+                            onAuthorClick={onAuthorClick}
                         />
                     ))}
                 </View>
@@ -1000,12 +1017,13 @@ interface FeedProps {
     onPostClick?: (post: UIPost) => void;
     onEdit?: (post: UIPost) => void;
     onAuthorClick?: (authorId: string) => void;
+    onSaveToggle?: (postId: string, saved: boolean) => void;
     globalNodeId?: string;
     onScroll?: (scrollY: number) => void;
     headerOffset?: number;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
     return (
         <ScrollView
             style={{ flex: 1, backgroundColor: COLORS.node.bg }}
@@ -1013,7 +1031,7 @@ export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClic
             scrollEventThrottle={16}
             onScroll={(e) => onScroll?.(e.nativeEvent.contentOffset.y)}
         >
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} globalNodeId={globalNodeId} />)}
+            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} onSaveToggle={onSaveToggle} globalNodeId={globalNodeId} />)}
         </ScrollView>
     );
 };

@@ -1172,6 +1172,7 @@ export const searchPosts = async (query: string, limit = 20, offset = 0) => {
 export function savePost(postId: string) {
   return request<{ saved: boolean }>(`/posts/${postId}/save`, {
     method: "POST",
+    body: JSON.stringify({}),  // Empty body required for some servers
   });
 }
 

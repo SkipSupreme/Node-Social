@@ -147,6 +147,7 @@ type PostDetailScreenProps = {
   postId: string;
   onBack: () => void;
   onAuthorClick?: (authorId: string) => void;
+  onCommentAdded?: (postId: string) => void;
 };
 
 interface PostWithVibes extends Post {
@@ -236,7 +237,7 @@ const sortCommentsThreaded = (comments: Comment[]): CommentWithThread[] => {
   return result;
 };
 
-export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailScreenProps) => {
+export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded }: PostDetailScreenProps) => {
   const [post, setPost] = useState<PostWithVibes | null>(null);
   const [comments, setComments] = useState<CommentWithThread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -287,6 +288,8 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
       if (post) {
         setPost({ ...post, commentCount: post.commentCount + 1 });
       }
+      // Notify parent to update feed's comment count
+      onCommentAdded?.(postId);
     } catch (error) {
       showAlert("Error", "Failed to post comment.");
     } finally {
@@ -318,6 +321,8 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
       if (post) {
         setPost({ ...post, commentCount: post.commentCount + 1 });
       }
+      // Notify parent to update feed's comment count
+      onCommentAdded?.(postId);
     } catch (error) {
       showAlert("Error", "Failed to post reply.");
     } finally {
@@ -337,12 +342,32 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick }: PostDetailSc
 
   const handleShare = async () => {
     if (!post) return;
+    const shareUrl = `https://nodesocial.app/post/${post.id}`;
+    const shareText = post.title || post.content || "Check out this post!";
+
     try {
-      await Share.share({
-        message: post.content || post.title || "Check out this post!",
-      });
+      if (Platform.OS === 'web') {
+        // Web Share API (works on modern browsers)
+        if (navigator.share) {
+          await navigator.share({
+            title: shareText,
+            url: shareUrl,
+          });
+        } else {
+          // Fallback: copy to clipboard
+          await navigator.clipboard.writeText(shareUrl);
+          showAlert("Copied!", "Link copied to clipboard");
+        }
+      } else {
+        // Native Share
+        await Share.share({
+          message: `${shareText}\n${shareUrl}`,
+          url: shareUrl,
+        });
+      }
     } catch (err) {
-      console.error("Failed to share:", err);
+      // User cancelled or share failed
+      console.log("Share cancelled or failed:", err);
     }
   };
 
