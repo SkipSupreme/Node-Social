@@ -475,9 +475,10 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
               </TouchableOpacity>
 
               <VibeRadialWheel
+                key={`${item.id}-${item.myReaction ? 'reacted' : 'none'}`}
                 postId={item.id}
                 nodeId="global"
-                initialReaction={null}
+                initialReaction={item.myReaction}
                 buttonLabel=""
                 compact={true}
                 contentType="comment"

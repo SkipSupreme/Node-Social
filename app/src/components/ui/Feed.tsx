@@ -135,6 +135,7 @@ export interface UIComment {
     timestamp: Date;
     depth: number;
     replies?: UIComment[];
+    myReaction?: { [key: string]: number } | null;
 }
 
 function timeAgo(date: Date | string) {
@@ -277,8 +278,10 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
                         <View style={styles.actionRow}>
                             <VibeRadialWheel
+                                key={`${comment.id}-${comment.myReaction ? 'reacted' : 'none'}`}
                                 postId={comment.id}
                                 nodeId={globalNodeId}
+                                initialReaction={comment.myReaction}
                                 buttonLabel=""
                                 compact={true}
                                 contentType="comment"
@@ -378,7 +381,8 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     timestamp: new Date(c.createdAt),
                     depth: 0,
                     replies: [],
-                    parentId: c.parentId
+                    parentId: c.parentId,
+                    myReaction: c.myReaction || null
                 });
             });
 

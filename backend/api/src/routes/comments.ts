@@ -137,6 +137,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { parentId, limit, all, sortBy } = parsed.data;
+      const userId = (request.user as { sub: string }).sub;
 
       const where: Prisma.CommentWhereInput = {
         postId,
@@ -211,16 +212,18 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }>;
 
-      const formattedComments = (comments as CommentWithRelations[]).map((comment) => ({
-        ...comment,
-        replyCount: comment._count.replies,
-        _count: undefined,
-        reactions: undefined, // Don't send full reactions array to client to save bandwidth? 
-        // Or maybe send it so client can show "Top Vibe"?
-        // For now, let's remove it to match previous behavior unless we want to show it.
-        // But wait, Feed.tsx might want to show the vibe counts.
-        // Let's keep it undefined for now to match interface.
-      }));
+      const formattedComments = (comments as CommentWithRelations[]).map((comment) => {
+        // Find current user's reaction for this comment
+        const myReaction = comment.reactions.find(r => r.userId === userId);
+
+        return {
+          ...comment,
+          replyCount: comment._count.replies,
+          _count: undefined,
+          myReaction: myReaction?.intensities || null,
+          reactions: undefined, // Don't send full reactions array to client
+        };
+      });
 
       return reply.send(formattedComments);
     }

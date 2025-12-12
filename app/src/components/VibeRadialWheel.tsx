@@ -59,6 +59,23 @@ interface VibeRadialWheelProps {
     contentType?: 'post' | 'comment';
 }
 
+// Helper function moved outside component to avoid recreation on every render
+const getIntensitiesFromReaction = (reaction: { [key: string]: number } | null | undefined) => {
+    if (reaction) {
+        // Convert from 0-1 (API) to 0-100 (display) if values are small
+        const scale = (v: number) => v <= 1 ? v * 100 : v;
+        return {
+            Insightful: scale(reaction.insightful || 0),
+            Joy: scale(reaction.joy || 0),
+            Fire: scale(reaction.fire || 0),
+            Support: scale(reaction.support || 0),
+            Shock: scale(reaction.shock || 0),
+            Questionable: scale(reaction.questionable || 0),
+        };
+    }
+    return { Insightful: 0, Joy: 0, Fire: 0, Support: 0, Shock: 0, Questionable: 0 };
+};
+
 export const VibeRadialWheel = ({
     postId,
     nodeId = 'global',
@@ -71,24 +88,11 @@ export const VibeRadialWheel = ({
     const [isActive, setIsActive] = useState(false);
     const [center, setCenter] = useState({ x: 0, y: 0 });
     const [drag, setDrag] = useState({ x: 0, y: 0 });
-    const [intensities, setIntensities] = useState<Record<string, number>>(() => {
-        if (initialReaction) {
-            // Convert from 0-1 (API) to 0-100 (display) if values are small
-            const scale = (v: number) => v <= 1 ? v * 100 : v;
-            return {
-                Insightful: scale(initialReaction.insightful || 0),
-                Joy: scale(initialReaction.joy || 0),
-                Fire: scale(initialReaction.fire || 0),
-                Support: scale(initialReaction.support || 0),
-                Shock: scale(initialReaction.shock || 0),
-                Questionable: scale(initialReaction.questionable || 0),
-            };
-        }
-        return { Insightful: 0, Joy: 0, Fire: 0, Support: 0, Shock: 0, Questionable: 0 };
-    });
+    const [intensities, setIntensities] = useState<Record<string, number>>(() => getIntensitiesFromReaction(initialReaction));
     const [offset, setOffset] = useState({ x: 0, y: 0 });
     const containerRef = useRef<View>(null);
     const centerRef = useRef({ x: 0, y: 0 });
+
 
     // Check if any reaction was applied
     const hasReaction = Object.values(intensities).some(v => v > 0);

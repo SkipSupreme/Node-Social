@@ -156,6 +156,7 @@ export type Comment = {
   replyCount: number;
   createdAt: string;
   replies?: Comment[];
+  myReaction?: { [key: string]: number } | null;
 };
 
 const isWeb = Platform.OS === "web";
