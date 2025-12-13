@@ -87,19 +87,29 @@ export class BlueskyHarvester extends BaseHarvester {
 
         // Extract link if present
         let linkUrl: string | undefined;
-        let title = post.record.text.split('\n')[0].slice(0, 200); // First line as title
+        const fullText = post.record.text;
+        const firstLine = fullText.split('\n')[0].slice(0, 200);
+        let title = firstLine;
+        let content: string | undefined;
 
         if (post.record.embed?.external) {
           linkUrl = post.record.embed.external.uri;
           title = post.record.embed.external.title || title;
+          // Use external description as content if available, otherwise use remaining text
+          content = post.record.embed.external.description ||
+            (fullText.length > firstLine.length ? fullText.slice(firstLine.length).trim() : undefined);
+        } else {
+          // For posts without external links, only set content if there's more than the title
+          content = fullText.length > firstLine.length ? fullText.slice(firstLine.length).trim() : undefined;
         }
 
-        // Extract media
+        // Extract media - use full size image, not thumbnail
         let mediaUrl: string | undefined;
         if (post.record.embed?.images?.[0]) {
           const img = post.record.embed.images[0];
           if (img.image?.ref?.$link) {
-            mediaUrl = `https://cdn.bsky.app/img/feed_thumbnail/plain/${post.author.did}/${img.image.ref.$link}@jpeg`;
+            // Use feed_fullsize for better quality
+            mediaUrl = `https://cdn.bsky.app/img/feed_fullsize/plain/${post.author.did}/${img.image.ref.$link}@jpeg`;
           }
         }
 
@@ -107,7 +117,7 @@ export class BlueskyHarvester extends BaseHarvester {
         const postId = post.uri.split('/').pop() || post.cid;
 
         // Categorize
-        const suggestedNode = categorizeContent(title, post.record.text);
+        const suggestedNode = categorizeContent(title, fullText);
 
         items.push({
           sourceType: 'bluesky',
@@ -115,7 +125,7 @@ export class BlueskyHarvester extends BaseHarvester {
           sourceUrl: `https://bsky.app/profile/${post.author.handle}/post/${postId}`,
           sourceScore: likes,
           title,
-          content: post.record.text,
+          content,
           linkUrl,
           mediaUrl,
           suggestedNode,

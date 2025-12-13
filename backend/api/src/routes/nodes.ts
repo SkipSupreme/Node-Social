@@ -193,11 +193,21 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
     // Try finding by slug first, then ID (if it looks like a UUID)
     let node = await fastify.prisma.node.findUnique({
       where: { slug: idOrSlug },
+      include: {
+        curatorBot: {
+          select: { id: true, username: true, avatar: true, bio: true },
+        },
+      },
     });
 
     if (!node && /^[0-9a-fA-F-]{36}$/.test(idOrSlug)) {
       node = await fastify.prisma.node.findUnique({
         where: { id: idOrSlug },
+        include: {
+          curatorBot: {
+            select: { id: true, username: true, avatar: true, bio: true },
+          },
+        },
       });
     }
 
@@ -325,6 +335,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       banner: node.banner,
       rules: node.rules || [],
       createdAt: node.createdAt,
+      curatorBot: node.curatorBot,
       stats: {
         memberCount,
         growthThisWeek,
@@ -835,6 +846,100 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       actions: formatted,
       nextCursor: hasMore && formatted.length > 0 ? actions[limit - 1]?.id ?? null : null,
     });
+  });
+
+  // Get node curator bot info
+  fastify.get('/:id/curator', async (request, reply) => {
+    const { id } = request.params as { id: string };
+
+    const node = await fastify.prisma.node.findUnique({
+      where: { id },
+      include: {
+        curatorBot: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+            bio: true,
+            isBot: true,
+          },
+        },
+      },
+    });
+
+    if (!node) {
+      return reply.status(404).send({ error: 'Node not found' });
+    }
+
+    return reply.send({
+      curatorBot: node.curatorBot,
+    });
+  });
+
+  // Update node curator bot (admin only)
+  fastify.patch('/:id/curator', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+    const { id } = request.params as { id: string };
+    const userId = (request.user as { sub: string }).sub;
+
+    // Check admin permission
+    const isAdmin = await isNodeAdmin(fastify.prisma, id, userId);
+    if (!isAdmin) {
+      return reply.status(403).send({ error: 'Only node admins can update curator bot' });
+    }
+
+    const schema = z.object({
+      curatorBotId: z.string().uuid().nullable(),
+    });
+
+    const parsed = schema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+    }
+
+    // If setting a bot, verify it's actually a bot
+    if (parsed.data.curatorBotId) {
+      const bot = await fastify.prisma.user.findUnique({
+        where: { id: parsed.data.curatorBotId },
+        select: { isBot: true },
+      });
+      if (!bot?.isBot) {
+        return reply.status(400).send({ error: 'Selected user is not a bot' });
+      }
+    }
+
+    const updated = await fastify.prisma.node.update({
+      where: { id },
+      data: { curatorBotId: parsed.data.curatorBotId },
+      include: {
+        curatorBot: {
+          select: {
+            id: true,
+            username: true,
+            avatar: true,
+            bio: true,
+          },
+        },
+      },
+    });
+
+    return reply.send({ curatorBot: updated.curatorBot });
+  });
+
+  // Get all available curator bots
+  fastify.get('/bots/available', async (request, reply) => {
+    const bots = await fastify.prisma.user.findMany({
+      where: { isBot: true },
+      select: {
+        id: true,
+        username: true,
+        avatar: true,
+        bio: true,
+        botConfig: true,
+      },
+      orderBy: { username: 'asc' },
+    });
+
+    return reply.send({ bots });
   });
 };
 

@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { enrichContent, isScrapeable } from './articleScraper.js';
 const prisma = new PrismaClient();
 
 // Bot mapping
@@ -20,25 +21,42 @@ const BOT_MAP: Record<string, string> = {
 };
 
 function cleanText(text: string): string {
-  return text
-    // Strip HTML tags
-    .replace(/<[^>]*>/g, '')
-    // Fix HTML entities
-    .replace(/&#8216;|&#8217;/g, "'")
-    .replace(/&#8220;|&#8221;/g, '"')
+  let result = text
+    // First pass: strip HTML tags with a more robust regex (handles newlines inside tags)
+    .replace(/<[^>]*>/gs, '') // 's' flag makes . match newlines
+    // Fix HTML entities - numeric
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    // Fix HTML entities - named
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&nbsp;/g, ' ')
-    .replace(/&#x27;/g, "'")
     .replace(/&quot;/g, '"')
-    // Remove emojis that don't render well
-    .replace(/🤯/g, '')
+    .replace(/&apos;/g, "'")
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&hellip;/g, '...')
+    .replace(/&rsquo;|&lsquo;/g, "'")
+    .replace(/&rdquo;|&ldquo;/g, '"')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™')
+    .replace(/&[a-z]+;/gi, '') // Remove any remaining HTML entities
     // Clean up CDATA
     .replace(/<!\[CDATA\[|\]\]>/g, '')
-    // Clean up multiple whitespace
-    .replace(/\s+/g, ' ')
+    // Clean up multiple whitespace and newlines
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Max 2 consecutive newlines
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n /g, '\n')
     .trim();
+
+  // Safety check: if any HTML tags remain, strip them again
+  while (/<[^>]+>/.test(result)) {
+    result = result.replace(/<[^>]*>/gs, '');
+  }
+
+  return result;
 }
 
 // Q's taste profile evaluation
@@ -76,6 +94,30 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     if (pattern.test(combined)) {
       return { score: 2, reason: 'Personal/greeting/low-effort content', shouldPost: false, needsReview: false, correctNode: null };
     }
+  }
+
+  // Reject code dumps and low-effort posts
+  // Title is too short (1-3 chars) or just a word
+  if (title.length <= 4 && !/^(ai|ml|go|js|py|c\+\+|c#)$/i.test(title)) {
+    return { score: 1, reason: 'Title too short/meaningless', shouldPost: false, needsReview: false, correctNode: null };
+  }
+
+  // Content is mostly code (lots of special chars like $, {, }, =, etc.)
+  const codeChars = (content.match(/[\$\{\}\[\]\(\)=;`\\\/\|<>]/g) || []).length;
+  const contentLen = content.length;
+  if (contentLen > 50 && codeChars / contentLen > 0.15) {
+    return { score: 2, reason: 'Content is mostly code', shouldPost: false, needsReview: false, correctNode: null };
+  }
+
+  // Content is just "comments" or similar placeholder
+  if (/^comments?$/i.test(content.trim()) || content.trim().length < 10) {
+    return { score: 2, reason: 'No meaningful content', shouldPost: false, needsReview: false, correctNode: null };
+  }
+
+  // Non-English content detection (crude - lots of non-ASCII chars)
+  const nonAscii = (combined.match(/[^\x00-\x7F]/g) || []).length;
+  if (nonAscii > combined.length * 0.3 && combined.length > 50) {
+    return { score: 2, reason: 'Non-English content', shouldPost: false, needsReview: false, correctNode: null };
   }
 
   let score = 5; // baseline
@@ -210,8 +252,8 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     }
   }
 
-  const shouldPost = score >= 6;
-  const needsReview = score >= 4 && score < 6;
+  const shouldPost = score >= 5;
+  const needsReview = false; // No more review queue - either post or reject
 
   return {
     score: Math.min(10, Math.max(1, Math.round(score))),
@@ -246,20 +288,42 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
     }
 
     const title = cleanText(item.title);
+
+    // Try to scrape full article content if we only have a snippet
+    let rawContent = item.content || '';
+    if (item.linkUrl && isScrapeable(item.linkUrl) && rawContent.length < 300) {
+      const enrichedContent = await enrichContent(rawContent, item.linkUrl, title);
+      if (enrichedContent && enrichedContent.length > rawContent.length) {
+        rawContent = enrichedContent;
+      }
+    }
+
     // Clean content - strip HTML, no attribution (node is already shown in UI)
-    let content = item.content ? cleanText(item.content.slice(0, 500)) : '';
+    let content = rawContent ? cleanText(rawContent.slice(0, 6000)) : '';
+
+    // Don't duplicate title as content (common with short Bluesky posts)
+    if (content === title || content.trim() === title.trim()) {
+      content = '';
+    }
 
     const isVideo = item.linkUrl?.includes('youtube.com') ||
                    item.linkUrl?.includes('youtu.be') ||
                    item.linkUrl?.includes('v.redd.it');
 
-    const postType = isVideo ? 'video' : (item.linkUrl ? 'link' : 'text');
+    const isImage = item.mediaUrl?.includes('i.redd.it') ||
+                   item.mediaUrl?.includes('preview.redd.it') ||
+                   item.linkUrl?.includes('i.redd.it') ||
+                   item.linkUrl?.includes('i.imgur.com') ||
+                   /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(item.linkUrl || '');
+
+    const postType = isVideo ? 'video' : isImage ? 'image' : (item.linkUrl ? 'link' : 'text');
 
     const post = await prisma.post.create({
       data: {
         title: title.slice(0, 200),
         content,
         linkUrl: item.linkUrl || item.sourceUrl,
+        mediaUrl: item.mediaUrl, // Include the media URL for images/videos
         postType,
         authorId: bot.id,
         nodeId: botConfig.nodeId,
@@ -290,20 +354,29 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
 async function main() {
   console.log('🤖 Starting automated curation...\n');
 
-  // Get ALL pending items
+  // Get ALL pending items (including ones previously flagged for review)
   const allItems = await prisma.curationQueue.findMany({
-    where: { status: 'pending' },
+    where: { status: 'pending', needsReview: false },
     orderBy: [{ sourceScore: 'desc' }],
   });
 
-  console.log(`Found ${allItems.length} pending items to evaluate\n`);
+  // Also get items that were flagged for review and re-evaluate them
+  const reviewItems = await prisma.curationQueue.findMany({
+    where: { status: 'pending', needsReview: true },
+    orderBy: [{ sourceScore: 'desc' }],
+  });
+
+  // Combine both lists
+  const itemsToProcess = [...allItems, ...reviewItems];
+
+  console.log(`Found ${itemsToProcess.length} items to evaluate (${allItems.length} new, ${reviewItems.length} in review)\n`);
 
   let posted = 0;
   let rejected = 0;
   let flagged = 0;
   let skipped = 0;
 
-  for (const item of allItems) {
+  for (const item of itemsToProcess) {
     const evaluation = evaluateItem(item);
 
     if (evaluation.shouldPost && evaluation.correctNode) {

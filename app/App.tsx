@@ -85,6 +85,9 @@ const MainApp = () => {
 
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
+  const [hasMore, setHasMore] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
 
   // Mobile-specific states
@@ -414,14 +417,56 @@ const MainApp = () => {
     algoSettingsRef.current = algoSettings;
   }, [algoSettings]);
 
+  const mapPost = (p: any) => ({
+    id: p.id,
+    node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
+    author: {
+      id: p.author.id,
+      username: p.author.username || 'User',
+      avatar: p.author.avatar,
+      era: p.author.era || 'Lurker Era',
+      cred: p.author.cred || 0
+    },
+    title: p.title || 'Untitled Post',
+    content: p.content,
+    commentCount: p.commentCount,
+    createdAt: p.createdAt,
+    expertGated: false,
+    vibes: [],
+    linkUrl: p.linkUrl,
+    mediaUrl: p.mediaUrl, // Direct image/video URL from Reddit etc.
+    linkMeta: p.linkMeta,
+    poll: p.poll,
+    myReaction: p.myReaction,
+    vibeAggregate: p.vibeAggregate,
+    isSaved: p.isSaved ?? false,
+    comments: p.comments?.map((c: any) => ({
+      id: c.id,
+      author: {
+        id: c.author.id,
+        username: c.author.username || 'User',
+        avatar: c.author.avatar,
+        era: c.author.era || 'Lurker Era',
+        cred: c.author.cred || 0
+      },
+      content: c.content,
+      timestamp: new Date(c.createdAt),
+      depth: 0,
+      replies: []
+    })) || []
+  });
+
   const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
     // Use ref to get latest algoSettings to avoid stale closure issues during initialization
     const settings = algoSettingsRef.current;
     console.log('[fetchFeed] Called with:', { nodeId, mode });
     setLoading(true);
+    setNextCursor(undefined);
+    setHasMore(true);
     try {
       const params: any = {
         nodeId: nodeId || undefined,
+        limit: 20,
         // Pass intermediate filters from algoSettings (apply to all modes)
         timeRange: settings.intermediate?.timeRange,
         textOnly: settings.intermediate?.textOnly,
@@ -450,57 +495,69 @@ const MainApp = () => {
 
       const data = await getFeed(params);
 
-      // Debug: Log what the backend returns for reactions
-      console.log('[Feed] Raw posts from API:', data.posts.map((p: any) => ({
-        id: p.id,
-        title: p.title?.substring(0, 30),
-        myReaction: p.myReaction,
-        vibeAggregate: p.vibeAggregate
-      })));
-
-      const mappedPosts = data.posts.map((p: any) => ({
-        id: p.id,
-        node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
-        author: {
-          id: p.author.id,
-          username: p.author.username || 'User',
-          avatar: p.author.avatar,
-          era: p.author.era || 'Lurker Era',
-          cred: p.author.cred || 0
-        },
-        title: p.title || 'Untitled Post',
-        content: p.content,
-        commentCount: p.commentCount,
-        createdAt: p.createdAt,
-        expertGated: false,
-        vibes: [],
-        linkUrl: p.linkUrl,
-        linkMeta: p.linkMeta,
-        poll: p.poll,
-        myReaction: p.myReaction,
-        vibeAggregate: p.vibeAggregate,
-        isSaved: p.isSaved ?? false,
-        comments: p.comments?.map((c: any) => ({
-          id: c.id,
-          author: {
-            id: c.author.id,
-            username: c.author.username || 'User',
-            avatar: c.author.avatar,
-            era: c.author.era || 'Lurker Era',
-            cred: c.author.cred || 0
-          },
-          content: c.content,
-          timestamp: new Date(c.createdAt),
-          depth: 0,
-          replies: []
-        })) || []
-      }));
+      const mappedPosts = data.posts.map(mapPost);
       console.log('[fetchFeed] Got', mappedPosts.length, 'posts');
       setPosts(mappedPosts);
+      setNextCursor(data.nextCursor);
+      setHasMore(data.hasMore);
     } catch (error) {
       console.error('Failed to fetch feed:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadMorePosts = async () => {
+    if (loadingMore || !hasMore || !nextCursor) return;
+
+    const settings = algoSettingsRef.current;
+    const mode = feedModeRef.current;
+    const nodeId = selectedNodeIdRef.current;
+
+    setLoadingMore(true);
+    try {
+      const params: any = {
+        nodeId: nodeId || undefined,
+        cursor: nextCursor,
+        limit: 20,
+        timeRange: settings.intermediate?.timeRange,
+        textOnly: settings.intermediate?.textOnly,
+        mediaOnly: settings.intermediate?.mediaOnly,
+        linksOnly: settings.intermediate?.linksOnly,
+        hasDiscussion: settings.intermediate?.hasDiscussion,
+      };
+
+      if (mode === 'discovery') {
+        params.preset = 'popular';
+      } else if (mode === 'following') {
+        params.followingOnly = true;
+        params.qualityWeight = settings.weights.quality;
+        params.recencyWeight = settings.weights.recency;
+        params.engagementWeight = settings.weights.engagement;
+        params.personalizationWeight = settings.weights.personalization;
+      } else {
+        params.qualityWeight = settings.weights.quality;
+        params.recencyWeight = settings.weights.recency;
+        params.engagementWeight = settings.weights.engagement;
+        params.personalizationWeight = settings.weights.personalization;
+      }
+
+      const data = await getFeed(params);
+      const mappedPosts = data.posts.map(mapPost);
+
+      // Deduplicate posts when appending (in case of overlap)
+      setPosts(prev => {
+        const existingIds = new Set(prev.map(p => p.id));
+        const newPosts = mappedPosts.filter(p => !existingIds.has(p.id));
+        return [...prev, ...newPosts];
+      });
+      setNextCursor(data.nextCursor);
+      setHasMore(data.hasMore);
+      console.log('[loadMorePosts] Loaded', mappedPosts.length, 'more posts, hasMore:', data.hasMore);
+    } catch (error) {
+      console.error('Failed to load more posts:', error);
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -587,6 +644,7 @@ const MainApp = () => {
         expertGated: false,
         vibes: [],
         linkUrl: p.linkUrl,
+        mediaUrl: p.mediaUrl,
         linkMeta: p.linkMeta,
         poll: p.poll,
         myReaction: p.myReaction,
@@ -689,7 +747,13 @@ const MainApp = () => {
         comments: []
       };
 
-      setPosts(prev => [mappedPost, ...prev]);
+      // Only add if not already in feed (avoid duplicates from real-time + refresh)
+      setPosts(prev => {
+        if (prev.some(p => p.id === mappedPost.id)) {
+          return prev; // Already exists, don't add duplicate
+        }
+        return [mappedPost, ...prev];
+      });
     };
 
     socket.on('post:new', handleNewPost);
@@ -872,6 +936,9 @@ const MainApp = () => {
                   globalNodeId={nodes.find(n => n.slug === 'global')?.id}
                   onScroll={!isDesktop ? handleScroll : undefined}
                   headerOffset={!isDesktop ? 64 : 0}
+                  onLoadMore={loadMorePosts}
+                  hasMore={hasMore}
+                  loadingMore={loadingMore}
                 />
               </View>
             ) : currentView === 'profile' ? (

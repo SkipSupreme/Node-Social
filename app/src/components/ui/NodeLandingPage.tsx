@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator } from 'react-native';
-import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare } from './Icons';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Modal } from 'react-native';
+import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare, Bot, X } from './Icons';
 import { COLORS } from '../../constants/theme';
-import { getNodeDetails, joinNode, leaveNode, NodeDetails } from '../../lib/api';
+import { getNodeDetails, joinNode, leaveNode, NodeDetails, getAvailableCuratorBots, updateNodeCuratorBot, CuratorBot } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { NodeOverflowMenu } from './NodeOverflowMenu';
 import { ModLogPreview } from './ModLogPreview';
@@ -41,6 +41,10 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   const [joining, setJoining] = useState(false);
   const [showAllRules, setShowAllRules] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
+  const [showBotModal, setShowBotModal] = useState(false);
+  const [availableBots, setAvailableBots] = useState<CuratorBot[]>([]);
+  const [loadingBots, setLoadingBots] = useState(false);
+  const [updatingBot, setUpdatingBot] = useState(false);
 
   useEffect(() => {
     fetchNodeData();
@@ -75,6 +79,37 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
       setError(err.message);
     } finally {
       setJoining(false);
+    }
+  };
+
+  const handleOpenBotModal = async () => {
+    setShowBotModal(true);
+    setLoadingBots(true);
+    try {
+      const bots = await getAvailableCuratorBots();
+      setAvailableBots(bots);
+    } catch (err) {
+      console.error('Failed to load bots:', err);
+    } finally {
+      setLoadingBots(false);
+    }
+  };
+
+  const handleSelectBot = async (botId: string | null) => {
+    if (!nodeData || updatingBot) return;
+
+    setUpdatingBot(true);
+    try {
+      const result = await updateNodeCuratorBot(nodeData.id, botId);
+      setNodeData({
+        ...nodeData,
+        curatorBot: result.curatorBot,
+      });
+      setShowBotModal(false);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setUpdatingBot(false);
     }
   };
 
@@ -288,6 +323,110 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Curator Bot Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Bot size={16} color={COLORS.node.accent} />
+          <Text style={styles.sectionTitle}>Content Curator</Text>
+        </View>
+        {nodeData.curatorBot ? (
+          <View style={styles.curatorBotInfo}>
+            <View style={styles.councilMember}>
+              {nodeData.curatorBot.avatar ? (
+                <Image source={{ uri: nodeData.curatorBot.avatar }} style={styles.councilAvatar} />
+              ) : (
+                <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
+                  <Bot size={16} color="#fff" />
+                </View>
+              )}
+              <View style={styles.councilInfo}>
+                <Text style={styles.councilUsername}>@{nodeData.curatorBot.username}</Text>
+                {nodeData.curatorBot.bio && (
+                  <Text style={styles.councilRole} numberOfLines={2}>{nodeData.curatorBot.bio}</Text>
+                )}
+              </View>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.emptyText}>No curator bot assigned</Text>
+        )}
+        {isAdmin && (
+          <TouchableOpacity style={styles.messageCouncilButton} onPress={handleOpenBotModal}>
+            <Settings size={14} color={COLORS.node.accent} style={{ marginRight: 6 }} />
+            <Text style={styles.messageCouncilText}>
+              {nodeData.curatorBot ? 'Change Curator Bot' : 'Assign Curator Bot'}
+            </Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Curator Bot Selection Modal */}
+      <Modal
+        visible={showBotModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowBotModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Curator Bot</Text>
+              <TouchableOpacity onPress={() => setShowBotModal(false)}>
+                <X size={20} color={COLORS.node.muted} />
+              </TouchableOpacity>
+            </View>
+            {loadingBots ? (
+              <ActivityIndicator size="small" color={COLORS.node.accent} style={{ marginVertical: 20 }} />
+            ) : (
+              <ScrollView style={styles.botList}>
+                {/* Option to remove curator bot */}
+                <TouchableOpacity
+                  style={[
+                    styles.botItem,
+                    !nodeData.curatorBot && styles.botItemSelected,
+                  ]}
+                  onPress={() => handleSelectBot(null)}
+                  disabled={updatingBot}
+                >
+                  <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.border }]}>
+                    <X size={16} color={COLORS.node.muted} />
+                  </View>
+                  <View style={styles.councilInfo}>
+                    <Text style={styles.councilUsername}>None</Text>
+                    <Text style={styles.councilRole}>No automated curation</Text>
+                  </View>
+                  {!nodeData.curatorBot && <CheckCircle size={18} color={COLORS.node.accent} />}
+                </TouchableOpacity>
+                {availableBots.map((bot) => (
+                  <TouchableOpacity
+                    key={bot.id}
+                    style={[
+                      styles.botItem,
+                      nodeData.curatorBot?.id === bot.id && styles.botItemSelected,
+                    ]}
+                    onPress={() => handleSelectBot(bot.id)}
+                    disabled={updatingBot}
+                  >
+                    {bot.avatar ? (
+                      <Image source={{ uri: bot.avatar }} style={styles.councilAvatar} />
+                    ) : (
+                      <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
+                        <Bot size={16} color="#fff" />
+                      </View>
+                    )}
+                    <View style={styles.councilInfo}>
+                      <Text style={styles.councilUsername}>@{bot.username}</Text>
+                      {bot.bio && <Text style={styles.councilRole} numberOfLines={1}>{bot.bio}</Text>}
+                    </View>
+                    {nodeData.curatorBot?.id === bot.id && <CheckCircle size={18} color={COLORS.node.accent} />}
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       {/* Mod Log Section */}
       <View style={styles.section}>
@@ -630,5 +769,52 @@ const styles = StyleSheet.create({
     color: COLORS.node.accent,
     fontSize: 13,
     fontWeight: '500',
+  },
+  // Curator Bot styles
+  curatorBotInfo: {
+    marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    backgroundColor: COLORS.node.panel,
+    borderRadius: 12,
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '70%',
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.node.border,
+  },
+  modalTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.node.text,
+  },
+  botList: {
+    padding: 8,
+  },
+  botItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  botItemSelected: {
+    backgroundColor: 'rgba(99, 102, 241, 0.1)',
   },
 });

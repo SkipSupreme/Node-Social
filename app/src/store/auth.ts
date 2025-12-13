@@ -1,10 +1,47 @@
 // src/store/auth.ts
 import { create } from "zustand";
 import type { AuthResponse } from "../lib/api";
-import { logout as apiLogout, getMe } from "../lib/api";
+import { logout as apiLogout, getMe, setSessionExpiredCallback, refreshTokenIfNeeded } from "../lib/api";
 import { storage } from "../lib/storage";
 import { checkAppleCredentialState } from "../lib/appleAuth";
 import { Platform } from "react-native";
+
+// Proactive token refresh interval (50 minutes)
+// Token expires at 1 hour, so refresh at 50 min keeps us ahead
+const TOKEN_REFRESH_INTERVAL = 50 * 60 * 1000;
+let refreshIntervalId: ReturnType<typeof setInterval> | null = null;
+
+// Start proactive token refresh
+function startTokenRefresh(onExpired: () => void) {
+  // Clear any existing interval
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+  }
+
+  // Set up the session expiry callback
+  setSessionExpiredCallback(onExpired);
+
+  // Start the refresh interval
+  refreshIntervalId = setInterval(async () => {
+    const isValid = await refreshTokenIfNeeded();
+    if (!isValid) {
+      console.log('[Auth] Session expired during proactive refresh');
+      onExpired();
+    }
+  }, TOKEN_REFRESH_INTERVAL);
+
+  // Also do an immediate check
+  refreshTokenIfNeeded();
+}
+
+// Stop proactive token refresh
+function stopTokenRefresh() {
+  if (refreshIntervalId) {
+    clearInterval(refreshIntervalId);
+    refreshIntervalId = null;
+  }
+  setSessionExpiredCallback(() => {}); // Clear callback
+}
 
 type User = AuthResponse["user"];
 
@@ -40,6 +77,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       loading: false,
       appleUserId: appleUserId || null,
     });
+
+    // Start proactive token refresh to keep session alive
+    startTokenRefresh(() => {
+      // On session expiry, clear auth state
+      set({ user: null, token: null, appleUserId: null });
+      storage.removeItem("user");
+    });
   },
 
   loadFromStorage: async () => {
@@ -73,6 +117,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           }
         }
 
+        // Start proactive token refresh to keep session alive
+        startTokenRefresh(() => {
+          // On session expiry, clear auth state
+          set({ user: null, token: null, appleUserId: null });
+          storage.removeItem("user");
+        });
+
         try {
           const me = await getMe();
           console.log('getMe() returned:', { emailVerified: me.user.emailVerified });
@@ -83,10 +134,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         }
       } else {
         set({ token: null, user: null, loading: false, appleUserId: null });
+        stopTokenRefresh(); // Ensure no refresh running when not logged in
       }
     } catch (error) {
       console.error("Error loading from storage:", error);
       set({ token: null, user: null, loading: false, appleUserId: null });
+      stopTokenRefresh();
     }
   },
 
@@ -114,6 +167,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: async () => {
+    stopTokenRefresh(); // Stop proactive refresh
     const refreshToken = await storage.getItem("refreshToken");
     await apiLogout(refreshToken || undefined);
     await storage.removeItem("appleUserId");

@@ -94,6 +94,7 @@ model User {
   // Bot Configuration (Content Curator)
   isBot         Boolean  @default(false)
   botConfig     Json?    // { persona: "TechDigest", nodeSlug: "technology", nodeId: "..." }
+  curatedNodes  Node[]   @relation("NodeCuratorBot") // Nodes this bot curates
 }
 
 model Notification {
@@ -139,6 +140,10 @@ model Node {
   avatar      String?  // URL to uploaded avatar image
   banner      String?  // URL to uploaded banner image (null = use gradient from color)
   rules       Json     @default("[]")  // Array of rule strings: ["Rule 1", "Rule 2"]
+
+  // Curation Bot
+  curatorBotId String?
+  curatorBot   User?    @relation("NodeCuratorBot", fields: [curatorBotId], references: [id])
 
   // Relations
   posts       Post[]
@@ -195,9 +200,10 @@ model Post {
   authorId  String
   nodeId    String?
   linkUrl   String?
+  mediaUrl  String?  // Direct image/video URL (e.g., i.redd.it, preview.redd.it)
   linkMetaId String?
   title      String?
-  postType   String    @default("text") // text, image, link
+  postType   String    @default("text") // text, image, link, video
   visibility String    @default("public")
   expertGateCred Int?  // Minimum cred required to comment (null = open to all)
 
@@ -354,6 +360,7 @@ model RefreshToken {
   expiresAt     DateTime
   revoked       Boolean        @default(false)
   createdAt     DateTime       @default(now())
+  lastUsedAt    DateTime?      // Track when token was last used for refresh
 
   @@index([tokenHash])
   @@index([familyId])

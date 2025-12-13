@@ -1,6 +1,52 @@
 import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
+function cleanText(text: string): string {
+  let result = text
+    // First pass: strip HTML tags with a more robust regex (handles newlines inside tags)
+    .replace(/<[^>]*>/gs, '') // 's' flag makes . match newlines
+    // Fix HTML entities - numeric
+    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+    // Fix HTML entities - named
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&mdash;/g, '—')
+    .replace(/&ndash;/g, '–')
+    .replace(/&hellip;/g, '...')
+    .replace(/&rsquo;|&lsquo;/g, "'")
+    .replace(/&rdquo;|&ldquo;/g, '"')
+    .replace(/&copy;/g, '©')
+    .replace(/&reg;/g, '®')
+    .replace(/&trade;/g, '™')
+    .replace(/&[a-z]+;/gi, '') // Remove any remaining HTML entities
+    // Clean up CDATA
+    .replace(/<!\[CDATA\[|\]\]>/g, '')
+    // Remove "via" attribution
+    .replace(/\n*---\n*📡 via .*/gi, '')
+    .replace(/📡 via .*/gi, '')
+    .replace(/via r\/\w+/gi, '')
+    .replace(/via RSS/gi, '')
+    .replace(/via Hacker News/gi, '')
+    .replace(/via Bluesky/gi, '')
+    // Clean up multiple whitespace and newlines
+    .replace(/\n\s*\n\s*\n/g, '\n\n') // Max 2 consecutive newlines
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n /g, '\n')
+    .trim();
+
+  // Safety check: if any HTML tags remain, strip them again
+  while (/<[^>]+>/.test(result)) {
+    result = result.replace(/<[^>]*>/gs, '');
+  }
+
+  return result;
+}
+
 async function main() {
   const posts = await prisma.post.findMany();
 
@@ -11,25 +57,7 @@ async function main() {
     let newTitle = post.title;
 
     if (newContent) {
-      const cleanedContent = newContent
-        .replace(/\n*---\n*📡 via .*/gi, '')
-        .replace(/📡 via .*/gi, '')
-        .replace(/via r\/\w+/gi, '')
-        .replace(/via RSS/gi, '')
-        .replace(/via Hacker News/gi, '')
-        .replace(/via Bluesky/gi, '')
-        .replace(/via ChatGPT/gi, '')
-        .replace(/via blender/gi, '')
-        .replace(/<[^>]*>/g, '')
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&#x27;/g, "'")
-        .replace(/&#8216;|&#8217;/g, "'")
-        .replace(/&#8220;|&#8221;/g, '"')
-        .trim();
-
+      const cleanedContent = cleanText(newContent);
       if (cleanedContent !== newContent) {
         newContent = cleanedContent;
         needsUpdate = true;
@@ -37,11 +65,7 @@ async function main() {
     }
 
     if (newTitle) {
-      const cleanedTitle = newTitle
-        .replace(/<[^>]*>/g, '')
-        .replace(/&amp;/g, '&')
-        .trim();
-
+      const cleanedTitle = cleanText(newTitle);
       if (cleanedTitle !== newTitle) {
         newTitle = cleanedTitle;
         needsUpdate = true;

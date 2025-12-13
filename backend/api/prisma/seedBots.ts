@@ -191,6 +191,12 @@ async function main() {
     });
     console.log(`  ✓ Bot: @${bot.username} → ${botData.nodeSlug}`);
 
+    // Link node to its curator bot
+    await prisma.node.update({
+      where: { id: node.id },
+      data: { curatorBotId: bot.id },
+    });
+
     // Subscribe bot to its own node
     await prisma.nodeSubscription.upsert({
       where: {

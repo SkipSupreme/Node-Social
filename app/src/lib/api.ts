@@ -55,6 +55,12 @@ export type NodeDetails = {
   banner: string | null;
   rules: string[];
   createdAt: string;
+  curatorBot: {
+    id: string;
+    username: string;
+    avatar: string | null;
+    bio: string | null;
+  } | null;
   stats: {
     memberCount: number;
     growthThisWeek: number;
@@ -182,6 +188,43 @@ function isTokenExpired(token: string): boolean {
   }
 }
 
+// Check if token will expire soon (within given minutes)
+function isTokenExpiringSoon(token: string, withinMinutes: number = 5): boolean {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const exp = payload.exp * 1000; // Convert to milliseconds
+    const bufferMs = withinMinutes * 60 * 1000;
+    return Date.now() >= (exp - bufferMs);
+  } catch {
+    return true; // If we can't parse, assume expiring soon
+  }
+}
+
+// Proactive token refresh - call this periodically to keep session alive
+// Returns true if session is valid, false if session expired
+export async function refreshTokenIfNeeded(): Promise<boolean> {
+  const token = await getAuthToken();
+  if (!token) {
+    return false; // No token, not logged in
+  }
+
+  // Refresh if token is expired or will expire within 10 minutes
+  // Token has 1-hour expiry, proactive refresh runs every 50 minutes
+  if (isTokenExpired(token) || isTokenExpiringSoon(token, 10)) {
+    const newToken = await refreshAccessToken();
+    return newToken !== null;
+  }
+
+  return true; // Token is still valid
+}
+
+// Session expiry callback - set by auth store to handle logout
+let onSessionExpired: (() => void) | null = null;
+
+export function setSessionExpiredCallback(callback: () => void) {
+  onSessionExpired = callback;
+}
+
 // CRITICAL: Request Queue System for Thundering Herd Problem
 // Per document Section 8.2 - Prevents multiple simultaneous refresh calls
 let isRefreshing = false;
@@ -226,7 +269,9 @@ async function refreshAccessToken(): Promise<string | null> {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        // Only set Content-Type if we're sending a body (native app)
+        // Web uses cookies so no body needed, and empty body with JSON content-type causes Fastify error
+        ...(!isWeb ? { "Content-Type": "application/json" } : {}),
         ...(csrfToken ? { "X-CSRF-Token": csrfToken } : {}),
       },
       body: isWeb ? undefined : JSON.stringify({ refreshToken }),
@@ -234,11 +279,15 @@ async function refreshAccessToken(): Promise<string | null> {
     });
 
     if (!res.ok) {
-      // Refresh failed, clear tokens
+      // Refresh failed, clear tokens and trigger session expiry
       await storage.removeItem("token");
       await storage.removeItem("refreshToken");
       isRefreshing = false;
       onRefreshed(""); // Resolve queue with empty (will fail)
+      // Notify auth store to handle logout
+      if (onSessionExpired) {
+        onSessionExpired();
+      }
       return null;
     }
 
@@ -645,6 +694,28 @@ export function unmuteNode(nodeId: string) {
   return request<{ success: boolean; muted: boolean }>(`/nodes/${nodeId}/mute`, {
     method: "DELETE",
     body: JSON.stringify({}),
+  });
+}
+
+// Get available curator bots
+export type CuratorBot = {
+  id: string;
+  username: string;
+  avatar: string | null;
+  bio: string | null;
+};
+
+export function getAvailableCuratorBots() {
+  return request<CuratorBot[]>("/nodes/bots/available", {
+    method: "GET",
+  });
+}
+
+// Update node curator bot (admin only)
+export function updateNodeCuratorBot(nodeId: string, curatorBotId: string | null) {
+  return request<{ curatorBot: CuratorBot | null }>(`/nodes/${nodeId}/curator`, {
+    method: "PATCH",
+    body: JSON.stringify({ curatorBotId }),
   });
 }
 

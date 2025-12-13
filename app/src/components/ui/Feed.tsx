@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar } from 'react-native';
-import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag } from './Icons';
+import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2 } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason } from '../../lib/api';
@@ -155,21 +155,23 @@ const RedditVideoPlayer = ({ url }: { url: string }) => {
         resolveRedditVideo();
     }, [url]);
 
-    // Web fallback - just link to Reddit
+    // Web - Reddit videos require auth so we show a "Watch on Reddit" button
+    // Reddit's DASH URLs return 403 when accessed directly from browser
+    // Opening the v.redd.it URL directly will redirect to the Reddit post
     if (Platform.OS === 'web') {
         return (
             <TouchableOpacity
                 style={[styles.videoPreview, { width: playerWidth, height: playerHeight }]}
                 onPress={() => Linking.openURL(url)}
             >
-                <View style={styles.videoPlaceholder} />
+                <View style={[styles.videoPlaceholder, { backgroundColor: '#1a1a2e' }]} />
                 <View style={styles.playButtonOverlay}>
-                    <View style={styles.playButton}>
+                    <View style={[styles.playButton, { backgroundColor: 'rgba(255, 69, 0, 0.9)' }]}>
                         <Play size={32} color="#fff" fill="#fff" />
                     </View>
                 </View>
                 <View style={styles.videoLabel}>
-                    <Text style={styles.videoLabelText}>Reddit Video</Text>
+                    <Text style={styles.videoLabelText}>Watch on Reddit</Text>
                 </View>
             </TouchableOpacity>
         );
@@ -353,17 +355,178 @@ const YouTubeEmbed = ({ videoId }: { videoId: string }) => {
     );
 };
 
+// Helper to extract clean domain from URL (e.g., "techcrunch.com" from "https://techcrunch.com/2025/...")
+const getDomain = (url: string): string => {
+    try {
+        const hostname = new URL(url).hostname;
+        // Remove 'www.' prefix for cleaner display
+        return hostname.replace(/^www\./, '');
+    } catch {
+        return url;
+    }
+};
+
 // Helper to check if URL is an image
 const isImageUrl = (url: string): boolean => {
+    if (!url) return false;
     // Direct image extensions
     if (/\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url)) return true;
     // Reddit image hosting
     if (/i\.redd\.it\//i.test(url)) return true;
     // Imgur direct images
     if (/i\.imgur\.com\//i.test(url) && !/\.gifv/i.test(url)) return true;
-    // Preview.redd.it images
+    // Preview.redd.it images (Reddit's preview server)
     if (/preview\.redd\.it\//i.test(url)) return true;
+    // External preview URLs (often have format=jpg or similar)
+    if (/external-preview\.redd\.it\//i.test(url)) return true;
     return false;
+};
+
+// Formatted content component - handles headers, bold, italic, and cleans up line breaks
+interface FormattedContentProps {
+    content: string;
+    style?: any;
+}
+
+const FormattedContent = ({ content, style }: FormattedContentProps) => {
+    // Clean up excessive line breaks and normalize whitespace
+    const cleanContent = content
+        // Normalize line endings
+        .replace(/\r\n/g, '\n')
+        // Remove excessive blank lines (more than 2 newlines -> 2 newlines)
+        .replace(/\n{3,}/g, '\n\n')
+        // Remove trailing spaces on each line
+        .replace(/[ \t]+\n/g, '\n')
+        // Clean up lines that are just whitespace
+        .replace(/\n[ \t]+\n/g, '\n\n')
+        .trim();
+
+    // Split into paragraphs/blocks
+    const blocks = cleanContent.split(/\n\n+/);
+
+    const renderTextWithFormatting = (text: string, baseStyle: any) => {
+        // Parse inline formatting: **bold**, *italic*, `code`
+        const parts: React.ReactNode[] = [];
+        let remaining = text;
+        let key = 0;
+
+        while (remaining.length > 0) {
+            // Check for bold **text**
+            const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
+            if (boldMatch) {
+                parts.push(
+                    <Text key={key++} style={[baseStyle, { fontWeight: '700' }]}>
+                        {boldMatch[1]}
+                    </Text>
+                );
+                remaining = remaining.slice(boldMatch[0].length);
+                continue;
+            }
+
+            // Check for italic *text* (but not **)
+            const italicMatch = remaining.match(/^\*([^*]+?)\*/);
+            if (italicMatch) {
+                parts.push(
+                    <Text key={key++} style={[baseStyle, { fontStyle: 'italic' }]}>
+                        {italicMatch[1]}
+                    </Text>
+                );
+                remaining = remaining.slice(italicMatch[0].length);
+                continue;
+            }
+
+            // Check for inline code `code`
+            const codeMatch = remaining.match(/^`([^`]+?)`/);
+            if (codeMatch) {
+                parts.push(
+                    <Text key={key++} style={[baseStyle, { fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace', backgroundColor: 'rgba(255,255,255,0.1)', paddingHorizontal: 4 }]}>
+                        {codeMatch[1]}
+                    </Text>
+                );
+                remaining = remaining.slice(codeMatch[0].length);
+                continue;
+            }
+
+            // Find next special character or take the rest
+            const nextSpecial = remaining.search(/\*|`/);
+            if (nextSpecial === -1) {
+                parts.push(<Text key={key++} style={baseStyle}>{remaining}</Text>);
+                break;
+            } else if (nextSpecial === 0) {
+                // Special char that didn't match patterns, treat as literal
+                parts.push(<Text key={key++} style={baseStyle}>{remaining[0]}</Text>);
+                remaining = remaining.slice(1);
+            } else {
+                parts.push(<Text key={key++} style={baseStyle}>{remaining.slice(0, nextSpecial)}</Text>);
+                remaining = remaining.slice(nextSpecial);
+            }
+        }
+
+        return parts.length === 1 ? parts[0] : <Text style={baseStyle}>{parts}</Text>;
+    };
+
+    return (
+        <View style={style}>
+            {blocks.map((block, index) => {
+                const trimmedBlock = block.trim();
+
+                // Check for headers (# Header, ## Subheader, etc.)
+                const headerMatch = trimmedBlock.match(/^(#{1,6})\s+(.+)$/);
+                if (headerMatch) {
+                    const level = headerMatch[1].length;
+                    const headerText = headerMatch[2];
+                    const headerStyles: { [key: number]: any } = {
+                        1: { fontSize: 20, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 16 : 0, marginBottom: 8 },
+                        2: { fontSize: 18, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 14 : 0, marginBottom: 6 },
+                        3: { fontSize: 16, fontWeight: '600', color: COLORS.node.text, marginTop: index > 0 ? 12 : 0, marginBottom: 4 },
+                        4: { fontSize: 15, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 10 : 0, marginBottom: 4 },
+                        5: { fontSize: 14, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 8 : 0, marginBottom: 2 },
+                        6: { fontSize: 13, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 6 : 0, marginBottom: 2 },
+                    };
+                    return (
+                        <Text key={index} style={headerStyles[level]}>
+                            {headerText}
+                        </Text>
+                    );
+                }
+
+                // Check for bullet points
+                if (trimmedBlock.match(/^[-*•]\s/)) {
+                    const lines = trimmedBlock.split('\n');
+                    return (
+                        <View key={index} style={{ marginTop: index > 0 ? 8 : 0 }}>
+                            {lines.map((line, lineIndex) => {
+                                const bulletMatch = line.match(/^[-*•]\s+(.+)$/);
+                                if (bulletMatch) {
+                                    return (
+                                        <View key={lineIndex} style={{ flexDirection: 'row', marginBottom: 4 }}>
+                                            <Text style={[styles.bodyText, { marginRight: 8 }]}>•</Text>
+                                            <Text style={[styles.bodyText, { flex: 1 }]}>
+                                                {renderTextWithFormatting(bulletMatch[1], styles.bodyText)}
+                                            </Text>
+                                        </View>
+                                    );
+                                }
+                                return (
+                                    <Text key={lineIndex} style={styles.bodyText}>
+                                        {renderTextWithFormatting(line, styles.bodyText)}
+                                    </Text>
+                                );
+                            })}
+                        </View>
+                    );
+                }
+
+                // Regular paragraph - join lines with spaces to avoid hard wraps
+                const paragraphText = trimmedBlock.replace(/\n/g, ' ').replace(/\s+/g, ' ');
+                return (
+                    <Text key={index} style={[styles.bodyText, { marginTop: index > 0 ? 12 : 0 }]}>
+                        {renderTextWithFormatting(paragraphText, styles.bodyText)}
+                    </Text>
+                );
+            })}
+        </View>
+    );
 };
 
 export interface UIAuthor {
@@ -426,6 +589,7 @@ export interface UIPost {
     myReaction?: { [key: string]: number } | null;
     vibeAggregate?: VibeAggregateData | null;
     linkUrl?: string | null;
+    mediaUrl?: string | null; // Direct image/video URL from Reddit etc.
     linkMeta?: {
         id: string;
         url: string;
@@ -936,9 +1100,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
 
                     {post.content && (
                         <View style={{ maxHeight: isExpanded ? undefined : (post.content.length > 6000 ? 400 : undefined), overflow: 'hidden' }}>
-                            <Text style={styles.bodyText}>
-                                {post.content}
-                            </Text>
+                            <FormattedContent content={post.content} />
                             {!isExpanded && post.content.length > 6000 && (
                                 <View
                                     style={{
@@ -960,7 +1122,14 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     )}
 
                     {/* Image/Video/Link Preview Rendering */}
-                    {post.linkUrl && (
+                    {/* First show mediaUrl if it's an image (from Reddit preview etc.) */}
+                    {post.mediaUrl && isImageUrl(post.mediaUrl) && (
+                        <View style={styles.linkPreviewContainer}>
+                            <ZoomableImage uri={post.mediaUrl} maxHeight={500} />
+                        </View>
+                    )}
+                    {/* Then show linkUrl content if not already handled by mediaUrl */}
+                    {post.linkUrl && !(post.mediaUrl && isImageUrl(post.mediaUrl)) && (
                         <View style={styles.linkPreviewContainer}>
                             {/* Check if it's a direct image URL - now zoomable! */}
                             {isImageUrl(post.linkUrl) ? (
@@ -1021,17 +1190,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                                         )}
                                     </View>
                                 </TouchableOpacity>
-                            ) : (
-                                /* Plain link without preview */
-                                <TouchableOpacity
-                                    style={styles.plainLink}
-                                    onPress={() => Linking.openURL(post.linkUrl!)}
-                                >
-                                    <Text style={styles.plainLinkText} numberOfLines={1}>
-                                        {post.linkUrl}
-                                    </Text>
-                                </TouchableOpacity>
-                            )}
+                            ) : null /* Plain links handled by inline pill button in cardActions */}
                         </View>
                     )}
 
@@ -1115,6 +1274,19 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         <Share2 size={20} color={COLORS.node.muted} />
                         <Text style={[styles.pillText, { display: 'none' }]}>Share</Text>
                     </TouchableOpacity>
+
+                    {/* Compact link button - shows domain only */}
+                    {post.linkUrl && !isImageUrl(post.linkUrl) && !isVideoUrl(post.linkUrl) && (
+                        <TouchableOpacity
+                            style={styles.linkPillBtn}
+                            onPress={() => Linking.openURL(post.linkUrl!)}
+                        >
+                            <Link2 size={14} color={COLORS.node.muted} />
+                            <Text style={styles.linkPillText} numberOfLines={1}>
+                                {getDomain(post.linkUrl)}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </TouchableOpacity>
 
@@ -1275,17 +1447,44 @@ interface FeedProps {
     globalNodeId?: string;
     onScroll?: (scrollY: number) => void;
     headerOffset?: number;
+    onLoadMore?: () => void;
+    hasMore?: boolean;
+    loadingMore?: boolean;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0 }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false }: FeedProps) => {
+    const handleScroll = (e: any) => {
+        onScroll?.(e.nativeEvent.contentOffset.y);
+
+        // Infinite scroll: load more when near bottom
+        const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
+        const paddingToBottom = 200;
+        const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
+
+        if (isCloseToBottom && hasMore && !loadingMore && onLoadMore) {
+            onLoadMore();
+        }
+    };
+
     return (
         <ScrollView
             style={{ flex: 1, backgroundColor: COLORS.node.bg }}
             contentContainerStyle={{ paddingBottom: 80, padding: 8, paddingTop: headerOffset + 8 }}
             scrollEventThrottle={16}
-            onScroll={(e) => onScroll?.(e.nativeEvent.contentOffset.y)}
+            onScroll={handleScroll}
         >
             {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} onSaveToggle={onSaveToggle} globalNodeId={globalNodeId} />)}
+            {loadingMore && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                    <ActivityIndicator size="small" color={COLORS.node.accent} />
+                    <Text style={{ color: COLORS.node.muted, marginTop: 8, fontSize: 12 }}>Loading more...</Text>
+                </View>
+            )}
+            {!hasMore && posts.length > 0 && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                    <Text style={{ color: COLORS.node.muted, fontSize: 12 }}>You've reached the end</Text>
+                </View>
+            )}
         </ScrollView>
     );
 };
@@ -1369,6 +1568,12 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border, borderRadius: 8
     },
     pillText: { fontSize: 14, fontWeight: '500', color: COLORS.node.muted },
+    linkPillBtn: {
+        flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6,
+        backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border,
+        borderRadius: 6, maxWidth: 160,
+    },
+    linkPillText: { fontSize: 12, fontWeight: '500', color: COLORS.node.muted },
     commentsSection: {
         borderTopWidth: 1, borderTopColor: COLORS.node.border, backgroundColor: 'rgba(15, 17, 21, 0.3)',
         paddingHorizontal: 8, paddingTop: 16, paddingBottom: 16

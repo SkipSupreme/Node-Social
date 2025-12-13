@@ -70,7 +70,10 @@ const accessCookieOptions = {
   secure: isProd,
   path: '/',
   domain: cookieDomain,
-  maxAge: 15 * 60, // 15 minutes
+  // Cookie lifetime should exceed JWT expiry to allow refresh flow to work
+  // The JWT itself has 15-min expiry that backend validates; cookie is just transport
+  // Setting to 24 hours so cookie survives browser idle periods
+  maxAge: 24 * 60 * 60, // 24 hours
 };
 
 const csrfCookieOptions = {
@@ -150,10 +153,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     parentTokenId?: string | null,
     familyId?: string | null
   ) => {
-    // Access token: 15 minutes
+    // Access token: 1 hour (longer to reduce refresh frequency and avoid token rotation race conditions)
     const accessToken = fastify.jwt.sign(
       { sub: userId, email },
-      { expiresIn: '15m' }
+      { expiresIn: '1h' }
     );
 
     // Generate new refresh token
@@ -832,29 +835,33 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(401).send({ error: 'User not found' });
     }
 
-    // Rotate refresh token: Revoke old, create new in same family
+    // Update last used timestamp (keep token valid, don't rotate)
     await fastify.prisma.refreshToken.update({
       where: { id: tokenRecord.id },
-      data: { revoked: true },
+      data: { lastUsedAt: new Date() },
     });
 
-    // Generate new token pair in same family
-    const { accessToken, refreshToken: newRefreshToken } = await generateTokens(
-      tokenRecord.user.id,
-      tokenRecord.user.email,
-      tokenRecord.id, // parent token
-      tokenRecord.familyId // same family
+    // Generate new access token only (reuse same refresh token for reliability)
+    // Token rotation was causing issues with web browsers where cookie updates
+    // could be lost, triggering false "reuse detection" and logging users out
+    const accessToken = fastify.jwt.sign(
+      { sub: tokenRecord.user.id, email: tokenRecord.user.email },
+      { expiresIn: '1h' }
     );
 
-    // Clean up Redis entry (backward compatibility)
-    const refreshKey = `refresh:${tokenRecord.user.id}:${refreshToken}`;
-    await fastify.redis.del(refreshKey);
-
-    issueSessionCookies(reply, accessToken, newRefreshToken);
+    // Update cookies with new access token (keep same refresh token)
+    reply.setCookie('accessToken', accessToken, {
+      httpOnly: true,
+      sameSite: 'lax' as const,
+      secure: isProd,
+      path: '/',
+      domain: cookieDomain,
+      maxAge: 24 * 60 * 60,
+    });
 
     return reply.send({
       token: accessToken,
-      refreshToken: newRefreshToken,
+      refreshToken: refreshToken, // Return same refresh token
     });
   });
 
