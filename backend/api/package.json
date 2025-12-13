@@ -12,7 +12,8 @@
     "harvest": "tsx src/jobs/harvester.ts",
     "curator:stats": "tsx src/jobs/curatorHelpers.ts stats",
     "curator:pending": "tsx src/jobs/curatorHelpers.ts pending",
-    "rescrape": "tsx src/jobs/rescrapeOldPosts.ts"
+    "rescrape": "tsx src/jobs/rescrapeOldPosts.ts",
+    "curate": "tsx src/jobs/curateNow.ts"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"

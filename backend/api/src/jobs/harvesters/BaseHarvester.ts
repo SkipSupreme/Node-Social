@@ -3,6 +3,42 @@ import { PrismaClient, Prisma } from '@prisma/client';
 type CurationQueue = Prisma.CurationQueueGetPayload<{}>;
 export type HarvestCursor = Prisma.HarvestCursorGetPayload<{}>;
 
+// Simple heuristic to detect if text is likely English
+// Checks for common English words and character patterns
+export function isLikelyEnglish(text: string): boolean {
+  if (!text || text.length < 10) return true; // Too short to detect
+
+  const lower = text.toLowerCase();
+
+  // Common English words that appear frequently
+  const englishMarkers = [
+    ' the ', ' a ', ' is ', ' are ', ' was ', ' were ', ' to ', ' in ', ' on ',
+    ' for ', ' with ', ' that ', ' this ', ' it ', ' and ', ' or ', ' of ',
+    ' how ', ' what ', ' when ', ' where ', ' why ', ' who ', ' you ', ' your ',
+    ' can ', ' will ', ' would ', ' could ', ' should ', ' have ', ' has ', ' had ',
+  ];
+
+  // Count how many English markers appear
+  let markerCount = 0;
+  for (const marker of englishMarkers) {
+    if (lower.includes(marker)) markerCount++;
+  }
+
+  // If at least 3 markers found, likely English
+  if (markerCount >= 3) return true;
+
+  // Check for non-Latin scripts (Cyrillic, CJK, Arabic, etc.)
+  const nonLatinPattern = /[\u0400-\u04FF\u4E00-\u9FFF\u0600-\u06FF\u0980-\u09FF\u0900-\u097F\u3040-\u30FF\uAC00-\uD7AF]/;
+  if (nonLatinPattern.test(text)) {
+    // Has non-Latin characters - check if substantial portion
+    const nonLatinMatches = text.match(nonLatinPattern);
+    if (nonLatinMatches && nonLatinMatches.length > 5) return false;
+  }
+
+  // Default to true if we can't determine
+  return true;
+}
+
 export interface HarvestResult {
   sourceType: string;
   sourceId: string;
@@ -74,6 +110,13 @@ export abstract class BaseHarvester {
   async queueItem(item: HarvestResult): Promise<CurationQueue | null> {
     // Check for duplicate
     if (await this.isDuplicate(item.sourceType, item.sourceId)) {
+      return null;
+    }
+
+    // Filter out non-English content
+    const textToCheck = `${item.title} ${item.content || ''}`;
+    if (!isLikelyEnglish(textToCheck)) {
+      console.log(`  ⊘ Skipped (non-English): ${item.title.slice(0, 40)}...`);
       return null;
     }
 

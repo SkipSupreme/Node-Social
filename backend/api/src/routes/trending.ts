@@ -54,13 +54,14 @@ const trendingRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /discover/nodes
-   * Get personalized node recommendations based on user's vibe history
+   * Get all nodes the user isn't a member of
    */
   fastify.get('/discover/nodes', {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
     const userId = (request as any).user.id;
-    const recommendations = await getNodeRecommendations(fastify.prisma, userId, 3);
+    // Get all nodes (limit=50 to show everything)
+    const recommendations = await getNodeRecommendations(fastify.prisma, userId, 50);
 
     return {
       recommendations,

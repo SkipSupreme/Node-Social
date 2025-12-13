@@ -45,6 +45,11 @@ function cleanText(text: string): string {
     .replace(/&[a-z]+;/gi, '') // Remove any remaining HTML entities
     // Clean up CDATA
     .replace(/<!\[CDATA\[|\]\]>/g, '')
+    // Remove markdown prefixes like **Title:** or Title:
+    .replace(/^\*{0,2}Title:\*{0,2}\s*/i, '')
+    // Remove stray trailing quotes (unmatched)
+    .replace(/([^"])"$/, '$1')
+    .replace(/^"([^"]+)$/, '$1')
     // Clean up multiple whitespace and newlines
     .replace(/\n\s*\n\s*\n/g, '\n\n') // Max 2 consecutive newlines
     .replace(/[ \t]+/g, ' ')
@@ -65,7 +70,7 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
   const content = (item.content || '').toLowerCase();
   const combined = title + ' ' + content;
 
-  // Immediate rejection patterns (clickbait, rage-bait, personal posts)
+  // Immediate rejection patterns (clickbait, rage-bait, personal posts, spam)
   const rejectPatterns = [
     /you won't believe/i,
     /this is why/i,
@@ -88,6 +93,21 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     /fluffy.*fursday/i,
     /hey folks/i,
     /peace offering/i,
+    // Spam patterns
+    /big loot/i,
+    /big offer/i,
+    /coupon.*😱/i,
+    /day\s*-?\s*\d+\s+of\s+(learning|coding|studying)/i, // "Day 6 of learning..."
+    /join our.*course/i,
+    /start your.*journey/i,
+    /link\.guvi/i,
+    /flipkart/i,
+    /jiomart/i,
+    /#shorts/i, // YouTube shorts spam
+    /subscribe.*channel/i,
+    /like.*subscribe/i,
+    /hai friends/i,
+    /how to learn.*for beginners.*how to learn/i, // Keyword stuffing
   ];
 
   for (const pattern of rejectPatterns) {
@@ -252,11 +272,16 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     }
   }
 
-  const shouldPost = score >= 5;
-  const needsReview = false; // No more review queue - either post or reject
+  // Three tiers:
+  // - Score >= 7: Auto-post (high confidence good content)
+  // - Score 5-6: Needs review (borderline - goes to mod queue)
+  // - Score < 5: Reject (low quality)
+  const finalScore = Math.min(10, Math.max(1, Math.round(score)));
+  const shouldPost = finalScore >= 7;
+  const needsReview = finalScore >= 5 && finalScore < 7; // Borderline posts need human review
 
   return {
-    score: Math.min(10, Math.max(1, Math.round(score))),
+    score: finalScore,
     reason: reasons.join(', ') || 'baseline content',
     shouldPost,
     needsReview,
@@ -289,12 +314,17 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
 
     const title = cleanText(item.title);
 
-    // Try to scrape full article content if we only have a snippet
+    // Try to scrape full article content and images if we only have a snippet
     let rawContent = item.content || '';
-    if (item.linkUrl && isScrapeable(item.linkUrl) && rawContent.length < 300) {
-      const enrichedContent = await enrichContent(rawContent, item.linkUrl, title);
-      if (enrichedContent && enrichedContent.length > rawContent.length) {
-        rawContent = enrichedContent;
+    let mediaUrl = item.mediaUrl;
+
+    if (item.linkUrl && isScrapeable(item.linkUrl)) {
+      const enriched = await enrichContent(rawContent, item.linkUrl, title, mediaUrl);
+      if (enriched.content && enriched.content.length > rawContent.length) {
+        rawContent = enriched.content;
+      }
+      if (enriched.mediaUrl && !mediaUrl) {
+        mediaUrl = enriched.mediaUrl;
       }
     }
 
@@ -310,20 +340,24 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
                    item.linkUrl?.includes('youtu.be') ||
                    item.linkUrl?.includes('v.redd.it');
 
-    const isImage = item.mediaUrl?.includes('i.redd.it') ||
-                   item.mediaUrl?.includes('preview.redd.it') ||
+    const isImage = mediaUrl?.includes('i.redd.it') ||
+                   mediaUrl?.includes('preview.redd.it') ||
                    item.linkUrl?.includes('i.redd.it') ||
                    item.linkUrl?.includes('i.imgur.com') ||
-                   /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(item.linkUrl || '');
+                   /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(item.linkUrl || '') ||
+                   /\.(jpg|jpeg|png|gif|webp)(\?|$)/i.test(mediaUrl || '');
 
     const postType = isVideo ? 'video' : isImage ? 'image' : (item.linkUrl ? 'link' : 'text');
+
+    // Use linkUrl if available, otherwise fall back to sourceUrl
+    const finalLinkUrl = (item.linkUrl && item.linkUrl.trim()) ? item.linkUrl : item.sourceUrl;
 
     const post = await prisma.post.create({
       data: {
         title: title.slice(0, 200),
         content,
-        linkUrl: item.linkUrl || item.sourceUrl,
-        mediaUrl: item.mediaUrl, // Include the media URL for images/videos
+        linkUrl: finalLinkUrl,
+        mediaUrl, // Include the media URL (possibly scraped from article)
         postType,
         authorId: bot.id,
         nodeId: botConfig.nodeId,

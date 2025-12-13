@@ -277,11 +277,12 @@ export async function getRisingNodes(
 
 /**
  * Get personalized node recommendations based on user's vibe history
+ * Returns ALL nodes the user isn't a member of
  */
 export async function getNodeRecommendations(
   prisma: PrismaClient,
   userId: string,
-  limit: number = 3
+  limit: number = 50 // High default to show all nodes
 ): Promise<NodeRecommendation[]> {
   // Get user's nodes (to exclude from recommendations)
   const userNodes = await prisma.nodeSubscription.findMany({
@@ -290,91 +291,58 @@ export async function getNodeRecommendations(
   });
   const userNodeIds = new Set(userNodes.map((n) => n.nodeId));
 
-  // Analyze user's reaction patterns - which vibes do they use most?
-  const userReactions = await prisma.vibeReaction.findMany({
-    where: { userId },
-    select: {
-      intensities: true,
-    },
-    take: 100, // Last 100 reactions
-    orderBy: { createdAt: 'desc' },
-  });
-
-  if (userReactions.length === 0) {
-    // No reactions - return popular nodes instead
-    return getPopularNodes(prisma, userNodeIds, limit);
-  }
-
-  // Sum up vibe intensities to find dominant vibes
-  const vibeScores: Record<string, number> = Object.fromEntries(
-    VIBE_SLUGS.map((v) => [v, 0])
-  );
-
-  for (const reaction of userReactions) {
-    const intensities = reaction.intensities as VibeIntensities;
-    for (const vibe of VIBE_SLUGS) {
-      const currentScore = vibeScores[vibe] ?? 0;
-      vibeScores[vibe] = currentScore + (intensities[vibe] || 0);
-    }
-  }
-
-  // Find top 2 vibes
-  const sortedVibes = Object.entries(vibeScores)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 2);
-
-  const dominantVibe = sortedVibes[0]?.[0] || 'insightful';
-  const dominantVibeEmoji = VIBE_EMOJIS[dominantVibe] || '✨';
-
-  // Find nodes where this vibe is dominant (using PostVibeAggregate)
-  const vibeField = `${dominantVibe}Sum` as const;
-
-  // Get posts with high dominant vibe scores
-  const topPosts = await prisma.postVibeAggregate.findMany({
-    where: {
-      [vibeField]: { gt: 5 }, // Significant vibe presence
-    },
-    orderBy: {
-      [vibeField]: 'desc',
-    },
-    select: {
-      post: {
-        select: {
-          nodeId: true,
-        },
-      },
-    },
-    take: 50,
-  });
-
-  // Count which nodes appear most
-  const nodeCounts: Map<string, number> = new Map();
-  for (const agg of topPosts) {
-    const nodeId = agg.post?.nodeId;
-    if (nodeId && !userNodeIds.has(nodeId)) {
-      nodeCounts.set(nodeId, (nodeCounts.get(nodeId) || 0) + 1);
-    }
-  }
-
-  // Get top nodes
-  const topNodeIds = Array.from(nodeCounts.entries())
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([id]) => id);
-
-  if (topNodeIds.length === 0) {
-    return getPopularNodes(prisma, userNodeIds, limit);
-  }
-
-  // Get node details
+  // Get ALL nodes the user isn't a member of (excluding global)
   const nodes = await prisma.node.findMany({
-    where: { id: { in: topNodeIds } },
+    where: {
+      id: { notIn: Array.from(userNodeIds) },
+      slug: { not: 'global' }, // Exclude global node
+    },
     include: {
       _count: {
         select: { subscriptions: true },
       },
     },
+    orderBy: [
+      { subscriptions: { _count: 'desc' } }, // Most popular first
+      { createdAt: 'desc' }, // Then newest
+    ],
+    take: limit,
   });
+
+  // Analyze user's reaction patterns for match reason
+  const userReactions = await prisma.vibeReaction.findMany({
+    where: { userId },
+    select: {
+      intensities: true,
+    },
+    take: 100,
+    orderBy: { createdAt: 'desc' },
+  });
+
+  let matchReason = 'Discover this community';
+
+  if (userReactions.length > 0) {
+    // Sum up vibe intensities to find dominant vibes
+    const vibeScores: Record<string, number> = Object.fromEntries(
+      VIBE_SLUGS.map((v) => [v, 0])
+    );
+
+    for (const reaction of userReactions) {
+      const intensities = reaction.intensities as VibeIntensities;
+      for (const vibe of VIBE_SLUGS) {
+        const currentScore = vibeScores[vibe] ?? 0;
+        vibeScores[vibe] = currentScore + (intensities[vibe] || 0);
+      }
+    }
+
+    const sortedVibes = Object.entries(vibeScores)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 1);
+
+    const dominantVibe = sortedVibes[0]?.[0] || 'insightful';
+    const dominantVibeEmoji = VIBE_EMOJIS[dominantVibe] || '✨';
+    matchReason = `You often react with ${dominantVibeEmoji} ${dominantVibe.charAt(0).toUpperCase() + dominantVibe.slice(1)}`;
+  }
 
   return nodes.map((node) => ({
     id: node.id,
@@ -384,7 +352,9 @@ export async function getNodeRecommendations(
     avatar: node.avatar,
     color: node.color,
     memberCount: node._count.subscriptions,
-    matchReason: `You often react with ${dominantVibeEmoji} ${dominantVibe.charAt(0).toUpperCase() + dominantVibe.slice(1)}`,
+    matchReason: node._count.subscriptions > 0
+      ? matchReason
+      : 'New community - be the first to join!',
   }));
 }
 

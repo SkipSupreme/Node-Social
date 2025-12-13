@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, ActivityIndicator } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Zap, TrendingUp, Sparkles, ChevronRight, Users, UserPlus } from './Icons';
+import { Zap, TrendingUp, Sparkles, Users, UserPlus } from './Icons';
 import { COLORS } from '../../constants/theme';
 import {
   getTrendingVibes,
@@ -128,12 +128,6 @@ export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
           </View>
         )}
       </View>
-
-      {/* See More Link */}
-      <TouchableOpacity style={styles.seeMoreLink}>
-        <Text style={styles.seeMoreText}>See more nodes</Text>
-        <ChevronRight size={16} color="#8b5cf6" />
-      </TouchableOpacity>
 
       <View style={styles.bottomPadding} />
     </ScrollView>
@@ -455,19 +449,6 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
 
-  // See more link
-  seeMoreLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    gap: 4,
-  },
-  seeMoreText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#8b5cf6',
-  },
   bottomPadding: {
     height: 20,
   },

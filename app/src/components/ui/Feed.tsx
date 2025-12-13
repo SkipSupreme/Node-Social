@@ -379,6 +379,8 @@ const isImageUrl = (url: string): boolean => {
     if (/preview\.redd\.it\//i.test(url)) return true;
     // External preview URLs (often have format=jpg or similar)
     if (/external-preview\.redd\.it\//i.test(url)) return true;
+    // Bluesky CDN images (uses @jpeg/@png format instead of .jpeg/.png)
+    if (/cdn\.bsky\.app\/img\//i.test(url)) return true;
     return false;
 };
 

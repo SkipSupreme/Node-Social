@@ -39,6 +39,7 @@ interface ScrapedArticle {
   byline: string | null;
   siteName: string | null;
   length: number | null;
+  leadImage: string | null;
 }
 
 /**
@@ -99,6 +100,16 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle | null>
     const dom = new JSDOM(html, { url });
     const document = dom.window.document;
 
+    // Try to extract lead image from meta tags first
+    let leadImage: string | null = null;
+    const ogImage = document.querySelector('meta[property="og:image"]');
+    const twitterImage = document.querySelector('meta[name="twitter:image"]');
+    if (ogImage?.getAttribute('content')) {
+      leadImage = ogImage.getAttribute('content');
+    } else if (twitterImage?.getAttribute('content')) {
+      leadImage = twitterImage.getAttribute('content');
+    }
+
     // Use Readability to extract article content
     const reader = new Readability(document);
     const article = reader.parse();
@@ -121,6 +132,7 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle | null>
       byline: article.byline || null,
       siteName: article.siteName || null,
       length: article.length || null,
+      leadImage,
     };
   } catch (err: any) {
     if (err.name === 'AbortError') {
@@ -132,6 +144,11 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle | null>
   }
 }
 
+interface EnrichedContent {
+  content: string | undefined;
+  mediaUrl: string | undefined;
+}
+
 /**
  * Get the best content for a harvested item:
  * 1. If we already have good content (>200 chars), keep it
@@ -141,24 +158,33 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle | null>
 export async function enrichContent(
   existingContent: string | undefined,
   linkUrl: string | undefined,
-  title: string
-): Promise<string | undefined> {
-  // If we already have substantial content, keep it
-  if (existingContent && existingContent.length > 200) {
-    return existingContent;
-  }
+  title: string,
+  existingMediaUrl?: string | undefined
+): Promise<EnrichedContent> {
+  let content = existingContent;
+  let mediaUrl = existingMediaUrl;
 
-  // If we have a link, try to scrape
-  if (linkUrl && isScrapeable(linkUrl)) {
+  // If we already have substantial content, keep it but still try for an image
+  const needsContent = !existingContent || existingContent.length < 200;
+  const needsImage = !existingMediaUrl;
+
+  // If we have a link and need content or image, try to scrape
+  if (linkUrl && isScrapeable(linkUrl) && (needsContent || needsImage)) {
     console.log(`  → Scraping: ${linkUrl.slice(0, 60)}...`);
     const article = await scrapeArticle(linkUrl);
 
-    if (article?.content && article.content.length > 100) {
-      // Use scraped content (allow full articles up to 6k)
-      return article.content.slice(0, 6000);
+    if (article) {
+      // Use scraped content if we need it
+      if (needsContent && article.content && article.content.length > 100) {
+        content = article.content.slice(0, 6000);
+      }
+
+      // Use scraped image if we need it
+      if (needsImage && article.leadImage) {
+        mediaUrl = article.leadImage;
+      }
     }
   }
 
-  // Fall back to existing content
-  return existingContent;
+  return { content, mediaUrl };
 }

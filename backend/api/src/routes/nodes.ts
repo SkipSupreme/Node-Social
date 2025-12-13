@@ -21,8 +21,16 @@ async function ensureUploadsDir() {
   }
 }
 
-// Helper to check if user is node admin
+// Helper to check if user is node admin (or global site admin)
 async function isNodeAdmin(prisma: any, nodeId: string, userId: string): Promise<boolean> {
+  // First check if user is a global site admin
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { role: true },
+  });
+  if (user?.role === 'admin') return true;
+
+  // Otherwise check node-level admin
   const sub = await prisma.nodeSubscription.findUnique({
     where: { userId_nodeId: { userId, nodeId } },
     select: { role: true },

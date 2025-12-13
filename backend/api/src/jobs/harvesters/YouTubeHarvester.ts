@@ -72,6 +72,7 @@ export class YouTubeHarvester extends BaseHarvester {
               maxResults: '10',
               order: 'viewCount',
               publishedAfter,
+              relevanceLanguage: 'en', // Filter to English content
               key: this.apiKey,
             });
 

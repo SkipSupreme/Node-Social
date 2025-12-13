@@ -79,12 +79,11 @@ export async function postAsBot(
     return null;
   }
 
-  const fullContent = content + `\n\n---\n📡 ${sourceAttribution}`;
-
+  // Don't add source attribution - clean posts only
   const post = await prisma.post.create({
     data: {
       title,
-      content: fullContent,
+      content,
       linkUrl,
       postType: linkUrl.includes('youtube.com') || linkUrl.includes('youtu.be') ? 'video' : 'link',
       authorId: bot.userId,
