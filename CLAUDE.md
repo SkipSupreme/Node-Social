@@ -457,6 +457,28 @@ Slow is smooth. Smooth is fast.
 
 Never tskill node.exe -- claude code is a node app.
 
+**Never start, stop, restart, or kill the dev server.** Q manages the dev servers. If you need the server restarted to pick up changes, tell Q and wait for confirmation that it's running.
+
+---
+
+## No Mock Code
+
+**Never write placeholder, mock, or "coming soon" code.** If a feature needs to be implemented, implement it fully or don't touch it.
+
+Violations:
+- `// TODO: implement this`
+- `"Coming soon"`
+- Hardcoded fake data when real data is available
+- Stub functions that return static values
+- Comments like "placeholder" or "mock"
+
+If you can't implement something fully:
+1. Tell Q what's blocking you
+2. Ask for guidance
+3. Don't leave half-baked code in the codebase
+
+Every line of code should do real work. No theater.
+
 
 
 

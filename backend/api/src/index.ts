@@ -43,6 +43,7 @@ import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
 declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: any, reply: any) => Promise<void>;
+    optionalAuthenticate: (request: any, reply: any) => Promise<void>;
   }
 }
 
@@ -141,6 +142,26 @@ export async function build(): Promise<FastifyInstance> {
     }
   });
 
+  // Optional authentication - sets request.user if token valid, but doesn't fail if not
+  // Used for public endpoints that have enhanced features for logged-in users
+  app.decorate('optionalAuthenticate', async function (request: any, _reply: any) {
+    try {
+      await request.jwtVerify();
+    } catch (err) {
+      // Fallback to cookie-based access token
+      const cookieToken = request.cookies?.accessToken;
+      if (cookieToken) {
+        try {
+          await request.jwtVerify({ token: cookieToken });
+          return;
+        } catch (cookieErr) {
+          // Silent fail - user stays anonymous
+        }
+      }
+      // Don't set request.user - they're anonymous
+    }
+  });
+
   // Activity tracking - update lastActiveAt for authenticated users
   app.addHook('onRequest', async (request) => {
     if ((request as any).user?.id || (request as any).user?.sub) {
@@ -161,12 +182,15 @@ export async function build(): Promise<FastifyInstance> {
   });
 
   // CSRF protection for cookie-based sessions (double-submit token)
+  // Exempt auth endpoints - login/register don't have valid CSRF yet, refresh might have stale cookies
+  const csrfExemptPaths = ['/auth/login', '/auth/register', '/auth/refresh', '/auth/google', '/auth/apple', '/auth/logout'];
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
     const isSafe = method === 'GET' || method === 'HEAD' || method === 'OPTIONS';
     const hasAuthCookie = Boolean(request.cookies?.accessToken || request.cookies?.refreshToken);
+    const isExempt = csrfExemptPaths.some(path => request.url.startsWith(path));
 
-    if (!isSafe && hasAuthCookie) {
+    if (!isSafe && hasAuthCookie && !isExempt) {
       const csrfCookie = request.cookies?.csrfToken;
       const csrfHeader = request.headers['x-csrf-token'];
       if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {

@@ -116,11 +116,11 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // Get comments for a post
+  // Get comments for a post (public endpoint)
   fastify.get(
     '/posts/:postId/comments',
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const { postId } = request.params as { postId: string };
@@ -137,7 +137,8 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { parentId, limit, all, sortBy } = parsed.data;
-      const userId = (request.user as { sub: string }).sub;
+      // userId is optional - anonymous users can view comments
+      const userId = (request.user as { sub: string } | undefined)?.sub;
 
       const where: Prisma.CommentWhereInput = {
         postId,

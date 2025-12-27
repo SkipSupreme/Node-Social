@@ -291,6 +291,21 @@ export const SIDEBAR = {
     right: 320,
 };
 
+// Multi-column layout constants
+export const COLUMNS = {
+    minWidth: 300,
+    gap: 12,
+    headerHeight: 48,
+    // Max columns based on screen width
+    getMaxColumns: (width: number): number => {
+        if (width >= 1920) return 5;
+        if (width >= 1440) return 4;
+        if (width >= 1280) return 3;
+        if (width >= 1024) return 2;
+        return 1;
+    },
+};
+
 // Animation presets
 export const ANIMATIONS = {
     spring: {

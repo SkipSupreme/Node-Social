@@ -166,10 +166,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Get feed (all posts or filtered by node)
+  // Public endpoint - anonymous users can browse, logged-in users get personalized features
   fastify.get(
     '/',
     {
-      onRequest: [fastify.authenticate], // Require auth for feed for now
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const schema = z.object({
@@ -179,6 +180,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         authorId: z.string().uuid().optional(),
         postType: z.string().optional(), // Single post type: "text", "image", "video", "link"
         postTypes: z.string().optional(), // Multiple post types: "text,image,video" (comma-separated)
+        preset: z.enum(['latest', 'balanced', 'popular', 'expert', 'personal']).optional(),
         qualityWeight: z.coerce.number().min(0).max(100).optional(),
         recencyWeight: z.coerce.number().min(0).max(100).optional(),
         engagementWeight: z.coerce.number().min(0).max(100).optional(),
@@ -191,13 +193,23 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         hasDiscussion: z.string().optional().transform(v => v === 'true'),
       });
 
+      // Preset weight configurations
+      const PRESET_WEIGHTS: Record<string, { qualityWeight: number; recencyWeight: number; engagementWeight: number; personalizationWeight: number }> = {
+        latest: { qualityWeight: 10, recencyWeight: 70, engagementWeight: 10, personalizationWeight: 10 },
+        balanced: { qualityWeight: 35, recencyWeight: 30, engagementWeight: 20, personalizationWeight: 15 },
+        popular: { qualityWeight: 20, recencyWeight: 20, engagementWeight: 50, personalizationWeight: 10 },
+        expert: { qualityWeight: 60, recencyWeight: 15, engagementWeight: 15, personalizationWeight: 10 },
+        personal: { qualityWeight: 20, recencyWeight: 20, engagementWeight: 10, personalizationWeight: 50 },
+      };
+
       const parsed = schema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { cursor, limit, nodeId, authorId, postType, postTypes, timeRange, textOnly, mediaOnly, linksOnly, hasDiscussion } = parsed.data;
-      const userId = (request.user as { sub: string }).sub;
+      const { cursor, limit, nodeId, authorId, postType, postTypes, preset, timeRange, textOnly, mediaOnly, linksOnly, hasDiscussion } = parsed.data;
+      // userId is optional - anonymous users can browse without logging in
+      const userId = (request.user as { sub: string } | undefined)?.sub;
 
       // Phase 4.2 - Post Type Filtering
       // Support filtering by post type (text, image, video, link)
@@ -231,26 +243,32 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const userPrefs = await fastify.prisma.userFeedPreference.findUnique({
-          where: { userId },
-        });
+        // Anonymous users get default preferences
+        const userPrefs = userId
+          ? await fastify.prisma.userFeedPreference.findUnique({ where: { userId } })
+          : null;
+
+        // Get preset weights if preset is specified
+        const presetWeights = preset ? PRESET_WEIGHTS[preset] : null;
 
         if (userPrefs) {
           preferences = {
-            qualityWeight: parsed.data.qualityWeight ?? userPrefs.qualityWeight,
-            recencyWeight: parsed.data.recencyWeight ?? userPrefs.recencyWeight,
-            engagementWeight: parsed.data.engagementWeight ?? userPrefs.engagementWeight,
-            personalizationWeight: parsed.data.personalizationWeight ?? userPrefs.personalizationWeight,
+            // Preset weights take priority, then query params, then user prefs
+            qualityWeight: presetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? userPrefs.qualityWeight,
+            recencyWeight: presetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? userPrefs.recencyWeight,
+            engagementWeight: presetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? userPrefs.engagementWeight,
+            personalizationWeight: presetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? userPrefs.personalizationWeight,
             recencyHalfLife: userPrefs.recencyHalfLife,
             followingOnly: userPrefs.followingOnly,
           };
         } else {
           const defaults = getDefaultPreferences();
           preferences = {
-            qualityWeight: parsed.data.qualityWeight ?? defaults.qualityWeight,
-            recencyWeight: parsed.data.recencyWeight ?? defaults.recencyWeight,
-            engagementWeight: parsed.data.engagementWeight ?? defaults.engagementWeight,
-            personalizationWeight: parsed.data.personalizationWeight ?? defaults.personalizationWeight,
+            // Preset weights take priority, then query params, then defaults
+            qualityWeight: presetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? defaults.qualityWeight,
+            recencyWeight: presetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? defaults.recencyWeight,
+            engagementWeight: presetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? defaults.engagementWeight,
+            personalizationWeight: presetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? defaults.personalizationWeight,
             recencyHalfLife: defaults.recencyHalfLife,
             followingOnly: defaults.followingOnly,
           };
@@ -334,8 +352,8 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where.comments = { some: {} };
       }
 
-      // Following-Only Feed Filter
-      if (preferences.followingOnly) {
+      // Following-Only Feed Filter (requires authentication)
+      if (preferences.followingOnly && userId) {
         const following = await fastify.prisma.userFollow.findMany({
           where: { followerId: userId },
           select: { followingId: true },
@@ -346,27 +364,29 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where.authorId = { in: followingIds };
       }
 
-      // Block/Mute Enforcement - Hide posts from blocked/muted users
-      const [blocks, mutes, mutedNodes, savedPosts] = await Promise.all([
-        fastify.prisma.userBlock.findMany({
-          where: { blockerId: userId },
-          select: { blockedId: true },
-        }),
-        fastify.prisma.userMute.findMany({
-          where: { muterId: userId },
-          select: { mutedId: true },
-        }),
-        // Get muted nodes to filter from feed
-        fastify.prisma.nodeMute.findMany({
-          where: { userId },
-          select: { nodeId: true },
-        }),
-        // Get saved posts to mark in feed
-        fastify.prisma.savedPost.findMany({
-          where: { userId },
-          select: { postId: true },
-        }),
-      ]);
+      // Block/Mute Enforcement - Hide posts from blocked/muted users (only for logged-in users)
+      const [blocks, mutes, mutedNodes, savedPosts] = userId
+        ? await Promise.all([
+            fastify.prisma.userBlock.findMany({
+              where: { blockerId: userId },
+              select: { blockedId: true },
+            }),
+            fastify.prisma.userMute.findMany({
+              where: { muterId: userId },
+              select: { mutedId: true },
+            }),
+            // Get muted nodes to filter from feed
+            fastify.prisma.nodeMute.findMany({
+              where: { userId },
+              select: { nodeId: true },
+            }),
+            // Get saved posts to mark in feed
+            fastify.prisma.savedPost.findMany({
+              where: { userId },
+              select: { postId: true },
+            }),
+          ])
+        : [[], [], [], []]; // Anonymous users: no blocks/mutes/saved
 
       const savedPostIds = new Set(savedPosts.map(s => s.postId));
 
@@ -399,7 +419,8 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Fetch posts with metrics for scoring
-      const postInclude = {
+      // Build include dynamically based on whether user is authenticated
+      const postInclude: Prisma.PostInclude = {
         author: {
           select: {
             id: true,
@@ -426,14 +447,13 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           select: { comments: true },
         },
         vibeAggregate: true,
-        reactions: {
-          where: { userId },
-          select: { intensities: true },
-          take: 1,
-        },
+        // Only include user's reactions if authenticated
+        reactions: userId
+          ? { where: { userId }, select: { intensities: true }, take: 1 }
+          : false,
         comments: {
           take: 3,
-          orderBy: { createdAt: 'desc' },
+          orderBy: { createdAt: 'desc' as const },
           include: {
             author: {
               select: {
@@ -455,15 +475,15 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               include: {
                 _count: { select: { votes: true } }
               },
-              orderBy: { order: 'asc' }
+              orderBy: { order: 'asc' as const }
             },
-            votes: {
-              where: { userId },
-              select: { optionId: true }
-            }
+            // Only include user's votes if authenticated
+            votes: userId
+              ? { where: { userId }, select: { optionId: true } }
+              : false,
           }
         }
-      } as const;
+      };
 
       // For MVP: Fetch more posts than needed, score them, sort, then paginate
       // This is less efficient but ensures correct ordering
@@ -491,29 +511,31 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         posts = ExpertService.applyRules(posts, expertRules);
       }
 
-      // Build personalization context for the user
+      // Build personalization context for the user (only if authenticated)
       // This includes following list, node cred scores, vibe profile, and trust network
-      const [user, userReactions, vouches] = await Promise.all([
-        fastify.prisma.user.findUnique({
-          where: { id: userId },
-          select: {
-            nodeCredScores: true,
-            following: { select: { followingId: true } },
-          },
-        }),
-        // Get user's last 100 reactions to build vibe profile
-        fastify.prisma.vibeReaction.findMany({
-          where: { userId },
-          select: { intensities: true },
-          orderBy: { createdAt: 'desc' },
-          take: 100,
-        }),
-        // Get all active vouches for trust network
-        fastify.prisma.vouch.findMany({
-          where: { active: true },
-          select: { voucherId: true, voucheeId: true, active: true },
-        }),
-      ]);
+      const [user, userReactions, vouches] = userId
+        ? await Promise.all([
+            fastify.prisma.user.findUnique({
+              where: { id: userId },
+              select: {
+                nodeCredScores: true,
+                following: { select: { followingId: true } },
+              },
+            }),
+            // Get user's last 100 reactions to build vibe profile
+            fastify.prisma.vibeReaction.findMany({
+              where: { userId },
+              select: { intensities: true },
+              orderBy: { createdAt: 'desc' },
+              take: 100,
+            }),
+            // Get all active vouches for trust network
+            fastify.prisma.vouch.findMany({
+              where: { active: true },
+              select: { voucherId: true, voucheeId: true, active: true },
+            }),
+          ])
+        : [null, [], []]; // Anonymous users: no personalization data
 
       const personalizationContext: PersonalizationContext = {
         followingIds: new Set(user?.following.map(f => f.followingId) || []),
@@ -521,7 +543,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         userVibeProfile: buildVibeProfileFromReactions(
           userReactions.map(r => ({ intensities: r.intensities as Record<string, number> }))
         ),
-        vouchNetwork: buildTrustNetwork(vouches, userId, 3),
+        vouchNetwork: userId ? buildTrustNetwork(vouches, userId, 3) : new Map(),
       };
 
       // Calculate feed scores and sort
@@ -588,7 +610,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         commentCount: post._count?.comments ?? 0,
         metrics: undefined, // Don't expose metrics in response (or expose selectively)
         _count: undefined,
-        myReaction: post.reactions[0]?.intensities || null,
+        myReaction: post.reactions?.[0]?.intensities || null,
         vibeAggregate: post.vibeAggregate,
         reactions: undefined,
         isSaved: savedPostIds.has(post.id),
@@ -602,11 +624,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     }
   );
 
-  // Get single post
+  // Get single post (public endpoint)
   fastify.get(
     '/:id',
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };

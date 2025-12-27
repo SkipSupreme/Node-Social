@@ -1,0 +1,120 @@
+// Multi-column TweetDeck-style feed container for desktop/tablet
+import React from 'react';
+import { View, StyleSheet, useWindowDimensions } from 'react-native';
+import { COLORS, COLUMNS } from '../../constants/theme';
+import { useColumnsStore, FeedColumn as FeedColumnType } from '../../store/columns';
+import { FeedColumn } from './FeedColumn';
+import { AddColumnModal } from './AddColumnModal';
+
+interface MultiColumnContainerProps {
+  currentUser: any;
+  nodes: any[];
+  globalNodeId?: string;
+  onPostClick: (postId: string) => void;
+  onAuthorClick: (authorId: string) => void;
+  onUserClick: (userId: string) => void;
+  onPostAction: (postId: string, action: string) => void;
+  onSaveToggle: (postId: string, saved: boolean) => void;
+  onNodeClick?: (nodeId: string) => void;
+  showAddModal: boolean;
+  onCloseAddModal: () => void;
+}
+
+export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
+  currentUser,
+  nodes,
+  globalNodeId,
+  onPostClick,
+  onAuthorClick,
+  onUserClick,
+  onPostAction,
+  onSaveToggle,
+  onNodeClick,
+  showAddModal,
+  onCloseAddModal,
+}) => {
+  const { width } = useWindowDimensions();
+  const { columns, addColumn, removeColumn, reorderColumns, updateColumn } = useColumnsStore();
+
+  const maxColumns = COLUMNS.getMaxColumns(width);
+
+  const handleAddColumn = (column: Omit<FeedColumnType, 'id'>) => {
+    addColumn(column);
+    onCloseAddModal();
+  };
+
+  const handleMoveLeft = (index: number) => {
+    if (index > 0) {
+      reorderColumns(index, index - 1);
+    }
+  };
+
+  const handleMoveRight = (index: number) => {
+    if (index < columns.length - 1) {
+      reorderColumns(index, index + 1);
+    }
+  };
+
+  return (
+    <View style={styles.container}>
+      {/* Columns Row - flex layout, no horizontal scroll */}
+      <View style={styles.columnsRow}>
+        {columns.map((column, index) => (
+          <View
+            key={column.id}
+            style={[
+              styles.columnWrapper,
+              { marginLeft: index === 0 ? 0 : COLUMNS.gap }
+            ]}
+          >
+            <FeedColumn
+              column={column}
+              currentUser={currentUser}
+              nodes={nodes}
+              globalNodeId={globalNodeId}
+              onPostClick={onPostClick}
+              onAuthorClick={onAuthorClick}
+              onUserClick={onUserClick}
+              onPostAction={onPostAction}
+              onSaveToggle={onSaveToggle}
+              onRemove={() => removeColumn(column.id)}
+              canRemove={columns.length > 1}
+              onNodeClick={onNodeClick}
+              onMoveLeft={index > 0 ? () => handleMoveLeft(index) : undefined}
+              onMoveRight={index < columns.length - 1 ? () => handleMoveRight(index) : undefined}
+              onUpdateColumn={(updates) => updateColumn(column.id, updates)}
+            />
+          </View>
+        ))}
+
+      </View>
+
+      {/* Add Column Modal */}
+      <AddColumnModal
+        visible={showAddModal}
+        onClose={onCloseAddModal}
+        onAdd={handleAddColumn}
+        nodes={nodes}
+        existingColumns={columns}
+      />
+    </View>
+  );
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.node.bg,
+    padding: 12,
+  },
+  columnsRow: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  columnWrapper: {
+    flex: 1,
+    minWidth: COLUMNS.minWidth,
+  },
+});
+
+export default MultiColumnContainer;

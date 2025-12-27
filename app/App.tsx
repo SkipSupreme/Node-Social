@@ -23,7 +23,7 @@ import { Sidebar } from './src/components/ui/Sidebar';
 import { Feed } from './src/components/ui/Feed';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VibeValidator, VibeValidatorSettings } from './src/components/ui/VibeValidator';
-import { getFeed, getNodes, Post, searchPosts, getFeedPreferences, updateFeedPreferences } from './src/lib/api';
+import { getFeed, getNodes, Post, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences } from './src/lib/api';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
 import { Plus } from 'lucide-react-native';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
@@ -43,22 +43,29 @@ import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
 import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
 import { NodeSettingsScreen } from './src/screens/NodeSettingsScreen';
 import { ModLogScreen } from './src/screens/ModLogScreen';
+import { BlockedMutedScreen } from './src/screens/BlockedMutedScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
+import { AuthPromptProvider, useAuthPrompt } from './src/context/AuthPromptContext';
 import { FeedHeader } from './src/components/ui/FeedHeader';
 import { WhatsVibing } from './src/components/ui/WhatsVibing';
 import { NodeLandingPage } from './src/components/ui/NodeLandingPage';
+import { ToastContainer } from './src/components/ui/Toast';
+import { MultiColumnContainer } from './src/components/ui/MultiColumnContainer';
+import { useColumnsStore } from './src/store/columns';
 
 // Initialize Query Client
 const queryClient = new QueryClient();
 
 const MainApp = () => {
   const { user, logout } = useAuthStore();
+  const { requireAuth } = useAuthPrompt();
+  const { isMultiColumnEnabled, loadFromStorage: loadColumnsConfig } = useColumnsStore();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
@@ -89,6 +96,7 @@ const MainApp = () => {
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [showAddColumnModal, setShowAddColumnModal] = useState(false);
 
   // Mobile-specific states
   const headerTranslateY = useRef(new Animated.Value(0)).current;
@@ -132,22 +140,35 @@ const MainApp = () => {
   // Bottom nav acts as "tab switching" - clears history and goes directly to the view
   const handleBottomNavigation = (view: 'feed' | 'discovery' | 'create' | 'notifications' | 'profile') => {
     if (view === 'create') {
-      setIsCreatePostOpen(true);
-    } else {
-      // Clear navigation history and view params when switching tabs via bottom nav
-      // This is the expected UX: tapping a tab = "go to root of that tab"
-      setNavigationHistory([]);
-      setViewParams(null);
-
-      // When navigating to feed, clear search and refresh feed data
-      if (view === 'feed') {
-        setSearchQuery('');
-        setFeedMode('global');
-        setSelectedNodeId(null);
-        fetchFeed(null, 'global');
+      // Require auth to create posts
+      if (requireAuth('Sign in to create posts')) {
+        setIsCreatePostOpen(true);
       }
-      setCurrentView(view);
+      return;
     }
+
+    // Require auth for notifications and profile (own profile)
+    if (view === 'notifications') {
+      if (!requireAuth('Sign in to see your notifications')) return;
+    }
+    if (view === 'profile') {
+      if (!requireAuth('Sign in to see your profile')) return;
+    }
+
+    // Clear navigation history and view params when switching tabs via bottom nav
+    // This is the expected UX: tapping a tab = "go to root of that tab"
+    setNavigationHistory([]);
+    setViewParams(null);
+
+    // When navigating to feed, clear search and refresh feed data
+    if (view === 'feed') {
+      setSearchQuery('');
+      setSearchUserResults([]); // Clear user search results
+      setFeedMode('global');
+      setSelectedNodeId(null);
+      fetchFeed(null, 'global');
+    }
+    setCurrentView(view);
   };
 
 
@@ -590,6 +611,7 @@ const MainApp = () => {
     console.log('[handleNodeSelect] Called with nodeId:', nodeId);
     setSelectedNodeId(nodeId);
     setSearchQuery(''); // Clear search when changing nodes
+    setSearchUserResults([]); // Clear user search results
     setCurrentView('feed'); // Always return to feed view when selecting a node
     // If selecting a node, we implicitly go to global mode for that node
     // But if we are in discovery/following, maybe we should stay there?
@@ -604,6 +626,7 @@ const MainApp = () => {
     setFeedMode(mode);
     setSelectedNodeId(null); // Clear node selection
     setSearchQuery('');
+    setSearchUserResults([]); // Clear user search results
 
     // Navigate to proper screens for discovery/following, otherwise go to feed
     if (mode === 'discovery') {
@@ -617,17 +640,26 @@ const MainApp = () => {
   };
 
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchUserResults, setSearchUserResults] = useState<SearchUser[]>([]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {
+      setSearchUserResults([]);
       fetchFeed(selectedNodeId, feedMode);
       return;
     }
     setLoading(true);
     setCurrentView('feed'); // Switch to feed view to show search results
     try {
-      const data = await searchPosts(searchQuery);
-      const mappedPosts = data.posts.map((p: any) => ({
+      // Search both posts and users
+      const [postsData, usersData] = await Promise.all([
+        searchPosts(searchQuery),
+        searchUsers(searchQuery, 5), // Limit to 5 user results
+      ]);
+
+      setSearchUserResults(usersData.users || []);
+
+      const mappedPosts = postsData.posts.map((p: any) => ({
         id: p.id,
         node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
         author: {
@@ -676,6 +708,7 @@ const MainApp = () => {
   useEffect(() => {
     const init = async () => {
       await fetchNodes();
+      await loadColumnsConfig(); // Load multi-column config
       const loadedSettings = await loadFeedPreferences();
       // Update ref synchronously before triggering the fetch effect
       // This ensures fetchFeed uses the loaded settings, not defaults
@@ -809,13 +842,14 @@ const MainApp = () => {
               feedMode={feedMode}
               onFeedModeSelect={handleFeedModeSelect}
               onThemesClick={() => navigateTo('themes')}
-              onSavedClick={() => navigateTo('saved')}
+              onSavedClick={() => requireAuth('Sign in to see your saved posts') && navigateTo('saved')}
               onBetaClick={() => navigateTo('beta')}
-              onNewPostClick={() => setIsCreatePostOpen(true)}
+              onNewPostClick={() => requireAuth('Sign in to create posts') && setIsCreatePostOpen(true)}
               onModerationClick={() => navigateTo('moderation')}
               onAppealsClick={() => navigateTo('appeals')}
               onCouncilClick={() => navigateTo('council')}
               onVouchesClick={() => navigateTo('vouches')}
+              onBlockedMutedClick={() => requireAuth('Sign in to manage blocked users') && navigateTo('blocked-muted')}
               currentView={currentView}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -853,10 +887,16 @@ const MainApp = () => {
 
               {/* Center: Nav Icons */}
               <View style={styles.navIconsDesktop}>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => navigateTo('messages')}>
+                {isMultiColumnEnabled && (
+                  <TouchableOpacity style={styles.addColumnButtonHeader} onPress={() => setShowAddColumnModal(true)}>
+                    <Plus size={16} color={COLORS.node.accent} />
+                    <Text style={styles.addColumnButtonText}>Add Column</Text>
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => requireAuth('Sign in to access messages') && navigateTo('messages')}>
                   <MessageSquare size={20} color={COLORS.node.text} />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => navigateTo('notifications')}>
+                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => requireAuth('Sign in to see your notifications') && navigateTo('notifications')}>
                   <Bell size={20} color={COLORS.node.text} />
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setRightPanelOpen(!rightPanelOpen)}>
@@ -916,30 +956,56 @@ const MainApp = () => {
           <View style={{ width: '100%', maxWidth: '100%', flex: 1 }}>
             {currentView === 'feed' ? (
               <View style={{ flex: 1 }}>
-                <Feed
-                  posts={posts}
-                  currentUser={user}
-                  onPostAction={(postId, _action) => {
-                    // Optimistic update: remove post from feed
-                    setPosts(prev => prev.filter(p => p.id !== postId));
-                  }}
-                  onPostClick={handlePostClick}
-                  onAuthorClick={(authorId) => {
-                    navigateTo('profile', { userId: authorId });
-                  }}
-                  onSaveToggle={(postId, saved) => {
-                    // Update post's saved state in feed
-                    setPosts(prev => prev.map(p =>
-                      p.id === postId ? { ...p, isSaved: saved } : p
-                    ));
-                  }}
-                  globalNodeId={nodes.find(n => n.slug === 'global')?.id}
-                  onScroll={!isDesktop ? handleScroll : undefined}
-                  headerOffset={!isDesktop ? 64 : 0}
-                  onLoadMore={loadMorePosts}
-                  hasMore={hasMore}
-                  loadingMore={loadingMore}
-                />
+                {/* Desktop Multi-Column Mode */}
+                {isDesktop && isMultiColumnEnabled ? (
+                  <MultiColumnContainer
+                    currentUser={user}
+                    nodes={nodes}
+                    globalNodeId={nodes.find(n => n.slug === 'global')?.id}
+                    onPostClick={handlePostClick}
+                    onAuthorClick={(authorId) => navigateTo('profile', { userId: authorId })}
+                    onUserClick={(userId) => navigateTo('profile', { userId })}
+                    onPostAction={(postId, _action) => {
+                      setPosts(prev => prev.filter(p => p.id !== postId));
+                    }}
+                    onSaveToggle={(postId, saved) => {
+                      setPosts(prev => prev.map(p =>
+                        p.id === postId ? { ...p, isSaved: saved } : p
+                      ));
+                    }}
+                    onNodeClick={handleNodeSelect}
+                    showAddModal={showAddColumnModal}
+                    onCloseAddModal={() => setShowAddColumnModal(false)}
+                  />
+                ) : (
+                  /* Mobile/Tablet Single Feed */
+                  <Feed
+                    posts={posts}
+                    currentUser={user}
+                    onPostAction={(postId, _action) => {
+                      // Optimistic update: remove post from feed
+                      setPosts(prev => prev.filter(p => p.id !== postId));
+                    }}
+                    onPostClick={handlePostClick}
+                    onAuthorClick={(authorId) => {
+                      navigateTo('profile', { userId: authorId });
+                    }}
+                    onSaveToggle={(postId, saved) => {
+                      // Update post's saved state in feed
+                      setPosts(prev => prev.map(p =>
+                        p.id === postId ? { ...p, isSaved: saved } : p
+                      ));
+                    }}
+                    globalNodeId={nodes.find(n => n.slug === 'global')?.id}
+                    onScroll={!isDesktop ? handleScroll : undefined}
+                    headerOffset={!isDesktop ? 64 : 0}
+                    onLoadMore={loadMorePosts}
+                    hasMore={hasMore}
+                    loadingMore={loadingMore}
+                    searchUserResults={searchUserResults}
+                    onUserClick={(userId) => navigateTo('profile', { userId })}
+                  />
+                )}
               </View>
             ) : currentView === 'profile' ? (
               <ProfileScreen
@@ -985,7 +1051,11 @@ const MainApp = () => {
                 recipient={viewParams?.recipient}
               />
             ) : currentView === 'discovery' ? (
-              <DiscoveryScreen onBack={goBack} onPostClick={handlePostClick} />
+              <DiscoveryScreen
+                onBack={goBack}
+                onPostClick={handlePostClick}
+                onUserClick={(userId) => navigateTo('profile', { userId })}
+              />
             ) : currentView === 'following' ? (
               <FollowingScreen onBack={goBack} onPostClick={handlePostClick} />
             ) : currentView === 'post-detail' ? (
@@ -1035,13 +1105,18 @@ const MainApp = () => {
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Node'}
                 onBack={goBack}
               />
+            ) : currentView === 'blocked-muted' ? (
+              <BlockedMutedScreen
+                onBack={goBack}
+                onUserClick={(userId) => navigateTo('profile', { userId })}
+              />
             ) : null}
 
           </View>
         </View>
 
-        {/* Desktop Right Panel - Contextual: WhatsVibing (global) or NodeLandingPage (node selected) */}
-        {isDesktop && rightPanelOpen && (
+        {/* Desktop Right Panel - Hidden when multi-column mode is enabled (WhatsVibing is now a column type) */}
+        {isDesktop && rightPanelOpen && !isMultiColumnEnabled && (
           <View style={styles.drawerRight}>
             {selectedNodeId ? (
               <NodeLandingPage
@@ -1133,6 +1208,12 @@ const MainApp = () => {
                   setMenuVisible(false);
                   navigateTo('vouches');
                 }}
+                onBlockedMutedClick={() => {
+                  setMenuVisible(false);
+                  if (requireAuth('Sign in to manage blocked users')) {
+                    navigateTo('blocked-muted');
+                  }
+                }}
                 currentView={currentView}
               />
             </View>
@@ -1183,7 +1264,9 @@ const MainApp = () => {
 
 export default function App() {
   const { user, loading, loadFromStorage, markEmailVerified, logout } = useAuthStore();
-  const [currentScreen, setCurrentScreen] = useState<'login' | 'register' | 'forgot-password' | 'reset-password' | 'verify-email'>('login');
+  // Auth modal state - null means closed, otherwise shows the specified screen
+  const [authModal, setAuthModal] = useState<'login' | 'register' | 'forgot-password' | null>(null);
+  // Deep link tokens for reset/verify flows
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
   const emailForVerification = user?.email ?? '';
@@ -1195,10 +1278,8 @@ export default function App() {
 
       if (path === 'reset-password' && queryParams?.token) {
         setResetToken(queryParams.token as string);
-        setCurrentScreen('reset-password');
       } else if (path === 'verify-email' && queryParams?.token) {
         setVerifyToken(queryParams.token as string);
-        setCurrentScreen('verify-email');
       }
     };
 
@@ -1223,33 +1304,62 @@ export default function App() {
   }
 
   return (
-    <SafeAreaProvider>
+    <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
       <PortalProvider>
       <QueryClientProvider client={queryClient}>
         <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
-        {!user ? (
-          // Auth Flow
-          currentScreen === 'login' ? (
-            <LoginScreen
-              onSuccessLogin={() => { }}
-              goToRegister={() => setCurrentScreen('register')}
-              goToForgotPassword={() => setCurrentScreen('forgot-password')}
-            />
-          ) : currentScreen === 'register' ? (
-            <RegisterScreen
-              onSuccessLogin={() => setCurrentScreen('login')}
-              goToLogin={() => setCurrentScreen('login')}
-            />
-          ) : currentScreen === 'forgot-password' ? (
-            <ForgotPasswordScreen
-              goToLogin={() => setCurrentScreen('login')}
-            />
-          ) : currentScreen === 'reset-password' ? (
+
+        {/* Main App - always shown, works for anonymous and logged-in users */}
+        <AuthPromptProvider
+          user={user}
+          onLogin={() => setAuthModal('login')}
+          onRegister={() => setAuthModal('register')}
+        >
+          <SocketProvider>
+            <MainApp />
+          </SocketProvider>
+        </AuthPromptProvider>
+
+        {/* Auth Modal - shown when user needs to login/register */}
+        <Modal visible={authModal !== null} animationType="slide" presentationStyle="pageSheet">
+          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+            {authModal === 'login' ? (
+              <LoginScreen
+                onSuccessLogin={() => setAuthModal(null)}
+                goToRegister={() => setAuthModal('register')}
+                goToForgotPassword={() => setAuthModal('forgot-password')}
+                onClose={() => setAuthModal(null)}
+              />
+            ) : authModal === 'register' ? (
+              <RegisterScreen
+                onSuccessLogin={() => setAuthModal(null)}
+                goToLogin={() => setAuthModal('login')}
+                onClose={() => setAuthModal(null)}
+              />
+            ) : authModal === 'forgot-password' ? (
+              <ForgotPasswordScreen
+                goToLogin={() => setAuthModal('login')}
+                onClose={() => setAuthModal(null)}
+              />
+            ) : null}
+          </View>
+        </Modal>
+
+        {/* Reset Password Modal - shown via deep link */}
+        <Modal visible={resetToken !== null} animationType="slide" presentationStyle="pageSheet">
+          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
             <ResetPasswordScreen
               token={resetToken || ''}
-              onSuccess={() => setCurrentScreen('login')}
+              onSuccess={() => setResetToken(null)}
+              onClose={() => setResetToken(null)}
             />
-          ) : currentScreen === 'verify-email' ? (
+          </View>
+        </Modal>
+
+        {/* Verify Email Modal - shown via deep link */}
+        <Modal visible={verifyToken !== null} animationType="slide" presentationStyle="pageSheet">
+          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
             <VerifyEmailScreen
               pendingToken={verifyToken || ''}
               email={emailForVerification}
@@ -1257,26 +1367,24 @@ export default function App() {
               onVerified={async () => {
                 await markEmailVerified();
                 setVerifyToken(null);
-                setCurrentScreen('login');
               }}
               onLogout={async () => {
                 await logout();
                 setVerifyToken(null);
-                setCurrentScreen('login');
               }}
             />
-          ) : null
-        ) : (
-          // Main App - wrapped with SocketProvider for real-time features
-          <SocketProvider>
-            <MainApp />
-          </SocketProvider>
-        )}
+          </View>
+        </Modal>
+
         {/* Portal host for overlays that need to escape parent z-index */}
         <PortalHost name="radialWheel" />
+
+        {/* Toast notifications */}
+        <ToastContainer />
       </QueryClientProvider>
       </PortalProvider>
     </SafeAreaProvider>
+    </View>
   );
 }
 
@@ -1333,6 +1441,23 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.node.panel,
     borderWidth: 1,
     borderColor: COLORS.node.border,
+  },
+  addColumnButtonHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: `${COLORS.node.accent}15`,
+    borderWidth: 1,
+    borderColor: COLORS.node.accent,
+    marginRight: 8,
+  },
+  addColumnButtonText: {
+    color: COLORS.node.accent,
+    fontSize: 13,
+    fontWeight: '600',
   },
   presetButton: {
     flexDirection: 'row',

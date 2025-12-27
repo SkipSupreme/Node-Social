@@ -5,6 +5,7 @@ import { Portal } from '@gorhom/portal';
 import { Hexagon, Lightbulb, Smile, Flame, Heart, Zap, HelpCircle } from './ui/Icons';
 import { COLORS } from '../constants/theme';
 import { createPostReaction, createCommentReaction } from '../lib/api';
+import { useAuthPrompt } from '../context/AuthPromptContext';
 
 // --- Config ---
 const BUTTON_RADIUS = 30;
@@ -89,6 +90,7 @@ export const VibeRadialWheel = ({
     compact = false,
     contentType = 'post'
 }: VibeRadialWheelProps) => {
+    const { requireAuth } = useAuthPrompt();
     // Support both contentId (new) and postId (deprecated) for backwards compatibility
     const targetId = contentId || postId;
     const [isActive, setIsActive] = useState(false);
@@ -132,6 +134,9 @@ export const VibeRadialWheel = ({
         if (!hasAnyReaction) {
             return;
         }
+
+        // Require auth to react
+        if (!requireAuth('Sign in to react to posts')) return;
 
         // Validate targetId before making API call
         if (!targetId) {

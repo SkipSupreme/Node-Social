@@ -15,7 +15,7 @@ import {
   FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ChevronDown, Check } from "lucide-react-native";
+import { ChevronDown, Check, X } from "lucide-react-native";
 import { register, checkUsername } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { COLORS } from "../constants/theme";
@@ -37,10 +37,11 @@ const MONTHS = [
   { value: 12, label: "December" },
 ];
 
-export const RegisterScreen: React.FC<{ onSuccessLogin: () => void; goToLogin: () => void }> = ({
-  onSuccessLogin,
-  goToLogin,
-}) => {
+export const RegisterScreen: React.FC<{
+  onSuccessLogin: () => void;
+  goToLogin: () => void;
+  onClose?: () => void;
+}> = ({ onSuccessLogin, goToLogin, onClose }) => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const { width } = useWindowDimensions();
   const isMobile = width < 480;
@@ -177,6 +178,13 @@ export const RegisterScreen: React.FC<{ onSuccessLogin: () => void; goToLogin: (
     <SafeAreaView style={styles.container}>
       {/* Animated node network background */}
       <NodeNetworkBackground />
+
+      {/* Close button - only shown when in modal mode */}
+      {onClose && (
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <X size={24} color={COLORS.node.muted} />
+        </TouchableOpacity>
+      )}
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -391,6 +399,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.node.bg,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 100,
+    padding: 8,
   },
   keyboardView: {
     flex: 1,

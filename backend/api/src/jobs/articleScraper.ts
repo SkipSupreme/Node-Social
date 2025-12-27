@@ -119,11 +119,52 @@ export async function scrapeArticle(url: string): Promise<ScrapedArticle | null>
       return null;
     }
 
-    // Clean up the extracted content (strip HTML, keep text)
-    const cleanContent = article.textContent
-      ?.replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 8000); // Allow up to 8k chars for full articles
+    // Extract inline images from the article HTML before stripping
+    const inlineImages: string[] = [];
+    const imgMatches = article.content.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+    for (const match of imgMatches) {
+      const src = match[1];
+      // Skip tiny images (likely icons/buttons) and data URLs
+      if (src && !src.startsWith('data:') && !src.includes('emoji') && !src.includes('icon')) {
+        inlineImages.push(src);
+      }
+    }
+
+    // Use first inline image as lead if we don't have one from meta tags
+    if (!leadImage && inlineImages.length > 0 && inlineImages[0]) {
+      leadImage = inlineImages[0];
+    }
+
+    // Convert HTML to plain text while preserving paragraph structure
+    // Use article.content (HTML) not textContent (strips all formatting)
+    let cleanContent = article.content || '';
+
+    // Convert block elements to paragraph breaks BEFORE stripping tags
+    cleanContent = cleanContent
+      .replace(/<\/p>/gi, '\n\n')                                    // End of paragraph
+      .replace(/<br\s*\/?>/gi, '\n')                                 // Line breaks
+      .replace(/<\/h[1-6]>/gi, '\n\n')                               // End of headers
+      .replace(/<\/li>/gi, '\n')                                     // End of list items
+      .replace(/<\/blockquote>/gi, '\n\n')                           // End of blockquote
+      .replace(/<\/div>/gi, '\n')                                    // End of div (sometimes used as paragraphs)
+      .replace(/<[^>]+>/g, '')                                       // Strip all remaining HTML tags
+      .replace(/&nbsp;/g, ' ')                                       // Convert nbsp to space
+      .replace(/&amp;/g, '&')                                        // Decode common entities
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))  // Numeric entities
+      .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
+      .replace(/<a\s+href="[^"]*media2\.dev\.to[^"]*"[^>]*>/gi, '')  // Remove broken dev.to links
+      .replace(/https?:\/\/media2\.dev\.to[^\s)>\]]+/gi, '')         // Remove leaked dev.to URLs
+      .replace(/[ \t]+/g, ' ')                                       // Normalize horizontal whitespace only
+      .replace(/\n /g, '\n')                                         // Remove leading spaces after newlines
+      .replace(/ \n/g, '\n')                                         // Remove trailing spaces before newlines
+      .replace(/\n{3,}/g, '\n\n')                                    // Max 2 consecutive newlines
+      .trim();
+
+    // NO content limit at scrape time - store the full article
+    // Truncation happens at display time in the frontend
 
     return {
       title: article.title || null,
@@ -151,8 +192,8 @@ interface EnrichedContent {
 
 /**
  * Get the best content for a harvested item:
- * 1. If we already have good content (>200 chars), keep it
- * 2. If we have a link URL, try to scrape the article
+ * 1. For known article domains (dev.to, medium, etc), ALWAYS scrape full content
+ * 2. For other URLs, scrape if we need content (<200 chars) or image
  * 3. Fall back to whatever we have
  */
 export async function enrichContent(
@@ -164,8 +205,12 @@ export async function enrichContent(
   let content = existingContent;
   let mediaUrl = existingMediaUrl;
 
-  // If we already have substantial content, keep it but still try for an image
-  const needsContent = !existingContent || existingContent.length < 200;
+  // Check if this is an article domain that we should ALWAYS scrape for full content
+  const isArticleDomain = linkUrl ? ARTICLE_DOMAINS.some(d => linkUrl.includes(d)) : false;
+
+  // For article domains, always scrape (RSS feeds only have excerpts)
+  // For other domains, only scrape if existing content is short
+  const needsContent = isArticleDomain || !existingContent || existingContent.length < 200;
   const needsImage = !existingMediaUrl;
 
   // If we have a link and need content or image, try to scrape
@@ -174,9 +219,9 @@ export async function enrichContent(
     const article = await scrapeArticle(linkUrl);
 
     if (article) {
-      // Use scraped content if we need it
+      // Use scraped content if we need it - NO LIMIT, store full article
       if (needsContent && article.content && article.content.length > 100) {
-        content = article.content.slice(0, 6000);
+        content = article.content;
       }
 
       // Use scraped image if we need it

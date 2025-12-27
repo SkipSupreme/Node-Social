@@ -24,6 +24,9 @@ function cleanText(text: string): string {
   let result = text
     // First pass: strip HTML tags with a more robust regex (handles newlines inside tags)
     .replace(/<[^>]*>/gs, '') // 's' flag makes . match newlines
+    // Remove broken dev.to image URLs that leak into text
+    .replace(/https?:\/\/media2\.dev\.to[^\s)>\]]+/gi, '')
+    .replace(/https?:\/\/dev-to-uploads\.s3\.amazonaws\.com[^\s)>\]]+/gi, '')
     // Fix HTML entities - numeric
     .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(parseInt(code)))
     .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
@@ -257,28 +260,94 @@ function evaluateItem(item: any): { score: number; reason: string; shouldPost: b
     correctNode = 'math';
   }
 
-  // Keyword-based fallback only for non-reddit sources (RSS, Bluesky, HN)
+  // Keyword-based fallback for non-reddit sources (RSS, Bluesky, HN, YouTube)
+  // Order matters: check SPECIFIC topics first (Godot, Blender, MTG), then generic (AI, programming)
+  // This prevents "Godot AI tutorial" from going to AI instead of Godot
   if (!subreddit && item.sourceType !== 'reddit') {
-    if (/\bgpt|chatgpt|openai|claude|llm|machine learning|\bai\b|neural|anthropic/.test(combined)) {
-      correctNode = 'ai';
-    } else if (/\bgodot\b|gdscript/.test(combined)) {
+    // SPECIFIC TOOLS/GAMES FIRST (highest priority)
+    if (/\bgodot\b|gdscript/i.test(combined)) {
       correctNode = 'godot';
-    } else if (/\bblender\b|geometry nodes/.test(combined)) {
+    } else if (/\bblender\b|geometry nodes/i.test(combined)) {
       correctNode = 'blender';
-    } else if (/programming|typescript|javascript|python|rust|golang|developer|coding/.test(combined)) {
-      correctNode = 'programming';
-    } else if (/nasa|telescope|james webb|jwst|asteroid|galaxy|cosmic|astronomy/.test(combined)) {
+    } else if (/\bmagic.*(gathering|arena)|mtg\b|commander deck|magic story|\bwotc\b|wizards of the coast|planeswalker|mana (dork|base|flood|screw)|sideboard|\bedh\b/i.test(combined)) {
+      correctNode = 'mtg';
+    } else if (/\bfigma\b|ui\s*\/?\s*ux|user experience|interface design/i.test(combined)) {
+      correctNode = 'ui-ux';
+    // SCIENCE TOPICS
+    } else if (/nasa|telescope|james webb|jwst|asteroid|galaxy|cosmic|astronomy|hubble|exoplanet/i.test(combined)) {
       correctNode = 'astronomy';
+    } else if (/scientific|research paper|peer.?review|journal|biology|physics|chemistry|neuroscience/i.test(combined)) {
+      correctNode = 'science';
+    } else if (/theorem|proof|calculus|algebra|geometry|mathematics|mathematical/i.test(combined)) {
+      correctNode = 'math';
+    // CREATIVE
+    } else if (/graphic design|typography|logo design|visual design|brand design/i.test(combined)) {
+      correctNode = 'graphic-design';
+    } else if (/digital art|illustration|concept art|character design/i.test(combined)) {
+      correctNode = 'art';
+    } else if (/meditation|mindfulness|spiritual|consciousness|enlightenment/i.test(combined)) {
+      correctNode = 'spirituality';
+    // YOUTUBE NODE - only for content specifically about YouTube platform/being a YouTuber
+    // Must be very specific to avoid false positives (e.g., "AI content creation" shouldn't go here)
+    } else if (/\byoutube\s+(algorithm|monetization|studio|analytics|partner|adsense)|how to (grow|start|run) (a|your) (youtube |)channel|\byoutuber\b|youtube creator|youtube shorts/i.test(combined)) {
+      correctNode = 'youtube';
+    // TECH/PROGRAMMING (broader, check after specific tools)
+    } else if (/\bgpt|chatgpt|openai|claude|llm|machine learning|deep learning|neural network|anthropic|gemini|llama/i.test(combined)) {
+      // Only AI if it's PRIMARILY about AI, not just mentioning it
+      // Skip if it's a tutorial for another tool that uses AI
+      if (!/\bgodot\b|\bblender\b|\bunity\b|\bunreal\b/i.test(combined)) {
+        correctNode = 'ai';
+      }
+    } else if (/programming|typescript|javascript|python|rust|golang|developer|coding|software engineer/i.test(combined)) {
+      correctNode = 'programming';
+    } else if (/tech news|gadget|startup|silicon valley|apple|google|microsoft|amazon|meta/i.test(combined)) {
+      correctNode = 'technology';
     }
   }
 
-  // Three tiers:
-  // - Score >= 7: Auto-post (high confidence good content)
-  // - Score 5-6: Needs review (borderline - goes to mod queue)
-  // - Score < 5: Reject (low quality)
+  // AI-specific spam patterns (additional filtering)
+  if (correctNode === 'ai') {
+    const aiSpamPatterns = [
+      /#tech\s*#/i,           // Hashtag spam chains
+      /#api\s*#/i,
+      /#programmer/i,
+      /#coding/i,
+      /#ai\s*#/i,
+      /#ml\s*#/i,
+      /#shorts/i,             // YouTube shorts spam
+      /single api call/i,     // Lazy content
+      /simplilearn/i,         // Course spam
+      /intellipaat/i,
+      /edureka/i,
+      /full course/i,
+      /tutorial for beginners/i,
+      /5 things you need/i,   // Clickbait listicles
+      /game.?changer/i,       // Buzzword spam
+      /revolutionary/i,
+      /🔥.*🔥/,               // Emoji spam
+      /💰.*💰/,
+      /🚀.*🚀.*🚀/,
+    ];
+    for (const pattern of aiSpamPatterns) {
+      if (pattern.test(combined)) {
+        score -= 3;
+        reasons.push('AI spam pattern detected');
+        break;
+      }
+    }
+  }
+
+  // Three tiers with node-specific thresholds:
+  // AI node: Score >= 10 to auto-post (only the absolute best - 1 per day max)
+  // Other nodes: Score >= 7 to auto-post
   const finalScore = Math.min(10, Math.max(1, Math.round(score)));
-  const shouldPost = finalScore >= 7;
-  const needsReview = finalScore >= 5 && finalScore < 7; // Borderline posts need human review
+
+  // AI node has VERY high threshold - only 10s auto-post, and we limit to 1/day
+  const postThreshold = correctNode === 'ai' ? 10 : 7;
+  const reviewThreshold = correctNode === 'ai' ? 8 : 5;
+
+  const shouldPost = finalScore >= postThreshold;
+  const needsReview = finalScore >= reviewThreshold && finalScore < postThreshold;
 
   return {
     score: finalScore,
@@ -329,7 +398,8 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
     }
 
     // Clean content - strip HTML, no attribution (node is already shown in UI)
-    let content = rawContent ? cleanText(rawContent.slice(0, 6000)) : '';
+    // NO content limit - store full articles, truncation happens in frontend
+    let content = rawContent ? cleanText(rawContent) : '';
 
     // Don't duplicate title as content (common with short Bluesky posts)
     if (content === title || content.trim() === title.trim()) {
@@ -358,6 +428,7 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
         content,
         linkUrl: finalLinkUrl,
         mediaUrl, // Include the media URL (possibly scraped from article)
+        galleryUrls: item.galleryUrls || [], // For Reddit galleries
         postType,
         authorId: bot.id,
         nodeId: botConfig.nodeId,
@@ -388,6 +459,20 @@ async function postItem(item: any, targetNode: string, score: number, reason: st
 async function main() {
   console.log('🤖 Starting automated curation...\n');
 
+  // Check how many AI posts we've made today (limit to 1 per day, only the best)
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const aiNode = await prisma.node.findFirst({ where: { slug: 'ai' } });
+  const aiPostsToday = aiNode ? await prisma.post.count({
+    where: {
+      nodeId: aiNode.id,
+      createdAt: { gte: today },
+      deletedAt: null,
+    }
+  }) : 0;
+  const aiDailyLimit = 1; // Only 1 AI post per day, must be cream of the crop
+  console.log(`📊 AI posts today: ${aiPostsToday}/${aiDailyLimit}`);
+
   // Get ALL pending items (including ones previously flagged for review)
   const allItems = await prisma.curationQueue.findMany({
     where: { status: 'pending', needsReview: false },
@@ -409,15 +494,53 @@ async function main() {
   let rejected = 0;
   let flagged = 0;
   let skipped = 0;
+  let aiPostedThisRun = 0;
 
   for (const item of itemsToProcess) {
     const evaluation = evaluateItem(item);
+
+    // Special handling for AI node - strict daily limit
+    if (evaluation.correctNode === 'ai') {
+      if (aiPostsToday + aiPostedThisRun >= aiDailyLimit) {
+        // AI quota exhausted - reject or flag for review
+        if (evaluation.score >= 10) {
+          // Perfect 10? Flag for manual review, might be worth saving
+          await prisma.curationQueue.update({
+            where: { id: item.id },
+            data: {
+              needsReview: true,
+              aiScore: evaluation.score,
+              aiReason: `${evaluation.reason} (AI daily limit reached - held for review)`,
+              confidence: 0.8,
+              curatedAt: new Date(),
+            }
+          });
+          flagged++;
+        } else {
+          // Not exceptional enough - reject
+          await prisma.curationQueue.update({
+            where: { id: item.id },
+            data: {
+              status: 'rejected',
+              aiScore: evaluation.score,
+              aiReason: `${evaluation.reason} (AI daily limit reached)`,
+              curatedAt: new Date(),
+            }
+          });
+          rejected++;
+        }
+        continue;
+      }
+    }
 
     if (evaluation.shouldPost && evaluation.correctNode) {
       // Post high-quality items
       const success = await postItem(item, evaluation.correctNode, evaluation.score, evaluation.reason);
       if (success) {
         posted++;
+        if (evaluation.correctNode === 'ai') {
+          aiPostedThisRun++;
+        }
       } else {
         skipped++;
       }

@@ -23,6 +23,7 @@ import { googleOAuthConfig, isGoogleSignInEnabled } from "../config";
 import { COLORS } from "../constants/theme";
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
+import { X } from "lucide-react-native";
 
 // TEMPORARILY DISABLED: OAuth login buttons
 // Re-enable when all tester emails are added to Google/Apple developer console
@@ -35,7 +36,8 @@ export const LoginScreen: React.FC<{
   onSuccessLogin: () => void;
   goToRegister: () => void;
   goToForgotPassword: () => void;
-}> = ({ onSuccessLogin, goToRegister, goToForgotPassword }) => {
+  onClose?: () => void; // Optional close handler for modal presentation
+}> = ({ onSuccessLogin, goToRegister, goToForgotPassword, onClose }) => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -341,6 +343,13 @@ export const LoginScreen: React.FC<{
       {/* Animated node network background */}
       <NodeNetworkBackground />
 
+      {/* Close button - only shown when in modal mode */}
+      {onClose && (
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <X size={24} color={COLORS.node.muted} />
+        </TouchableOpacity>
+      )}
+
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -464,6 +473,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.node.bg,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 100,
+    padding: 8,
   },
   keyboardView: {
     flex: 1,

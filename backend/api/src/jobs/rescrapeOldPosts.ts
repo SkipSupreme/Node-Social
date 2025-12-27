@@ -86,7 +86,8 @@ async function main() {
       const article = await scrapeArticle(post.linkUrl);
 
       if (article?.content && article.content.length > (post.content?.length || 0)) {
-        const newContent = cleanText(article.content.slice(0, 6000));
+        // No truncation - store full article content
+        const newContent = cleanText(article.content);
 
         await prisma.post.update({
           where: { id: post.id },

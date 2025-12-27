@@ -12,7 +12,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Mail, ArrowLeft } from "lucide-react-native";
+import { Mail, ArrowLeft, X } from "lucide-react-native";
 import { forgotPassword } from "../lib/api";
 import { COLORS } from "../constants/theme";
 import { AuthLogo } from "../components/ui/AuthLogo";
@@ -21,7 +21,8 @@ import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 export const ForgotPasswordScreen: React.FC<{
   goToLogin: () => void;
   onEnterTokenManually?: () => void;
-}> = ({ goToLogin, onEnterTokenManually }) => {
+  onClose?: () => void;
+}> = ({ goToLogin, onEnterTokenManually, onClose }) => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,6 +50,11 @@ export const ForgotPasswordScreen: React.FC<{
     return (
       <SafeAreaView style={styles.container}>
         <NodeNetworkBackground />
+        {onClose && (
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+            <X size={24} color={COLORS.node.muted} />
+          </TouchableOpacity>
+        )}
         <ScrollView
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
@@ -86,6 +92,11 @@ export const ForgotPasswordScreen: React.FC<{
   return (
     <SafeAreaView style={styles.container}>
       <NodeNetworkBackground />
+      {onClose && (
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <X size={24} color={COLORS.node.muted} />
+        </TouchableOpacity>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -168,6 +179,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.node.bg,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 100,
+    padding: 8,
   },
   keyboardView: {
     flex: 1,

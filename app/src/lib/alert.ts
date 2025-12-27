@@ -8,6 +8,24 @@
 
 import { Alert, Platform } from 'react-native';
 
+// Simple event-based toast system
+type ToastType = 'success' | 'error' | 'info';
+type ToastListener = (message: string, type: ToastType) => void;
+
+const toastListeners: Set<ToastListener> = new Set();
+
+export const subscribeToToasts = (listener: ToastListener): (() => void) => {
+  toastListeners.add(listener);
+  return () => { toastListeners.delete(listener); };
+};
+
+/**
+ * Show a brief toast notification
+ */
+export const showToast = (message: string, type: ToastType = 'info') => {
+  toastListeners.forEach(listener => listener(message, type));
+};
+
 /**
  * Show a simple alert message
  */

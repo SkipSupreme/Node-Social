@@ -5,11 +5,11 @@ import { z } from 'zod';
 import { getSyncHealth, isMeiliAvailable, triggerRetryProcessing } from '../lib/searchSync.js';
 
 const searchRoutes: FastifyPluginAsync = async (fastify) => {
-  // Search posts
+  // Search posts (public endpoint)
   fastify.get(
     '/search/posts',
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const schema = z.object({
@@ -135,6 +135,94 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
       } catch (error) {
         fastify.log.error({ err: error }, 'MeiliSearch query failed');
         return reply.status(500).send({ error: 'Search service unavailable' });
+      }
+    }
+  );
+
+  // Search users by username (public endpoint)
+  fastify.get(
+    '/search/users',
+    {
+      onRequest: [fastify.optionalAuthenticate],
+    },
+    async (request, reply) => {
+      const schema = z.object({
+        q: z.string().min(1).max(50),
+        limit: z.coerce.number().min(1).max(50).default(20),
+        offset: z.coerce.number().min(0).default(0),
+      });
+
+      const parsed = schema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid query parameters', details: parsed.error });
+      }
+
+      const { q, limit, offset } = parsed.data;
+
+      try {
+        // Search users by username (case-insensitive prefix/contains match)
+        const users = await fastify.prisma.user.findMany({
+          where: {
+            OR: [
+              { username: { contains: q, mode: 'insensitive' } },
+              { firstName: { contains: q, mode: 'insensitive' } },
+              { lastName: { contains: q, mode: 'insensitive' } },
+            ],
+          },
+          select: {
+            id: true,
+            username: true,
+            firstName: true,
+            lastName: true,
+            avatar: true,
+            bio: true,
+            era: true,
+            cred: true,
+            isBot: true,
+            createdAt: true,
+            _count: {
+              select: {
+                posts: true,
+                followers: true,
+                following: true,
+              },
+            },
+          },
+          orderBy: [
+            // Prioritize exact username matches
+            { username: 'asc' },
+          ],
+          take: limit + 1, // Fetch one extra to check if there's more
+          skip: offset,
+        });
+
+        const hasMore = users.length > limit;
+        const resultUsers = hasMore ? users.slice(0, limit) : users;
+
+        // Format response
+        const formattedUsers = resultUsers.map((user) => ({
+          id: user.id,
+          username: user.username,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          avatar: user.avatar,
+          bio: user.bio,
+          era: user.era,
+          cred: user.cred,
+          isBot: user.isBot,
+          createdAt: user.createdAt,
+          postCount: user._count.posts,
+          followerCount: user._count.followers,
+          followingCount: user._count.following,
+        }));
+
+        return reply.send({
+          users: formattedUsers,
+          hasMore,
+        });
+      } catch (error: any) {
+        fastify.log.error({ err: error, message: error?.message, stack: error?.stack }, 'User search failed');
+        return reply.status(500).send({ error: 'Search failed', details: error?.message });
       }
     }
   );

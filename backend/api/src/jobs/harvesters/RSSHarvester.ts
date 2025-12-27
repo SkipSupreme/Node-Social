@@ -128,7 +128,7 @@ export class RSSHarvester extends BaseHarvester {
             sourceId: Buffer.from(sourceId).toString('base64').slice(0, 100),
             sourceUrl: item.link,
             title: item.title,
-            content: content?.slice(0, 2000), // Truncate long content
+            content, // No truncation - curator will scrape full article for article domains
             linkUrl: item.link,
             suggestedNode,
           });

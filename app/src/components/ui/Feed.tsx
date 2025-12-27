@@ -3,10 +3,12 @@ import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, 
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2 } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser } from '../../lib/api';
+import { showToast } from '../../lib/alert';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { useSocket } from '../../context/SocketContext';
+import { useAuthPrompt } from '../../context/AuthPromptContext';
 // Only import YouTube player on native platforms
 const YoutubePlayer = Platform.OS !== 'web' ? require('react-native-youtube-iframe').default : null;
 // Import expo-av for video playback (native only)
@@ -118,6 +120,59 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
                 </View>
             </Modal>
         </>
+    );
+};
+
+// Image Gallery component - displays multiple images in a horizontal scrollable carousel
+const ImageGallery = ({ urls, maxHeight = 400 }: { urls: string[]; maxHeight?: number }) => {
+    const [activeIndex, setActiveIndex] = useState(0);
+    const screenWidth = Dimensions.get('window').width;
+    const imageWidth = Math.min(screenWidth - 32, 600);
+
+    if (urls.length === 0) return null;
+
+    // For single images, just show the zoomable image
+    if (urls.length === 1) {
+        return <ZoomableImage uri={urls[0]!} maxHeight={maxHeight} />;
+    }
+
+    return (
+        <View>
+            <ScrollView
+                horizontal
+                pagingEnabled
+                showsHorizontalScrollIndicator={false}
+                onMomentumScrollEnd={(e) => {
+                    const index = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
+                    setActiveIndex(index);
+                }}
+                style={{ width: imageWidth }}
+            >
+                {urls.map((url, index) => (
+                    <View key={index} style={{ width: imageWidth }}>
+                        <ZoomableImage uri={url} maxHeight={maxHeight} />
+                    </View>
+                ))}
+            </ScrollView>
+            {/* Page indicator dots */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 6 }}>
+                {urls.map((_, index) => (
+                    <View
+                        key={index}
+                        style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: 4,
+                            backgroundColor: index === activeIndex ? COLORS.node.accent : 'rgba(255,255,255,0.3)',
+                        }}
+                    />
+                ))}
+            </View>
+            {/* Image counter */}
+            <Text style={{ textAlign: 'center', color: COLORS.node.muted, fontSize: 12, marginTop: 4 }}>
+                {activeIndex + 1} / {urls.length}
+            </Text>
+        </View>
     );
 };
 
@@ -407,12 +462,30 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
     const blocks = cleanContent.split(/\n\n+/);
 
     const renderTextWithFormatting = (text: string, baseStyle: any) => {
-        // Parse inline formatting: **bold**, *italic*, `code`
+        // Parse inline formatting: **bold**, *italic*, `code`, [text](url)
         const parts: React.ReactNode[] = [];
         let remaining = text;
         let key = 0;
 
         while (remaining.length > 0) {
+            // Check for markdown links [text](url) - render as clickable link
+            const linkMatch = remaining.match(/^\[([^\]]+)\]\(([^)]+)\)/);
+            if (linkMatch) {
+                const linkText = linkMatch[1];
+                const linkUrl = linkMatch[2];
+                parts.push(
+                    <Text
+                        key={key++}
+                        style={[baseStyle, { color: COLORS.node.accent, textDecorationLine: 'underline' }]}
+                        onPress={() => Linking.openURL(linkUrl)}
+                    >
+                        {linkText}
+                    </Text>
+                );
+                remaining = remaining.slice(linkMatch[0].length);
+                continue;
+            }
+
             // Check for bold **text**
             const boldMatch = remaining.match(/^\*\*(.+?)\*\*/);
             if (boldMatch) {
@@ -450,7 +523,7 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
             }
 
             // Find next special character or take the rest
-            const nextSpecial = remaining.search(/\*|`/);
+            const nextSpecial = remaining.search(/\[|\*|`/);
             if (nextSpecial === -1) {
                 parts.push(<Text key={key++} style={baseStyle}>{remaining}</Text>);
                 break;
@@ -592,6 +665,7 @@ export interface UIPost {
     vibeAggregate?: VibeAggregateData | null;
     linkUrl?: string | null;
     mediaUrl?: string | null; // Direct image/video URL from Reddit etc.
+    galleryUrls?: string[]; // For Reddit galleries and multi-image posts
     linkMeta?: {
         id: string;
         url: string;
@@ -740,6 +814,7 @@ interface PostCardProps {
 }
 
 export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, onSaveToggle, globalNodeId }: PostCardProps) => {
+    const { requireAuth } = useAuthPrompt();
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
     const [showComments, setShowComments] = useState(false);
@@ -879,6 +954,8 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
 
     const handleVote = async (optionId: string) => {
         if (!localPoll) return;
+        // Require auth to vote
+        if (!requireAuth('Sign in to vote on polls')) return;
 
         // Check if already voted (any option)
         // We check both the optimistic local state AND the original post state to be safe
@@ -935,6 +1012,9 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     };
 
     const handleSave = async () => {
+        // Require auth to save
+        if (!requireAuth('Sign in to save posts')) return;
+
         // Optimistic update - toggle immediately for responsiveness
         const newSavedState = !isSaved;
         setIsSaved(newSavedState);
@@ -953,22 +1033,34 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     };
 
     const handleMute = async () => {
+        if (!requireAuth('Sign in to mute users')) {
+            setMenuVisible(false);
+            return;
+        }
         try {
             await muteUser(post.author.id);
             setMenuVisible(false);
+            showToast(`@${post.author.username} muted`, 'success');
             onPostAction && onPostAction(post.id, 'mute');
         } catch (error) {
             console.error('Failed to mute user:', error);
+            showToast('Failed to mute user', 'error');
         }
     };
 
     const handleBlock = async () => {
+        if (!requireAuth('Sign in to block users')) {
+            setMenuVisible(false);
+            return;
+        }
         try {
             await blockUser(post.author.id);
             setMenuVisible(false);
+            showToast(`@${post.author.username} blocked`, 'success');
             onPostAction && onPostAction(post.id, 'block');
         } catch (error) {
             console.error('Failed to block user:', error);
+            showToast('Failed to block user', 'error');
         }
     };
 
@@ -977,9 +1069,11 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             await deletePost(post.id);
             setMenuVisible(false);
             setIsDeleted(true);
+            showToast('Post deleted', 'success');
             onPostAction && onPostAction(post.id, 'delete');
         } catch (error) {
             console.error('Failed to delete post:', error);
+            showToast('Failed to delete post', 'error');
         }
     };
 
@@ -989,22 +1083,51 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     };
 
     const handleReport = async (reason: ReportReason) => {
+        if (!requireAuth('Sign in to report content')) {
+            setShowReportModal(false);
+            return;
+        }
         setReportSubmitting(true);
         try {
             await reportContent('post', post.id, reason);
             setShowReportModal(false);
             setMenuVisible(false);
-            // Show success feedback (could use a toast/alert in the future)
+            showToast('Report submitted. Thank you!', 'success');
         } catch (error: any) {
             console.error('Failed to report post:', error);
-            // Could show error message to user
+            showToast('Failed to submit report', 'error');
         } finally {
             setReportSubmitting(false);
         }
     };
 
+    const handleCopyLink = async () => {
+        const postUrl = `https://node-social.com/post/${post.id}`;
+        setMenuVisible(false);
+
+        if (Platform.OS === 'web') {
+            // Use browser clipboard API on web
+            try {
+                await navigator.clipboard.writeText(postUrl);
+                showToast('Link copied!', 'success');
+            } catch (err) {
+                // Fallback to Share API
+                await Share.share({ message: postUrl });
+            }
+        } else {
+            // On native, use Share API (more useful than just copying)
+            await Share.share({
+                message: postUrl,
+                url: postUrl, // iOS uses this
+            });
+        }
+    };
+
     const handleSubmitComment = async () => {
         if (!commentText.trim()) return;
+        // Require auth to comment
+        if (!requireAuth('Sign in to join the conversation')) return;
+
         setSubmitting(true);
         try {
             const newCommentData = await createComment(post.id, { content: commentText, parentId: replyingTo?.id });
@@ -1124,45 +1247,50 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                     )}
 
                     {/* Image/Video/Link Preview Rendering */}
-                    {/* First show mediaUrl if it's an image (from Reddit preview etc.) */}
-                    {post.mediaUrl && isImageUrl(post.mediaUrl) && (
+                    {/* For galleries (Reddit multi-image posts), show all images */}
+                    {post.galleryUrls && post.galleryUrls.length > 0 ? (
+                        <View style={styles.linkPreviewContainer}>
+                            <ImageGallery urls={post.galleryUrls} maxHeight={500} />
+                        </View>
+                    ) : post.linkUrl && isVideoUrl(post.linkUrl) ? (
+                        /* For videos (YouTube, Reddit, etc), ALWAYS show the player */
+                        <View style={styles.linkPreviewContainer}>
+                            {getYouTubeVideoId(post.linkUrl) ? (
+                                <YouTubeEmbed videoId={getYouTubeVideoId(post.linkUrl)!} />
+                            ) : isRedditVideo(post.linkUrl) ? (
+                                <RedditVideoPlayer url={post.linkUrl} />
+                            ) : isDirectVideoUrl(post.linkUrl) ? (
+                                <GenericVideoPlayer url={post.linkUrl} />
+                            ) : (
+                                <TouchableOpacity
+                                    style={styles.videoPreview}
+                                    onPress={() => Linking.openURL(post.linkUrl!)}
+                                >
+                                    <View style={styles.videoPlaceholder} />
+                                    <View style={styles.playButtonOverlay}>
+                                        <View style={styles.playButton}>
+                                            <Play size={32} color="#fff" fill="#fff" />
+                                        </View>
+                                    </View>
+                                    <View style={styles.videoLabel}>
+                                        <Text style={styles.videoLabelText}>
+                                            {post.linkUrl.includes('vimeo') ? 'Vimeo' :
+                                             post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    ) : post.mediaUrl && isImageUrl(post.mediaUrl) ? (
+                        /* Show mediaUrl image (from Reddit preview etc.) if not a video */
                         <View style={styles.linkPreviewContainer}>
                             <ZoomableImage uri={post.mediaUrl} maxHeight={500} />
                         </View>
-                    )}
-                    {/* Then show linkUrl content if not already handled by mediaUrl */}
-                    {post.linkUrl && !(post.mediaUrl && isImageUrl(post.mediaUrl)) && (
+                    ) : post.linkUrl ? (
                         <View style={styles.linkPreviewContainer}>
                             {/* Check if it's a direct image URL - now zoomable! */}
                             {isImageUrl(post.linkUrl) ? (
                                 <ZoomableImage uri={post.linkUrl} maxHeight={500} />
-                            ) : isVideoUrl(post.linkUrl) ? (
-                                /* Video URL - embed YouTube, Reddit videos, or generic player */
-                                getYouTubeVideoId(post.linkUrl) ? (
-                                    <YouTubeEmbed videoId={getYouTubeVideoId(post.linkUrl)!} />
-                                ) : isRedditVideo(post.linkUrl) ? (
-                                    <RedditVideoPlayer url={post.linkUrl} />
-                                ) : isDirectVideoUrl(post.linkUrl) ? (
-                                    <GenericVideoPlayer url={post.linkUrl} />
-                                ) : (
-                                    <TouchableOpacity
-                                        style={styles.videoPreview}
-                                        onPress={() => Linking.openURL(post.linkUrl!)}
-                                    >
-                                        <View style={styles.videoPlaceholder} />
-                                        <View style={styles.playButtonOverlay}>
-                                            <View style={styles.playButton}>
-                                                <Play size={32} color="#fff" fill="#fff" />
-                                            </View>
-                                        </View>
-                                        <View style={styles.videoLabel}>
-                                            <Text style={styles.videoLabelText}>
-                                                {post.linkUrl.includes('vimeo') ? 'Vimeo' :
-                                                 post.linkUrl.includes('tiktok') ? 'TikTok' : 'Video'}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-                                )
                             ) : post.linkMeta?.image ? (
                                 /* Link with preview image */
                                 <TouchableOpacity
@@ -1194,7 +1322,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                                 </TouchableOpacity>
                             ) : null /* Plain links handled by inline pill button in cardActions */}
                         </View>
-                    )}
+                    ) : null}
 
                     {/* Poll Rendering */}
                     {localPoll && (
@@ -1277,8 +1405,8 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         <Text style={[styles.pillText, { display: 'none' }]}>Share</Text>
                     </TouchableOpacity>
 
-                    {/* Compact link button - shows domain only */}
-                    {post.linkUrl && !isImageUrl(post.linkUrl) && !isVideoUrl(post.linkUrl) && (
+                    {/* Compact link button - shows domain for ALL posts with links */}
+                    {post.linkUrl && (
                         <TouchableOpacity
                             style={styles.linkPillBtn}
                             onPress={() => Linking.openURL(post.linkUrl!)}
@@ -1366,6 +1494,12 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
             <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
                     <View style={styles.menuContainer}>
+                        {/* Copy Link - available for everyone */}
+                        <TouchableOpacity style={styles.menuItem} onPress={handleCopyLink}>
+                            <Link2 size={20} color={COLORS.node.text} />
+                            <Text style={styles.menuText}>Copy Link</Text>
+                        </TouchableOpacity>
+
                         {isOwnPost ? (
                             <>
                                 <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
@@ -1452,9 +1586,11 @@ interface FeedProps {
     onLoadMore?: () => void;
     hasMore?: boolean;
     loadingMore?: boolean;
+    searchUserResults?: SearchUser[];
+    onUserClick?: (userId: string) => void;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false }: FeedProps) => {
+export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick }: FeedProps) => {
     const handleScroll = (e: any) => {
         onScroll?.(e.nativeEvent.contentOffset.y);
 
@@ -1475,6 +1611,42 @@ export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClic
             scrollEventThrottle={16}
             onScroll={handleScroll}
         >
+            {/* User search results */}
+            {searchUserResults.length > 0 && (
+                <View style={feedStyles.userResultsSection}>
+                    <Text style={feedStyles.userResultsTitle}>Users</Text>
+                    {searchUserResults.map(user => (
+                        <TouchableOpacity
+                            key={user.id}
+                            style={feedStyles.userResultItem}
+                            onPress={() => onUserClick?.(user.id)}
+                        >
+                            {user.avatar ? (
+                                <Image source={{ uri: user.avatar }} style={feedStyles.userResultAvatar} />
+                            ) : (
+                                <View style={feedStyles.userResultAvatarPlaceholder}>
+                                    <Text style={feedStyles.userResultAvatarText}>
+                                        {user.username?.[0]?.toUpperCase() || '?'}
+                                    </Text>
+                                </View>
+                            )}
+                            <View style={feedStyles.userResultInfo}>
+                                <Text style={feedStyles.userResultUsername}>@{user.username}</Text>
+                                {(user.firstName || user.lastName) && (
+                                    <Text style={feedStyles.userResultName}>
+                                        {[user.firstName, user.lastName].filter(Boolean).join(' ')}
+                                    </Text>
+                                )}
+                            </View>
+                            {user.isBot && (
+                                <View style={feedStyles.botBadge}>
+                                    <Text style={feedStyles.botBadgeText}>BOT</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            )}
             {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} onSaveToggle={onSaveToggle} globalNodeId={globalNodeId} />)}
             {loadingMore && (
                 <View style={{ padding: 20, alignItems: 'center' }}>
@@ -1817,5 +1989,73 @@ const styles = StyleSheet.create({
     plainLinkText: {
         fontSize: 14,
         color: COLORS.node.accent,
+    },
+});
+
+// Feed-level styles for user search results
+const feedStyles = StyleSheet.create({
+    userResultsSection: {
+        backgroundColor: COLORS.node.panel,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+        padding: 12,
+        marginBottom: 12,
+    },
+    userResultsTitle: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.node.muted,
+        marginBottom: 8,
+    },
+    userResultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 8,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.node.border,
+    },
+    userResultAvatar: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+    },
+    userResultAvatarPlaceholder: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: COLORS.node.accent,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    userResultAvatarText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+    userResultInfo: {
+        flex: 1,
+        marginLeft: 12,
+    },
+    userResultUsername: {
+        fontSize: 15,
+        fontWeight: '600',
+        color: COLORS.node.text,
+    },
+    userResultName: {
+        fontSize: 13,
+        color: COLORS.node.muted,
+        marginTop: 2,
+    },
+    botBadge: {
+        backgroundColor: '#10b981',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    botBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#fff',
     },
 });

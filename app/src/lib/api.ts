@@ -79,6 +79,7 @@ export type NodeDetails = {
     role: string | null;
     joinedAt: string | null;
     isMuted: boolean;
+    canEditNode: boolean;
   } | null;
   recentModActions: {
     id: string;
@@ -706,7 +707,7 @@ export type CuratorBot = {
 };
 
 export function getAvailableCuratorBots() {
-  return request<CuratorBot[]>("/nodes/bots/available", {
+  return request<{ bots: CuratorBot[] }>("/nodes/bots/available", {
     method: "GET",
   });
 }
@@ -850,6 +851,76 @@ export function getNodeModLog(nodeId: string, params?: { limit?: number; cursor?
     `/nodes/${nodeId}/mod-log?${searchParams.toString()}`,
     { method: "GET" }
   );
+}
+
+// Bot management types
+export type BotProfile = {
+  id: string;
+  username: string;
+  avatar: string | null;
+  bio: string | null;
+  isBot: boolean;
+};
+
+// Update bot profile (site admin only)
+export function updateBotProfile(botId: string, data: { bio?: string; avatar?: string }) {
+  return request<{ bot: BotProfile }>(`/users/bots/${botId}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+// Upload bot avatar (site admin only)
+export async function uploadBotAvatar(botId: string, imageUri: string): Promise<{ success: boolean; bot: BotProfile; avatarUrl: string }> {
+  const { Platform } = await import('react-native');
+  const token = await storage.getItem("token");
+  const csrfToken = readCsrfToken();
+
+  const formData = new FormData();
+
+  let fileType = 'jpg';
+  if (imageUri.includes('.')) {
+    const uriParts = imageUri.split('.');
+    const ext = uriParts[uriParts.length - 1]?.toLowerCase().split('?')[0];
+    if (ext && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) {
+      fileType = ext === 'jpeg' ? 'jpg' : ext;
+    }
+  }
+  const mimeType = fileType === 'png' ? 'image/png' : fileType === 'gif' ? 'image/gif' : fileType === 'webp' ? 'image/webp' : 'image/jpeg';
+
+  if (Platform.OS === 'web') {
+    try {
+      const response = await fetch(imageUri);
+      const blob = await response.blob();
+      const file = new File([blob], `bot_avatar.${fileType}`, { type: mimeType });
+      formData.append('file', file);
+    } catch (err) {
+      throw new Error('Failed to process image');
+    }
+  } else {
+    formData.append('file', {
+      uri: imageUri,
+      type: mimeType,
+      name: `bot_avatar.${fileType}`,
+    } as any);
+  }
+
+  const response = await fetch(`${API_URL}/users/bots/${botId}/avatar`, {
+    method: 'POST',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+    },
+    credentials: 'include',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || 'Failed to upload bot avatar');
+  }
+
+  return response.json();
 }
 
 // --- Post Endpoints ---
@@ -1240,6 +1311,34 @@ export const searchPosts = async (query: string, limit = 20, offset = 0) => {
     method: 'GET'
   });
 };
+
+export type SearchUser = {
+  id: string;
+  username: string;
+  firstName: string | null;
+  lastName: string | null;
+  avatar: string | null;
+  bio: string | null;
+  era: string;
+  cred: number;
+  isBot: boolean;
+  createdAt: string;
+  postCount: number;
+  followerCount: number;
+  followingCount: number;
+};
+
+export const searchUsers = async (query: string, limit = 20, offset = 0) => {
+  const params = new URLSearchParams({
+    q: query,
+    limit: limit.toString(),
+    offset: offset.toString()
+  });
+  return request<{ users: SearchUser[], hasMore: boolean }>(`/search/users?${params.toString()}`, {
+    method: 'GET'
+  });
+};
+
 // Saved Posts
 export function savePost(postId: string) {
   return request<{ saved: boolean }>(`/posts/${postId}/save`, {
@@ -1272,12 +1371,36 @@ export function editPost(postId: string, data: { content?: string; title?: strin
 export function muteUser(userId: string) {
   return request<{ muted: boolean }>(`/users/${userId}/mute`, {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }
 
 export function blockUser(userId: string) {
   return request<{ blocked: boolean }>(`/users/${userId}/block`, {
     method: "POST",
+    body: JSON.stringify({}),
+  });
+}
+
+export type BlockedMutedUser = {
+  id: string;
+  username: string;
+  avatar: string | null;
+  era: string;
+  cred: number;
+  blockedAt?: string;
+  mutedAt?: string;
+};
+
+export function getBlockedUsers() {
+  return request<{ users: BlockedMutedUser[] }>('/users/me/blocked', {
+    method: "GET",
+  });
+}
+
+export function getMutedUsers() {
+  return request<{ users: BlockedMutedUser[] }>('/users/me/muted', {
+    method: "GET",
   });
 }
 
@@ -1310,6 +1433,7 @@ export function markNotificationsRead() {
 export function followUser(userId: string) {
   return request<{ following: boolean }>(`/users/${userId}/follow`, {
     method: "POST",
+    body: JSON.stringify({}),
   });
 }
 

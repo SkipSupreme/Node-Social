@@ -201,6 +201,7 @@ model Post {
   nodeId    String?
   linkUrl   String?
   mediaUrl  String?  // Direct image/video URL (e.g., i.redd.it, preview.redd.it)
+  galleryUrls String[] @default([]) // For Reddit galleries and multi-image posts
   linkMetaId String?
   title      String?
   postType   String    @default("text") // text, image, link, video
@@ -925,6 +926,7 @@ model CurationQueue {
   content       String?  @db.Text // Body text or description
   linkUrl       String?  // External link if it's a link post
   mediaUrl      String?  // Image/video URL if applicable
+  galleryUrls   String[] @default([]) // For Reddit galleries and multi-image posts
 
   // Curation
   suggestedNode String?  // Which node slug this might belong to

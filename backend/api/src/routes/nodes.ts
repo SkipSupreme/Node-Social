@@ -281,12 +281,21 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       const mute = await fastify.prisma.nodeMute.findUnique({
         where: { userId_nodeId: { userId, nodeId: node.id } },
       });
+      // Check if user is a global site admin (can edit any node)
+      const userRecord = await fastify.prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      });
+      const isSiteAdmin = userRecord?.role === 'admin';
+      const canEditNode = isSiteAdmin || sub?.role === 'admin';
+
       if (sub) {
         currentUserMembership = {
           isMember: true,
           role: sub.role,
           joinedAt: sub.joinedAt,
           isMuted: !!mute,
+          canEditNode,
         };
       } else {
         currentUserMembership = {
@@ -294,6 +303,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
           role: null,
           joinedAt: null,
           isMuted: !!mute,
+          canEditNode,
         };
       }
     }

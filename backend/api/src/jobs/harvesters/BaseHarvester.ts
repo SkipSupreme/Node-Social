@@ -49,6 +49,7 @@ export interface HarvestResult {
   content?: string;
   linkUrl?: string;
   mediaUrl?: string;
+  galleryUrls?: string[]; // For Reddit galleries and multi-image posts
   suggestedNode?: string;
 }
 
@@ -131,6 +132,7 @@ export abstract class BaseHarvester {
         content: item.content,
         linkUrl: item.linkUrl,
         mediaUrl: item.mediaUrl,
+        galleryUrls: item.galleryUrls || [],
         suggestedNode: item.suggestedNode,
         status: 'pending',
       },

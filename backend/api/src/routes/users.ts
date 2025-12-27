@@ -179,50 +179,124 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
 
     // Toggle Mute User
     fastify.post('/:id/mute', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-        const { id } = request.params as { id: string };
-        const muterId = (request.user as { sub: string }).sub;
+        try {
+            const { id } = request.params as { id: string };
+            const muterId = (request.user as { sub: string }).sub;
 
-        if (muterId === id) return reply.status(400).send({ error: 'Cannot mute yourself' });
+            fastify.log.info({ targetId: id, muterId }, 'Mute request received');
 
-        const existing = await fastify.prisma.userMute.findUnique({
-            where: { muterId_mutedId: { muterId, mutedId: id } }
-        });
+            if (muterId === id) return reply.status(400).send({ error: 'Cannot mute yourself' });
 
-        if (existing) {
-            await fastify.prisma.userMute.delete({
+            // Verify target user exists
+            const targetUser = await fastify.prisma.user.findUnique({ where: { id } });
+            if (!targetUser) {
+                fastify.log.warn({ targetId: id }, 'Mute target user not found');
+                return reply.status(404).send({ error: 'User not found' });
+            }
+
+            const existing = await fastify.prisma.userMute.findUnique({
                 where: { muterId_mutedId: { muterId, mutedId: id } }
             });
-            return { muted: false };
-        } else {
-            await fastify.prisma.userMute.create({
-                data: { muterId, mutedId: id }
-            });
-            return { muted: true };
+
+            if (existing) {
+                await fastify.prisma.userMute.delete({
+                    where: { muterId_mutedId: { muterId, mutedId: id } }
+                });
+                return { muted: false };
+            } else {
+                await fastify.prisma.userMute.create({
+                    data: { muterId, mutedId: id }
+                });
+                return { muted: true };
+            }
+        } catch (error: any) {
+            fastify.log.error({ error: error.message, stack: error.stack }, 'Mute failed');
+            return reply.status(500).send({ error: 'Failed to mute user' });
         }
     });
 
     // Toggle Block User
     fastify.post('/:id/block', { onRequest: [fastify.authenticate] }, async (request, reply) => {
-        const { id } = request.params as { id: string };
-        const blockerId = (request.user as { sub: string }).sub;
+        try {
+            const { id } = request.params as { id: string };
+            const blockerId = (request.user as { sub: string }).sub;
 
-        if (blockerId === id) return reply.status(400).send({ error: 'Cannot block yourself' });
+            fastify.log.info({ targetId: id, blockerId }, 'Block request received');
 
-        const existing = await fastify.prisma.userBlock.findUnique({
-            where: { blockerId_blockedId: { blockerId, blockedId: id } }
-        });
+            if (blockerId === id) return reply.status(400).send({ error: 'Cannot block yourself' });
 
-        if (existing) {
-            await fastify.prisma.userBlock.delete({
+            // Verify target user exists
+            const targetUser = await fastify.prisma.user.findUnique({ where: { id } });
+            if (!targetUser) {
+                fastify.log.warn({ targetId: id }, 'Block target user not found');
+                return reply.status(404).send({ error: 'User not found' });
+            }
+
+            const existing = await fastify.prisma.userBlock.findUnique({
                 where: { blockerId_blockedId: { blockerId, blockedId: id } }
             });
-            return { blocked: false };
-        } else {
-            await fastify.prisma.userBlock.create({
-                data: { blockerId, blockedId: id }
-            });
-            return { blocked: true };
+
+            if (existing) {
+                await fastify.prisma.userBlock.delete({
+                    where: { blockerId_blockedId: { blockerId, blockedId: id } }
+                });
+                return { blocked: false };
+            } else {
+                await fastify.prisma.userBlock.create({
+                    data: { blockerId, blockedId: id }
+                });
+                return { blocked: true };
+            }
+        } catch (error: any) {
+            fastify.log.error({ error: error.message, stack: error.stack }, 'Block failed');
+            return reply.status(500).send({ error: 'Failed to block user' });
         }
+    });
+
+    // Get blocked users
+    fastify.get('/me/blocked', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+        const userId = (request.user as { sub: string }).sub;
+
+        const blocks = await fastify.prisma.userBlock.findMany({
+            where: { blockerId: userId },
+            include: {
+                blocked: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                        era: true,
+                        cred: true,
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return { users: blocks.map(b => ({ ...b.blocked, blockedAt: b.createdAt })) };
+    });
+
+    // Get muted users
+    fastify.get('/me/muted', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+        const userId = (request.user as { sub: string }).sub;
+
+        const mutes = await fastify.prisma.userMute.findMany({
+            where: { muterId: userId },
+            include: {
+                muted: {
+                    select: {
+                        id: true,
+                        username: true,
+                        avatar: true,
+                        era: true,
+                        cred: true,
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        return { users: mutes.map(m => ({ ...m.muted, mutedAt: m.createdAt })) };
     });
 
     // Toggle Follow User
@@ -432,6 +506,177 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             : null;
 
         return { comments, nextCursor };
+    });
+
+    // Update bot profile (site admin only)
+    fastify.patch('/bots/:botId', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+        const { botId } = request.params as { botId: string };
+        const userId = (request.user as { sub: string }).sub;
+
+        // Check if current user is a site admin
+        const currentUser = await fastify.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true }
+        });
+
+        if (currentUser?.role !== 'admin') {
+            return reply.status(403).send({ error: 'Only site admins can edit bot profiles' });
+        }
+
+        // Verify target is a bot
+        const bot = await fastify.prisma.user.findUnique({
+            where: { id: botId },
+            select: { id: true, isBot: true }
+        });
+
+        if (!bot) {
+            return reply.status(404).send({ error: 'Bot not found' });
+        }
+
+        if (!bot.isBot) {
+            return reply.status(400).send({ error: 'Target user is not a bot' });
+        }
+
+        const schema = z.object({
+            bio: z.string().max(500).optional(),
+            avatar: z.string().url().optional().or(z.literal('')),
+        });
+
+        const parsed = schema.safeParse(request.body);
+        if (!parsed.success) {
+            return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+        }
+
+        const { bio, avatar } = parsed.data;
+        const updateData: { bio?: string; avatar?: string | null } = {};
+
+        if (bio !== undefined) updateData.bio = bio;
+        if (avatar !== undefined) updateData.avatar = avatar || null;
+
+        if (Object.keys(updateData).length === 0) {
+            return reply.status(400).send({ error: 'No fields provided to update' });
+        }
+
+        const updatedBot = await fastify.prisma.user.update({
+            where: { id: botId },
+            data: updateData,
+            select: {
+                id: true,
+                username: true,
+                avatar: true,
+                bio: true,
+                isBot: true,
+            }
+        });
+
+        return { bot: updatedBot };
+    });
+
+    // Upload bot avatar (site admin only)
+    fastify.post('/bots/:botId/avatar', { onRequest: [fastify.authenticate] }, async (request, reply) => {
+        const { botId } = request.params as { botId: string };
+        const userId = (request.user as { sub: string }).sub;
+
+        // Check if current user is a site admin
+        const currentUser = await fastify.prisma.user.findUnique({
+            where: { id: userId },
+            select: { role: true }
+        });
+
+        if (currentUser?.role !== 'admin') {
+            return reply.status(403).send({ error: 'Only site admins can edit bot avatars' });
+        }
+
+        // Verify target is a bot
+        const bot = await fastify.prisma.user.findUnique({
+            where: { id: botId },
+            select: { id: true, isBot: true, avatar: true }
+        });
+
+        if (!bot) {
+            return reply.status(404).send({ error: 'Bot not found' });
+        }
+
+        if (!bot.isBot) {
+            return reply.status(400).send({ error: 'Target user is not a bot' });
+        }
+
+        try {
+            const data = await request.file({ limits: { fileSize: 5 * 1024 * 1024 } });
+            if (!data) {
+                return reply.status(400).send({ error: 'No file uploaded' });
+            }
+
+            const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(data.mimetype)) {
+                return reply.status(400).send({ error: 'Invalid file type. Allowed: JPEG, PNG, GIF, WebP' });
+            }
+
+            const buffer = await data.toBuffer();
+
+            // Import sharp dynamically
+            const sharp = (await import('sharp')).default;
+            const { randomUUID } = await import('crypto');
+            const path = await import('path');
+            const fs = await import('fs/promises');
+
+            const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
+
+            // Ensure uploads dir exists
+            try {
+                await fs.access(UPLOADS_DIR);
+            } catch {
+                await fs.mkdir(UPLOADS_DIR, { recursive: true });
+            }
+
+            // Process avatar: square, resize to 400x400
+            const processedImage = await sharp(buffer)
+                .flatten({ background: { r: 30, g: 30, b: 46 } })
+                .resize(400, 400, { fit: 'cover', position: 'center' })
+                .jpeg({ quality: 80 })
+                .toBuffer();
+
+            const filename = `bot_avatar_${botId}_${randomUUID()}.jpg`;
+            const filepath = path.join(UPLOADS_DIR, filename);
+
+            // Delete old avatar if it's a local upload
+            if (bot.avatar && bot.avatar.includes('/uploads/')) {
+                const parts = bot.avatar.split('/uploads/');
+                const oldFilename = parts[1];
+                if (oldFilename) {
+                    try {
+                        await fs.unlink(path.join(UPLOADS_DIR, oldFilename));
+                    } catch { /* ignore */ }
+                }
+            }
+
+            await fs.writeFile(filepath, processedImage);
+
+            const protocol = request.headers['x-forwarded-proto'] || 'http';
+            const host = request.headers['x-forwarded-host'] || request.headers.host || `localhost:${process.env.PORT || 3000}`;
+            const baseUrl = process.env.API_URL || `${protocol}://${host}`;
+            const avatarUrl = `${baseUrl}/uploads/${filename}`;
+
+            const updatedBot = await fastify.prisma.user.update({
+                where: { id: botId },
+                data: { avatar: avatarUrl },
+                select: {
+                    id: true,
+                    username: true,
+                    avatar: true,
+                    bio: true,
+                    isBot: true,
+                }
+            });
+
+            return { success: true, bot: updatedBot, avatarUrl };
+        } catch (error: any) {
+            console.error('Bot avatar upload error:', error);
+            if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+                return reply.status(400).send({ error: 'File too large. Maximum size is 5MB' });
+            }
+            return reply.status(500).send({ error: 'Failed to upload avatar' });
+        }
     });
 };
 

@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban } from './Icons';
 import { COLORS, ERAS } from '../../constants/theme';
 
 interface SidebarProps {
@@ -23,6 +23,7 @@ interface SidebarProps {
     onAppealsClick?: () => void;
     onCouncilClick?: () => void;
     onVouchesClick?: () => void;
+    onBlockedMutedClick?: () => void;
     currentView?: string;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
@@ -122,6 +123,7 @@ export const Sidebar = ({
     onAppealsClick,
     onCouncilClick,
     onVouchesClick,
+    onBlockedMutedClick,
     currentView,
     collapsed = false,
     onToggleCollapse
@@ -189,6 +191,11 @@ export const Sidebar = ({
                         icon={Bookmark}
                         active={currentView === 'saved'}
                         onPress={onSavedClick}
+                    />
+                    <CollapsedNavItem
+                        icon={Ban}
+                        active={currentView === 'blocked-muted'}
+                        onPress={onBlockedMutedClick}
                     />
                     <CollapsedNavItem
                         icon={Shield}
@@ -336,6 +343,15 @@ export const Sidebar = ({
                         label="Saved Posts"
                         active={currentView === 'saved'}
                         onPress={onSavedClick}
+                    />
+                    <NavItem
+                        icon={Ban}
+                        label="Blocked & Muted"
+                        active={currentView === 'blocked-muted'}
+                        onPress={() => {
+                            if (onClose && !isDesktop) onClose();
+                            if (onBlockedMutedClick) onBlockedMutedClick();
+                        }}
                     />
                     <NavItem
                         icon={Shield}

@@ -1,38 +1,46 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TextInput, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, TextInput, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Search, ArrowLeft, TrendingUp, Hash } from 'lucide-react-native';
+import { Search, ArrowLeft, TrendingUp, Hash, User, FileText, Bot } from 'lucide-react-native';
 import { COLORS } from '../constants/theme';
-import { searchPosts, getFeed, Post } from '../lib/api';
+import { searchPosts, searchUsers, getFeed, Post, SearchUser } from '../lib/api';
 import { PostCard } from '../components/PostCard';
 
 const PAGE_SIZE = 20;
 
+type SearchTab = 'posts' | 'users';
+
 interface DiscoveryScreenProps {
     onBack: () => void;
     onPostClick?: (post: Post) => void;
+    onUserClick?: (userId: string) => void;
 }
 
-export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) => {
+export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryScreenProps) => {
     const [query, setQuery] = useState('');
-    const [results, setResults] = useState<Post[]>([]);
+    const [activeTab, setActiveTab] = useState<SearchTab>('posts');
+
+    // Post results
+    const [postResults, setPostResults] = useState<Post[]>([]);
     const [trending, setTrending] = useState<Post[]>([]);
+    const [postOffset, setPostOffset] = useState(0);
+    const [postHasMore, setPostHasMore] = useState(true);
+
+    // User results
+    const [userResults, setUserResults] = useState<SearchUser[]>([]);
+    const [userOffset, setUserOffset] = useState(0);
+    const [userHasMore, setUserHasMore] = useState(true);
+
     const [loading, setLoading] = useState(false);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [searched, setSearched] = useState(false);
 
-    // Pagination state
-    const [offset, setOffset] = useState(0);
-    const [hasMore, setHasMore] = useState(true);
-    const [loadingMore, setLoadingMore] = useState(false);
-
     useEffect(() => {
-        // Load trending/hot posts on mount
         loadTrending();
     }, []);
 
     const loadTrending = async () => {
         try {
-            // Fetch "hot" posts (high engagement, recent)
             const data = await getFeed({
                 engagementWeight: 50,
                 recencyWeight: 30,
@@ -51,54 +59,136 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
 
         setLoading(true);
         setSearched(true);
-        setOffset(0);
-        setHasMore(true);
+        setPostOffset(0);
+        setUserOffset(0);
+        setPostHasMore(true);
+        setUserHasMore(true);
 
         try {
-            const data = await searchPosts(query.trim(), PAGE_SIZE, 0);
-            setResults(data.posts || []);
-            setHasMore(data.hasMore ?? (data.posts?.length === PAGE_SIZE));
-            setOffset(PAGE_SIZE);
+            // Search both posts and users in parallel
+            const [postsData, usersData] = await Promise.all([
+                searchPosts(query.trim(), PAGE_SIZE, 0),
+                searchUsers(query.trim(), PAGE_SIZE, 0),
+            ]);
+
+            setPostResults(postsData.posts || []);
+            setPostHasMore(postsData.hasMore ?? (postsData.posts?.length === PAGE_SIZE));
+            setPostOffset(PAGE_SIZE);
+
+            setUserResults(usersData.users || []);
+            setUserHasMore(usersData.hasMore ?? (usersData.users?.length === PAGE_SIZE));
+            setUserOffset(PAGE_SIZE);
         } catch (error) {
             console.error('Search failed:', error);
-            setResults([]);
-            setHasMore(false);
+            setPostResults([]);
+            setUserResults([]);
+            setPostHasMore(false);
+            setUserHasMore(false);
         } finally {
             setLoading(false);
         }
     };
 
-    const loadMore = useCallback(async () => {
-        if (!searched || loadingMore || !hasMore || !query.trim()) return;
+    const loadMorePosts = useCallback(async () => {
+        if (!searched || loadingMore || !postHasMore || !query.trim()) return;
 
         setLoadingMore(true);
         try {
-            const data = await searchPosts(query.trim(), PAGE_SIZE, offset);
+            const data = await searchPosts(query.trim(), PAGE_SIZE, postOffset);
             const newPosts = data.posts || [];
 
             if (newPosts.length > 0) {
-                setResults(prev => [...prev, ...newPosts]);
-                setOffset(prev => prev + PAGE_SIZE);
-                setHasMore(data.hasMore ?? (newPosts.length === PAGE_SIZE));
+                setPostResults(prev => [...prev, ...newPosts]);
+                setPostOffset(prev => prev + PAGE_SIZE);
+                setPostHasMore(data.hasMore ?? (newPosts.length === PAGE_SIZE));
             } else {
-                setHasMore(false);
+                setPostHasMore(false);
             }
         } catch (error) {
-            console.error('Load more failed:', error);
+            console.error('Load more posts failed:', error);
         } finally {
             setLoadingMore(false);
         }
-    }, [searched, loadingMore, hasMore, query, offset]);
+    }, [searched, loadingMore, postHasMore, query, postOffset]);
+
+    const loadMoreUsers = useCallback(async () => {
+        if (!searched || loadingMore || !userHasMore || !query.trim()) return;
+
+        setLoadingMore(true);
+        try {
+            const data = await searchUsers(query.trim(), PAGE_SIZE, userOffset);
+            const newUsers = data.users || [];
+
+            if (newUsers.length > 0) {
+                setUserResults(prev => [...prev, ...newUsers]);
+                setUserOffset(prev => prev + PAGE_SIZE);
+                setUserHasMore(data.hasMore ?? (newUsers.length === PAGE_SIZE));
+            } else {
+                setUserHasMore(false);
+            }
+        } catch (error) {
+            console.error('Load more users failed:', error);
+        } finally {
+            setLoadingMore(false);
+        }
+    }, [searched, loadingMore, userHasMore, query, userOffset]);
 
     const clearSearch = () => {
         setQuery('');
-        setResults([]);
+        setPostResults([]);
+        setUserResults([]);
         setSearched(false);
-        setOffset(0);
-        setHasMore(true);
+        setPostOffset(0);
+        setUserOffset(0);
+        setPostHasMore(true);
+        setUserHasMore(true);
     };
 
-    const displayPosts = searched ? results : trending;
+    const renderUserItem = ({ item }: { item: SearchUser }) => (
+        <TouchableOpacity
+            style={styles.userItem}
+            onPress={() => onUserClick?.(item.id)}
+        >
+            {item.avatar ? (
+                <Image source={{ uri: item.avatar }} style={styles.userAvatar} />
+            ) : (
+                <View style={[styles.userAvatarPlaceholder, item.isBot && styles.botAvatar]}>
+                    {item.isBot ? (
+                        <Bot size={20} color="#fff" />
+                    ) : (
+                        <User size={20} color="#fff" />
+                    )}
+                </View>
+            )}
+            <View style={styles.userInfo}>
+                <View style={styles.userNameRow}>
+                    <Text style={styles.userName}>@{item.username}</Text>
+                    {item.isBot && (
+                        <View style={styles.botBadge}>
+                            <Text style={styles.botBadgeText}>BOT</Text>
+                        </View>
+                    )}
+                </View>
+                {(item.firstName || item.lastName) && (
+                    <Text style={styles.userFullName}>
+                        {[item.firstName, item.lastName].filter(Boolean).join(' ')}
+                    </Text>
+                )}
+                {item.bio && (
+                    <Text style={styles.userBio} numberOfLines={2}>{item.bio}</Text>
+                )}
+                <View style={styles.userStats}>
+                    <Text style={styles.userStat}>{item.postCount} posts</Text>
+                    <Text style={styles.userStatDot}>•</Text>
+                    <Text style={styles.userStat}>{item.followerCount} followers</Text>
+                </View>
+            </View>
+        </TouchableOpacity>
+    );
+
+    const displayPosts = searched ? postResults : trending;
+    const hasResults = activeTab === 'posts' ? postResults.length > 0 : userResults.length > 0;
+    const currentHasMore = activeTab === 'posts' ? postHasMore : userHasMore;
 
     return (
         <SafeAreaView style={styles.container} edges={['top']}>
@@ -117,7 +207,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                     <Search size={20} color={COLORS.node.muted} />
                     <TextInput
                         style={styles.searchInput}
-                        placeholder="Search posts, topics..."
+                        placeholder="Search posts, users..."
                         placeholderTextColor={COLORS.node.muted}
                         value={query}
                         onChangeText={setQuery}
@@ -135,22 +225,37 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                 </TouchableOpacity>
             </View>
 
-            {/* Section Title */}
-            <View style={styles.sectionHeader}>
-                {searched ? (
-                    <>
-                        <Search size={18} color={COLORS.node.accent} />
-                        <Text style={styles.sectionTitle}>
-                            {results.length > 0 ? `Results for "${query}"` : `No results for "${query}"`}
+            {/* Tabs (only show when searched) */}
+            {searched && (
+                <View style={styles.tabRow}>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'posts' && styles.tabActive]}
+                        onPress={() => setActiveTab('posts')}
+                    >
+                        <FileText size={16} color={activeTab === 'posts' ? COLORS.node.accent : COLORS.node.muted} />
+                        <Text style={[styles.tabText, activeTab === 'posts' && styles.tabTextActive]}>
+                            Posts ({postResults.length})
                         </Text>
-                    </>
-                ) : (
-                    <>
-                        <TrendingUp size={18} color={COLORS.node.accent} />
-                        <Text style={styles.sectionTitle}>Trending Now</Text>
-                    </>
-                )}
-            </View>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                        style={[styles.tab, activeTab === 'users' && styles.tabActive]}
+                        onPress={() => setActiveTab('users')}
+                    >
+                        <User size={16} color={activeTab === 'users' ? COLORS.node.accent : COLORS.node.muted} />
+                        <Text style={[styles.tabText, activeTab === 'users' && styles.tabTextActive]}>
+                            Users ({userResults.length})
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* Section Title (when not searched) */}
+            {!searched && (
+                <View style={styles.sectionHeader}>
+                    <TrendingUp size={18} color={COLORS.node.accent} />
+                    <Text style={styles.sectionTitle}>Trending Now</Text>
+                </View>
+            )}
 
             {/* Results */}
             {loading ? (
@@ -158,7 +263,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                     <ActivityIndicator size="large" color={COLORS.node.accent} />
                     <Text style={styles.loadingText}>Searching...</Text>
                 </View>
-            ) : (
+            ) : activeTab === 'posts' || !searched ? (
                 <FlatList
                     data={displayPosts}
                     keyExtractor={(item) => item.id}
@@ -169,7 +274,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                         />
                     )}
                     contentContainerStyle={styles.listContent}
-                    onEndReached={searched ? loadMore : undefined}
+                    onEndReached={searched ? loadMorePosts : undefined}
                     onEndReachedThreshold={0.3}
                     ListFooterComponent={
                         loadingMore ? (
@@ -177,7 +282,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                                 <ActivityIndicator size="small" color={COLORS.node.accent} />
                                 <Text style={styles.loadingMoreText}>Loading more...</Text>
                             </View>
-                        ) : searched && !hasMore && results.length > 0 ? (
+                        ) : searched && !postHasMore && postResults.length > 0 ? (
                             <View style={styles.endOfResultsContainer}>
                                 <Text style={styles.endOfResultsText}>End of results</Text>
                             </View>
@@ -188,6 +293,35 @@ export const DiscoveryScreen = ({ onBack, onPostClick }: DiscoveryScreenProps) =
                             <Hash size={48} color={COLORS.node.muted} />
                             <Text style={styles.emptyText}>
                                 {searched ? 'No posts found. Try a different search.' : 'No trending posts yet.'}
+                            </Text>
+                        </View>
+                    }
+                />
+            ) : (
+                <FlatList
+                    data={userResults}
+                    keyExtractor={(item) => item.id}
+                    renderItem={renderUserItem}
+                    contentContainerStyle={styles.listContent}
+                    onEndReached={loadMoreUsers}
+                    onEndReachedThreshold={0.3}
+                    ListFooterComponent={
+                        loadingMore ? (
+                            <View style={styles.loadingMoreContainer}>
+                                <ActivityIndicator size="small" color={COLORS.node.accent} />
+                                <Text style={styles.loadingMoreText}>Loading more...</Text>
+                            </View>
+                        ) : !userHasMore && userResults.length > 0 ? (
+                            <View style={styles.endOfResultsContainer}>
+                                <Text style={styles.endOfResultsText}>End of results</Text>
+                            </View>
+                        ) : null
+                    }
+                    ListEmptyComponent={
+                        <View style={styles.emptyContainer}>
+                            <User size={48} color={COLORS.node.muted} />
+                            <Text style={styles.emptyText}>
+                                No users found. Try a different search.
                             </Text>
                         </View>
                     }
@@ -254,6 +388,32 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontWeight: '600',
     },
+    tabRow: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.node.border,
+    },
+    tab: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 12,
+        borderBottomWidth: 2,
+        borderBottomColor: 'transparent',
+    },
+    tabActive: {
+        borderBottomColor: COLORS.node.accent,
+    },
+    tabText: {
+        fontSize: 14,
+        fontWeight: '500',
+        color: COLORS.node.muted,
+    },
+    tabTextActive: {
+        color: COLORS.node.accent,
+    },
     sectionHeader: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -311,5 +471,80 @@ const styles = StyleSheet.create({
     endOfResultsText: {
         color: COLORS.node.muted,
         fontSize: 12,
+    },
+    // User item styles
+    userItem: {
+        flexDirection: 'row',
+        padding: 12,
+        backgroundColor: COLORS.node.panel,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+        marginBottom: 8,
+        gap: 12,
+    },
+    userAvatar: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+    },
+    userAvatarPlaceholder: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: COLORS.node.accent,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    botAvatar: {
+        backgroundColor: '#10b981',
+    },
+    userInfo: {
+        flex: 1,
+    },
+    userNameRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    userName: {
+        fontSize: 16,
+        fontWeight: '600',
+        color: COLORS.node.text,
+    },
+    botBadge: {
+        backgroundColor: '#10b981',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4,
+    },
+    botBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    userFullName: {
+        fontSize: 14,
+        color: COLORS.node.muted,
+        marginTop: 2,
+    },
+    userBio: {
+        fontSize: 13,
+        color: COLORS.node.text,
+        marginTop: 4,
+    },
+    userStats: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        gap: 6,
+    },
+    userStat: {
+        fontSize: 12,
+        color: COLORS.node.muted,
+    },
+    userStatDot: {
+        fontSize: 12,
+        color: COLORS.node.muted,
     },
 });

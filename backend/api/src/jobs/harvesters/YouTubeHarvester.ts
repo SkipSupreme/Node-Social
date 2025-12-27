@@ -93,7 +93,7 @@ export class YouTubeHarvester extends BaseHarvester {
               sourceId: video.id.videoId,
               sourceUrl: videoUrl,
               title: video.snippet.title,
-              content: video.snippet.description?.slice(0, 500),
+              content: video.snippet.description, // No truncation - store full description
               linkUrl: videoUrl,
               mediaUrl: thumbnail,
               suggestedNode: nodeSlug,

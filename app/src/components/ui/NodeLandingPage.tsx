@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIndicator, Modal } from 'react-native';
-import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare, Bot, X } from './Icons';
+import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare, Bot, X, Pencil } from './Icons';
 import { COLORS } from '../../constants/theme';
-import { getNodeDetails, joinNode, leaveNode, NodeDetails, getAvailableCuratorBots, updateNodeCuratorBot, CuratorBot } from '../../lib/api';
+import { getNodeDetails, joinNode, leaveNode, NodeDetails, getAvailableCuratorBots, updateNodeCuratorBot, CuratorBot, BotProfile } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { NodeOverflowMenu } from './NodeOverflowMenu';
 import { ModLogPreview } from './ModLogPreview';
+import { EditBotModal } from './EditBotModal';
 
 interface NodeLandingPageProps {
   nodeId: string;
@@ -45,6 +46,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   const [availableBots, setAvailableBots] = useState<CuratorBot[]>([]);
   const [loadingBots, setLoadingBots] = useState(false);
   const [updatingBot, setUpdatingBot] = useState(false);
+  const [editingBot, setEditingBot] = useState<CuratorBot | null>(null);
 
   useEffect(() => {
     fetchNodeData();
@@ -86,8 +88,8 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
     setShowBotModal(true);
     setLoadingBots(true);
     try {
-      const bots = await getAvailableCuratorBots();
-      setAvailableBots(bots);
+      const response = await getAvailableCuratorBots();
+      setAvailableBots(response.bots);
     } catch (err) {
       console.error('Failed to load bots:', err);
     } finally {
@@ -113,6 +115,26 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
     }
   };
 
+  const handleBotUpdated = (updatedBot: BotProfile) => {
+    // Update the bot in the available bots list
+    setAvailableBots(prev => prev.map(b =>
+      b.id === updatedBot.id
+        ? { ...b, avatar: updatedBot.avatar, bio: updatedBot.bio }
+        : b
+    ));
+    // If this bot is the current curator, update node data too
+    if (nodeData?.curatorBot?.id === updatedBot.id) {
+      setNodeData({
+        ...nodeData,
+        curatorBot: {
+          ...nodeData.curatorBot,
+          avatar: updatedBot.avatar,
+          bio: updatedBot.bio,
+        },
+      });
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -134,6 +156,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
 
   const isMember = nodeData.currentUserMembership?.isMember ?? false;
   const isAdmin = nodeData.currentUserMembership?.role === 'admin';
+  const canEditNode = nodeData.currentUserMembership?.canEditNode ?? false;
   const nodeColor = nodeData.color || '#6366f1';
   const displayRules = showAllRules ? nodeData.rules : nodeData.rules.slice(0, 3);
 
@@ -207,7 +230,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
               </Text>
             </TouchableOpacity>
           )}
-          {isAdmin && onNavigateToSettings && (
+          {canEditNode && onNavigateToSettings && (
             <TouchableOpacity style={styles.settingsButton} onPress={onNavigateToSettings}>
               <Settings size={18} color={COLORS.node.text} />
             </TouchableOpacity>
@@ -351,7 +374,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
         ) : (
           <Text style={styles.emptyText}>No curator bot assigned</Text>
         )}
-        {isAdmin && (
+        {canEditNode && (
           <TouchableOpacity style={styles.messageCouncilButton} onPress={handleOpenBotModal}>
             <Settings size={14} color={COLORS.node.accent} style={{ marginRight: 6 }} />
             <Text style={styles.messageCouncilText}>
@@ -399,34 +422,51 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
                   {!nodeData.curatorBot && <CheckCircle size={18} color={COLORS.node.accent} />}
                 </TouchableOpacity>
                 {availableBots.map((bot) => (
-                  <TouchableOpacity
-                    key={bot.id}
-                    style={[
-                      styles.botItem,
-                      nodeData.curatorBot?.id === bot.id && styles.botItemSelected,
-                    ]}
-                    onPress={() => handleSelectBot(bot.id)}
-                    disabled={updatingBot}
-                  >
-                    {bot.avatar ? (
-                      <Image source={{ uri: bot.avatar }} style={styles.councilAvatar} />
-                    ) : (
-                      <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
-                        <Bot size={16} color="#fff" />
+                  <View key={bot.id} style={[
+                    styles.botItem,
+                    nodeData.curatorBot?.id === bot.id && styles.botItemSelected,
+                  ]}>
+                    <TouchableOpacity
+                      style={styles.botItemContent}
+                      onPress={() => handleSelectBot(bot.id)}
+                      disabled={updatingBot}
+                    >
+                      {bot.avatar ? (
+                        <Image source={{ uri: bot.avatar }} style={styles.councilAvatar} />
+                      ) : (
+                        <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
+                          <Bot size={16} color="#fff" />
+                        </View>
+                      )}
+                      <View style={styles.councilInfo}>
+                        <Text style={styles.councilUsername}>@{bot.username}</Text>
+                        {bot.bio && <Text style={styles.councilRole} numberOfLines={1}>{bot.bio}</Text>}
                       </View>
-                    )}
-                    <View style={styles.councilInfo}>
-                      <Text style={styles.councilUsername}>@{bot.username}</Text>
-                      {bot.bio && <Text style={styles.councilRole} numberOfLines={1}>{bot.bio}</Text>}
-                    </View>
-                    {nodeData.curatorBot?.id === bot.id && <CheckCircle size={18} color={COLORS.node.accent} />}
-                  </TouchableOpacity>
+                      {nodeData.curatorBot?.id === bot.id && <CheckCircle size={18} color={COLORS.node.accent} />}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.editBotButton}
+                      onPress={() => setEditingBot(bot)}
+                    >
+                      <Pencil size={14} color={COLORS.node.muted} />
+                    </TouchableOpacity>
+                  </View>
                 ))}
               </ScrollView>
             )}
           </View>
         </View>
       </Modal>
+
+      {/* Edit Bot Modal */}
+      {editingBot && (
+        <EditBotModal
+          visible={true}
+          onClose={() => setEditingBot(null)}
+          onSuccess={handleBotUpdated}
+          bot={editingBot}
+        />
+      )}
 
       {/* Mod Log Section */}
       <View style={styles.section}>
@@ -809,12 +849,23 @@ const styles = StyleSheet.create({
   botItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
     padding: 12,
     borderRadius: 8,
     marginBottom: 4,
   },
+  botItemContent: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   botItemSelected: {
     backgroundColor: 'rgba(99, 102, 241, 0.1)',
+  },
+  editBotButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: COLORS.node.bg,
+    marginLeft: 8,
   },
 });

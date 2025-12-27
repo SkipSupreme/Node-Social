@@ -2,6 +2,15 @@ import { PrismaClient } from '@prisma/client';
 import { BaseHarvester, type HarvestResult, type HarvestCursor } from './BaseHarvester.js';
 import { REDDIT_SOURCES, THRESHOLDS, categorizeContent } from '../harvesterConfig.js';
 
+interface RedditMediaMetadata {
+  [key: string]: {
+    status: string;
+    e: string; // "Image" or "AnimatedImage"
+    m: string; // mime type like "image/jpg"
+    s: { u: string; x: number; y: number }; // source with url, width, height
+  };
+}
+
 interface RedditPost {
   kind: string;
   data: {
@@ -14,6 +23,7 @@ interface RedditPost {
     score: number;
     created_utc: number;
     is_self: boolean;
+    is_gallery?: boolean;
     stickied: boolean;
     thumbnail?: string;
     preview?: {
@@ -23,6 +33,10 @@ interface RedditPost {
     };
     media?: {
       reddit_video?: { fallback_url: string };
+    };
+    media_metadata?: RedditMediaMetadata;
+    gallery_data?: {
+      items: Array<{ media_id: string; caption?: string }>;
     };
   };
 }
@@ -91,10 +105,36 @@ export class RedditHarvester extends BaseHarvester {
 
           // Get media URL if available
           let mediaUrl: string | undefined;
-          if (p.preview?.images?.[0]?.source?.url) {
+          let galleryUrls: string[] = [];
+
+          // Handle gallery posts (multiple images)
+          if (p.is_gallery && p.media_metadata && p.gallery_data?.items) {
+            // Extract all gallery image URLs in order
+            for (const item of p.gallery_data.items) {
+              const meta = p.media_metadata[item.media_id];
+              if (meta?.s?.u) {
+                // Reddit encodes & as &amp; in the URL
+                galleryUrls.push(meta.s.u.replace(/&amp;/g, '&'));
+              }
+            }
+            // Use first gallery image as mediaUrl
+            if (galleryUrls.length > 0) {
+              mediaUrl = galleryUrls[0];
+            }
+          } else if (p.preview?.images?.[0]?.source?.url) {
             mediaUrl = p.preview.images[0].source.url.replace(/&amp;/g, '&');
           } else if (p.media?.reddit_video?.fallback_url) {
             mediaUrl = p.media.reddit_video.fallback_url;
+          }
+
+          // If linkUrl is a direct image URL (i.redd.it, imgur), use it as mediaUrl too
+          // This ensures image posts display properly even without preview data
+          if (!mediaUrl && linkUrl) {
+            if (/i\.redd\.it\//i.test(linkUrl) ||
+                /i\.imgur\.com\//i.test(linkUrl) ||
+                /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(linkUrl)) {
+              mediaUrl = linkUrl;
+            }
           }
 
           // Use keyword matching or default to target node
@@ -110,6 +150,7 @@ export class RedditHarvester extends BaseHarvester {
             content: p.selftext || undefined,
             linkUrl,
             mediaUrl,
+            galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
             suggestedNode,
           });
           subredditCount++;

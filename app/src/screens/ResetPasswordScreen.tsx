@@ -12,7 +12,7 @@ import {
   ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Lock } from "lucide-react-native";
+import { Lock, X } from "lucide-react-native";
 import { resetPassword } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { COLORS } from "../constants/theme";
@@ -22,7 +22,8 @@ import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 export const ResetPasswordScreen: React.FC<{
   token: string;
   onSuccess: () => void;
-}> = ({ token, onSuccess }) => {
+  onClose?: () => void;
+}> = ({ token, onSuccess, onClose }) => {
   const setAuth = useAuthStore((s) => s.setAuth);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -61,6 +62,11 @@ export const ResetPasswordScreen: React.FC<{
   return (
     <SafeAreaView style={styles.container}>
       <NodeNetworkBackground />
+      {onClose && (
+        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+          <X size={24} color={COLORS.node.muted} />
+        </TouchableOpacity>
+      )}
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.keyboardView}
@@ -132,6 +138,13 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.node.bg,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    zIndex: 100,
+    padding: 8,
   },
   keyboardView: {
     flex: 1,
