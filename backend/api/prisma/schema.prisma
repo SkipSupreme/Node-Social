@@ -95,6 +95,15 @@ model User {
   isBot         Boolean  @default(false)
   botConfig     Json?    // { persona: "TechDigest", nodeSlug: "technology", nodeId: "..." }
   curatedNodes  Node[]   @relation("NodeCuratorBot") // Nodes this bot curates
+
+  // Eigentrust & Web of Trust
+  seedNode      SeedNode?
+  trustScore    TrustScore?
+
+  // Bicameral Governance
+  governanceProposals GovernanceProposal[]
+  voiceCredits        VoiceCredits[]
+  councilMemberships  CouncilMember[]
 }
 
 model Notification {
@@ -155,6 +164,9 @@ model Node {
   vectorConfig  NodeVectorConfig?
   subscriptions NodeSubscription[] // Users subscribed to this node
   muters        NodeMute[] // Users who have muted this node
+
+  // Node Charter (governance configuration)
+  charter       NodeCharter?
 
   @@map("nodes")
 }
@@ -400,7 +412,10 @@ model ModActionLog {
   reason        String?
   metadata      Json?    // Additional context (e.g., appeal info, Node Court verdict)
   createdAt     DateTime @default(now())
-  
+
+  // Meta-moderation reviews of this action
+  metaModTasks  MetaModerationTask[]
+
   @@index([targetType, targetId])
   @@index([moderatorId])
   @@index([createdAt(sort: Desc)])
@@ -977,4 +992,404 @@ model CurationFeedback {
   @@index([queueItemId])
   @@index([createdAt])
   @@map("curation_feedback")
+}
+
+// ============================================
+// EIGENTRUST & WEB OF TRUST SYSTEM
+// Per governance.md Section 3 - Trust-Weighted Exploration Engine
+// ============================================
+
+// Seed Nodes - Pre-trusted peers that anchor the trust graph
+// Per governance.md Section 3.1.2: "Founding Nodes" anchor Eigentrust
+model SeedNode {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason    String?  // Why this user is a seed node
+  addedBy   String?  // Admin who added them
+  addedAt   DateTime @default(now())
+  active    Boolean  @default(true)
+
+  @@map("seed_nodes")
+}
+
+// Global Trust Scores - Computed via Eigentrust algorithm
+// Per governance.md Section 3.1: Transitive trust via random walk
+model TrustScore {
+  id            String   @id @default(uuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Raw Eigentrust score (0.0 to 1.0)
+  rawScore      Float    @default(0)
+
+  // Decayed score after applying time-based decay
+  // Per governance.md Section 3.3: Trust_current = Trust_raw × e^(-λt)
+  decayedScore  Float    @default(0)
+
+  // Trust tier derived from decayed score percentile
+  // Per governance.md Section 3.1.2: Gold/Silver/Bronze/Shadow
+  tier          String   @default("shadow") // "gold", "silver", "bronze", "shadow"
+
+  // Distance from nearest seed node (for display)
+  seedDistance  Int?
+
+  // When the score was last computed
+  computedAt    DateTime @default(now())
+
+  // User's last activity (for decay calculation)
+  lastActiveAt  DateTime @default(now())
+
+  @@index([tier])
+  @@index([decayedScore(sort: Desc)])
+  @@map("trust_scores")
+}
+
+// Trust Matrix Edges - Direct trust relationships
+// This augments Vouch with computed trust values
+model TrustEdge {
+  id          String   @id @default(uuid())
+
+  // Trust direction: from -> to
+  fromUserId  String
+  toUserId    String
+
+  // Normalized direct trust (0.0 to 1.0)
+  // Sum of all outgoing edges from a user should = 1.0
+  directTrust Float
+
+  // Source of trust (vouch, positive_reactions, etc.)
+  source      String   @default("vouch")
+
+  // Weight before normalization
+  rawWeight   Float    @default(1.0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([fromUserId, toUserId])
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@map("trust_edges")
+}
+
+// Trust Computation Log - Track algorithm runs
+model TrustComputationLog {
+  id              String   @id @default(uuid())
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  status          String   @default("running") // "running", "completed", "failed"
+  usersProcessed  Int      @default(0)
+  edgesProcessed  Int      @default(0)
+  iterations      Int      @default(0)
+  convergenceDelta Float?
+  error           String?
+
+  @@index([startedAt(sort: Desc)])
+  @@map("trust_computation_logs")
+}
+
+// ============================================
+// NODE CHARTER SYSTEM
+// Per governance.md Section 4.2 - Smart Contract Governance
+// "The Node Charter is not just text; it is a configuration file"
+// ============================================
+
+model NodeCharter {
+  id        String   @id @default(uuid())
+  nodeId    String   @unique
+  node      Node     @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  // Governance Style (per Section 4.1.2)
+  governanceStyle String @default("republic") // "dictatorship", "republic", "democracy"
+
+  // Mod Term Limits (per Section 4.2, 7.3)
+  modTermLengthDays     Int      @default(180) // 6 months default
+  modTermsAllowed       Int      @default(3)   // Max consecutive terms
+  incumbencyThreshold   Float    @default(0.55) // 55% for 2nd term, increases per term
+
+  // Ban Appeal Process (per Section 6.3)
+  banAppealThresholdHours Int    @default(24) // Bans > this go to Node Jury
+  autoAppealEnabled       Boolean @default(true)
+
+  // Exploration Rate (per Section 5.3)
+  explorationRate       Float    @default(0.10) // 10% of feed must be from non-members
+
+  // Content Moderation Settings
+  autoModLevel          String   @default("medium") // "low", "medium", "high"
+  requireCitations      Boolean  @default(false)
+  minTrustToPost        String   @default("shadow") // Minimum tier to post
+
+  // Voting Rules
+  quorumPercent         Float    @default(0.10) // 10% of active members for valid vote
+  supermajorityPercent  Float    @default(0.67) // 67% for major changes
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Track charter amendments
+  amendments  CharterAmendment[]
+
+  @@map("node_charters")
+}
+
+model CharterAmendment {
+  id          String   @id @default(uuid())
+  charterId   String
+  charter     NodeCharter @relation(fields: [charterId], references: [id], onDelete: Cascade)
+
+  field       String   // Which field was changed
+  oldValue    String   // Previous value (JSON encoded)
+  newValue    String   // New value (JSON encoded)
+  reason      String?  // Why the change was made
+  proposedBy  String   // User ID who proposed
+  approvedAt  DateTime @default(now())
+
+  @@index([charterId])
+  @@map("charter_amendments")
+}
+
+// ============================================
+// META-MODERATION SYSTEM
+// Per governance.md Section 8.2 - Slashdot's Meta-Moderation
+// "Random sample of high-trust users asked: Was this moderation fair?"
+// ============================================
+
+model MetaModerationTask {
+  id              String   @id @default(uuid())
+
+  // The moderation action being reviewed
+  modActionId     String
+  modAction       ModActionLog @relation(fields: [modActionId], references: [id], onDelete: Cascade)
+
+  // The moderator whose action is being reviewed
+  moderatorId     String
+
+  // Sampling metadata
+  createdAt       DateTime @default(now())
+  expiresAt       DateTime // Deadline for meta-mods to vote
+  status          String   @default("pending") // "pending", "completed", "expired"
+
+  // Aggregated results
+  fairVotes       Int      @default(0)
+  unfairVotes     Int      @default(0)
+  biasVotes       Int      @default(0)
+  overreactionVotes Int    @default(0)
+
+  // Final verdict
+  verdict         String?  // "fair", "unfair", "bias", "overreaction"
+  verdictAt       DateTime?
+
+  // Impact on moderator
+  modTrustImpact  Float?   // How much trust the mod gained/lost
+
+  // Individual votes
+  votes           MetaModVote[]
+
+  @@index([moderatorId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("meta_moderation_tasks")
+}
+
+model MetaModVote {
+  id          String   @id @default(uuid())
+  taskId      String
+  task        MetaModerationTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  voterId     String
+  vote        String   // "fair", "unfair", "bias", "overreaction"
+  votedAt     DateTime @default(now())
+
+  @@unique([taskId, voterId])
+  @@index([taskId])
+  @@map("meta_mod_votes")
+}
+
+// ============================================
+// BICAMERAL GOVERNANCE SYSTEM
+// Per governance.md Section 7.1 - Optimism-style Bicameral Governance
+// House 1: Vibe Council (Commons) - one-person-one-vote
+// House 2: Node Senate (Lords) - weighted by Trust + Quadratic Voting
+// ============================================
+
+model GovernanceProposal {
+  id            String   @id @default(uuid())
+
+  title         String
+  description   String
+  proposerId    String
+  proposer      User     @relation(fields: [proposerId], references: [id])
+
+  // Proposal type determines which house(s) must approve
+  proposalType  String   // "feature", "policy", "protocol", "emergency"
+
+  // For protocol changes, both houses must approve
+  requiresBothHouses Boolean @default(false)
+
+  // Voting period
+  createdAt     DateTime @default(now())
+  votingStartsAt DateTime
+  votingEndsAt   DateTime
+
+  // Status
+  status        String   @default("draft") // "draft", "voting", "passed", "rejected", "vetoed"
+
+  // Vote tallies
+  vibeCouncilYes    Int @default(0)
+  vibeCouncilNo     Int @default(0)
+  vibeCouncilQuorum Int @default(0) // Required for validity
+  vibeCouncilPassed Boolean?
+
+  nodeSenateYes     Float @default(0) // Weighted votes
+  nodeSenateNo      Float @default(0)
+  nodeSenateQuorum  Float @default(0)
+  nodeSenatePassed  Boolean?
+
+  // Individual votes
+  votes         GovernanceVote[]
+
+  @@index([status])
+  @@index([votingEndsAt])
+  @@map("governance_proposals")
+}
+
+model GovernanceVote {
+  id          String   @id @default(uuid())
+  proposalId  String
+  proposal    GovernanceProposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+
+  voterId     String
+
+  // Which house they're voting in
+  house       String   // "vibe_council" or "node_senate"
+
+  // Vote direction
+  vote        String   // "yes", "no", "abstain"
+
+  // For quadratic voting in Senate
+  voiceCreditsSpent Int @default(1)
+  voteWeight        Float @default(1) // sqrt(credits) for QV
+
+  votedAt     DateTime @default(now())
+
+  @@unique([proposalId, voterId, house])
+  @@index([proposalId])
+  @@map("governance_votes")
+}
+
+// Voice Credits for Quadratic Voting
+// Per governance.md Section 7.2
+model VoiceCredits {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Credits allocated per cycle
+  cycleStart  DateTime
+  cycleEnd    DateTime
+  allocated   Int      @default(100) // 100 credits per cycle
+  spent       Int      @default(0)
+  remaining   Int      @default(100)
+
+  @@unique([userId, cycleStart])
+  @@index([userId])
+  @@map("voice_credits")
+}
+
+// Council Membership
+// Per governance.md Section 7.1, 7.3
+model CouncilMember {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  house       String   // "vibe_council" or "node_senate"
+
+  // Election details
+  electedAt   DateTime
+  termEndsAt  DateTime
+  termNumber  Int      @default(1) // Which consecutive term
+
+  // Status
+  active      Boolean  @default(true)
+  recalledAt  DateTime?
+
+  // For Node Senate: which node they represent
+  representingNodeId String?
+
+  @@unique([userId, house])
+  @@index([house, active])
+  @@map("council_members")
+}
+
+// Recall Petitions
+// Per governance.md Section 7.3
+model RecallPetition {
+  id            String   @id @default(uuid())
+  targetUserId  String   // Council member being recalled
+  house         String   // Which house
+
+  reason        String
+  initiatedBy   String   // User who started petition
+  createdAt     DateTime @default(now())
+
+  // Signature collection
+  signaturesRequired Int    // 10% of active electorate
+  signaturesCollected Int   @default(0)
+  status        String   @default("collecting") // "collecting", "triggered", "failed", "recalled"
+
+  // If triggered, the snap election
+  electionTriggeredAt DateTime?
+
+  signatures    RecallSignature[]
+
+  @@index([targetUserId])
+  @@index([status])
+  @@map("recall_petitions")
+}
+
+model RecallSignature {
+  id          String   @id @default(uuid())
+  petitionId  String
+  petition    RecallPetition @relation(fields: [petitionId], references: [id], onDelete: Cascade)
+
+  signerId    String
+  signedAt    DateTime @default(now())
+
+  // Trust-weighted signature value
+  signatureWeight Float @default(1)
+
+  @@unique([petitionId, signerId])
+  @@index([petitionId])
+  @@map("recall_signatures")
+}
+
+// ============================================
+// EXPLORATION TAX ENFORCEMENT
+// Per governance.md Section 5.3 - Protocol-level discovery
+// ============================================
+
+model ExplorationSlot {
+  id          String   @id @default(uuid())
+  userId      String   // User who received this exploration content
+
+  postId      String   // The probationary content shown
+  nodeId      String   // The node context
+
+  // When it was shown
+  shownAt     DateTime @default(now())
+
+  // User interaction (feedback loop)
+  interacted  Boolean  @default(false)
+  interactionType String? // "view", "react", "comment", "follow"
+  interactedAt DateTime?
+
+  // Trust impact (if user engaged with exploration content)
+  trustBoostApplied Boolean @default(false)
+  trustBoostAmount  Float?
+
+  @@index([userId, shownAt(sort: Desc)])
+  @@index([postId])
+  @@map("exploration_slots")
 }

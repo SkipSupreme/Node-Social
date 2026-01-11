@@ -1,13 +1,15 @@
 // Individual feed column with independent state and scrolling
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Modal, ScrollView, Image } from 'react-native';
-import { X, RefreshCw, Globe, Compass, Users, User, Bell, Search, TrendingUp, Hash, ChevronLeft, ChevronRight, ChevronDown } from './Icons';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
 import { COLORS, COLUMNS } from '../../constants/theme';
-import { FeedColumn as FeedColumnType, ColumnType } from '../../store/columns';
+import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
 import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead } from '../../lib/api';
-import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2 } from 'lucide-react-native';
+import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell } from 'lucide-react-native';
 import { Feed } from './Feed';
 import { WhatsVibing } from './WhatsVibing';
+import { ColumnSearchBar } from './ColumnSearchBar';
+import { VibeValidatorModal } from './VibeValidatorModal';
 
 interface FeedColumnProps {
   column: FeedColumnType;
@@ -27,29 +29,13 @@ interface FeedColumnProps {
   onUpdateColumn?: (updates: Partial<Omit<FeedColumnType, 'id'>>) => void;
 }
 
-// Column type options for the dropdown
-const columnTypeOptions: { type: ColumnType; title: string; icon: any }[] = [
-  { type: 'global', title: 'Global Feed', icon: Globe },
-  { type: 'discovery', title: 'Discovery', icon: Compass },
-  { type: 'following', title: 'Following', icon: Users },
-  { type: 'trending', title: 'Trending', icon: TrendingUp },
-  { type: 'profile', title: 'My Profile', icon: User },
-  { type: 'notifications', title: 'Notifications', icon: Bell },
-];
+// Column types that support VibeValidator (feed-based columns)
+const VIBE_SUPPORTED_TYPES: ColumnType[] = ['global', 'discovery', 'following', 'node', 'search'];
 
-// Map column type to icon
-const getColumnIcon = (type: FeedColumnType['type']) => {
-  switch (type) {
-    case 'global': return Globe;
-    case 'discovery': return Compass;
-    case 'following': return Users;
-    case 'profile': return User;
-    case 'notifications': return Bell;
-    case 'search': return Search;
-    case 'trending': return TrendingUp;
-    case 'node': return Hash;
-    default: return Globe;
-  }
+// Default vibe settings
+const DEFAULT_VIBE_SETTINGS: ColumnVibeSettings = {
+  preset: 'balanced',
+  weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
 };
 
 export const FeedColumn: React.FC<FeedColumnProps> = ({
@@ -78,39 +64,29 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
 
-  // Column settings state
-  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
-  const [showNodePicker, setShowNodePicker] = useState(false);
-  const [showSearchInput, setShowSearchInput] = useState(false);
-  const [searchInputValue, setSearchInputValue] = useState('');
+  // VibeValidator modal state
+  const [showVibeModal, setShowVibeModal] = useState(false);
 
-  const Icon = getColumnIcon(column.type);
+  // Check if this column type supports vibe settings
+  const supportsVibeSettings = VIBE_SUPPORTED_TYPES.includes(column.type);
 
-  // Handle changing column type
-  const handleTypeChange = (type: ColumnType, title: string) => {
-    if (type === 'node') {
-      setShowTypeDropdown(false);
-      setShowNodePicker(true);
-    } else if (type === 'search') {
-      setShowTypeDropdown(false);
-      setShowSearchInput(true);
+  // Handle changing column type from ColumnSearchBar
+  const handleTypeChange = (type: ColumnType, title: string, nodeId?: string) => {
+    if (type === 'node' && nodeId) {
+      onUpdateColumn?.({ type, title, nodeId });
     } else {
       onUpdateColumn?.({ type, title });
-      setShowTypeDropdown(false);
     }
   };
 
-  const handleNodeSelect = (node: any) => {
-    onUpdateColumn?.({ type: 'node', title: node.name, nodeId: node.id });
-    setShowNodePicker(false);
+  // Handle search from ColumnSearchBar
+  const handleSearch = (query: string) => {
+    onUpdateColumn?.({ type: 'search', title: `Search: ${query}`, searchQuery: query });
   };
 
-  const handleSearchSubmit = () => {
-    if (searchInputValue.trim()) {
-      onUpdateColumn?.({ type: 'search', title: `Search: ${searchInputValue}`, searchQuery: searchInputValue.trim() });
-      setSearchInputValue('');
-      setShowSearchInput(false);
-    }
+  // Handle vibe settings update
+  const handleVibeSettingsUpdate = (settings: ColumnVibeSettings) => {
+    onUpdateColumn?.({ vibeSettings: settings });
   };
 
   // Map API posts to Feed format
@@ -292,297 +268,171 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
     onPostClick(post.id);
   }, [onPostClick]);
 
-  // Render trending column (WhatsVibing)
-  if (column.type === 'trending') {
-    return (
-      <View style={styles.column}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {onMoveLeft && (
-              <TouchableOpacity onPress={onMoveLeft} style={styles.headerButton}>
-                <ChevronLeft size={14} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-            <Icon size={16} color={COLORS.node.accent} />
-            <Text style={styles.title}>{column.title}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            {onMoveRight && (
-              <TouchableOpacity onPress={onMoveRight} style={styles.headerButton}>
-                <ChevronRight size={14} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-            {canRemove && (
-              <TouchableOpacity onPress={onRemove} style={styles.headerButton}>
-                <X size={16} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-        <View style={styles.content}>
-          <WhatsVibing onNodeClick={onNodeClick || (() => {})} />
-        </View>
-      </View>
-    );
-  }
+  // Helper to get notification icon
+  const getNotificationIcon = (type: string) => {
+    switch (type) {
+      case 'like': return <Heart size={18} color="#ef4444" fill="#ef4444" />;
+      case 'comment': return <MessageSquare size={18} color="#3b82f6" />;
+      case 'follow': return <UserPlus size={18} color="#10b981" />;
+      case 'warning': return <AlertTriangle size={18} color="#f59e0b" />;
+      case 'mod_removed': return <Trash2 size={18} color="#ef4444" />;
+      case 'banned': return <Ban size={18} color="#ef4444" />;
+      default: return <Bell size={18} color={COLORS.node.accent} />;
+    }
+  };
 
-  // Render notifications column
-  if (column.type === 'notifications') {
-    const getNotificationIcon = (type: string) => {
-      switch (type) {
-        case 'like': return <Heart size={18} color="#ef4444" fill="#ef4444" />;
-        case 'comment': return <MessageSquare size={18} color="#3b82f6" />;
-        case 'follow': return <UserPlus size={18} color="#10b981" />;
-        case 'warning': return <AlertTriangle size={18} color="#f59e0b" />;
-        case 'mod_removed': return <Trash2 size={18} color="#ef4444" />;
-        case 'banned': return <Ban size={18} color="#ef4444" />;
-        default: return <Bell size={18} color={COLORS.node.accent} />;
-      }
-    };
+  // Render content based on column type
+  const renderContent = () => {
+    if (column.type === 'trending') {
+      return <WhatsVibing onNodeClick={onNodeClick || (() => {})} />;
+    }
 
-    return (
-      <View style={styles.column}>
-        <View style={styles.header}>
-          <View style={styles.headerLeft}>
-            {onMoveLeft && (
-              <TouchableOpacity onPress={onMoveLeft} style={styles.headerButton}>
-                <ChevronLeft size={14} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-            <Icon size={16} color={COLORS.node.accent} />
-            <Text style={styles.title}>{column.title}</Text>
-          </View>
-          <View style={styles.headerRight}>
-            <TouchableOpacity onPress={handleRefresh} style={styles.headerButton}>
-              <RefreshCw size={16} color={COLORS.node.muted} />
-            </TouchableOpacity>
-            {onMoveRight && (
-              <TouchableOpacity onPress={onMoveRight} style={styles.headerButton}>
-                <ChevronRight size={14} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-            {canRemove && (
-              <TouchableOpacity onPress={onRemove} style={styles.headerButton}>
-                <X size={16} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-        <View style={styles.content}>
-          {loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.node.accent} />
-            </View>
-          ) : notifications.length === 0 ? (
-            <Text style={styles.emptyText}>No notifications yet</Text>
-          ) : (
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }}>
-              {notifications.map((item) => {
-                const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
-                return (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.notificationItem, isModNotification && styles.modNotification]}
-                    onPress={() => {
-                      if (item.postId) onPostClick(item.postId);
-                      else if (item.actor?.id) onUserClick(item.actor.id);
-                    }}
-                  >
-                    <View style={styles.notificationIcon}>
-                      {getNotificationIcon(item.type)}
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.notificationText} numberOfLines={2}>
-                        {isModNotification ? (
-                          item.content
-                        ) : (
-                          <>
-                            <Text style={{ fontWeight: '600' }}>@{item.actor?.username}</Text> {item.content}
-                          </>
-                        )}
-                      </Text>
-                      <Text style={styles.notificationTime}>
-                        {new Date(item.createdAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    {!item.read && <View style={styles.unreadDot} />}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.column}>
-      {/* Column Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          {onMoveLeft && (
-            <TouchableOpacity onPress={onMoveLeft} style={styles.headerButton}>
-              <ChevronLeft size={14} color={COLORS.node.muted} />
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={styles.titleButton}
-            onPress={() => onUpdateColumn && setShowTypeDropdown(!showTypeDropdown)}
-            disabled={!onUpdateColumn}
-          >
-            <Icon size={16} color={COLORS.node.accent} />
-            <Text style={styles.title} numberOfLines={1}>{column.title}</Text>
-            {onUpdateColumn && <ChevronDown size={12} color={COLORS.node.muted} />}
-          </TouchableOpacity>
-        </View>
-        <View style={styles.headerRight}>
-          <TouchableOpacity onPress={handleRefresh} style={styles.headerButton}>
-            <RefreshCw size={16} color={COLORS.node.muted} />
-          </TouchableOpacity>
-          {onMoveRight && (
-            <TouchableOpacity onPress={onMoveRight} style={styles.headerButton}>
-              <ChevronRight size={14} color={COLORS.node.muted} />
-            </TouchableOpacity>
-          )}
-          {canRemove && (
-            <TouchableOpacity onPress={onRemove} style={styles.headerButton}>
-              <X size={16} color={COLORS.node.muted} />
-            </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* Type Dropdown */}
-      {showTypeDropdown && (
-        <>
-          <TouchableOpacity
-            style={styles.dropdownBackdrop}
-            onPress={() => setShowTypeDropdown(false)}
-            activeOpacity={1}
-          />
-          <View style={styles.typeDropdown}>
-            {columnTypeOptions.map((option) => {
-              const OptionIcon = option.icon;
-              return (
-                <TouchableOpacity
-                  key={option.type}
-                  style={[styles.typeOption, column.type === option.type && styles.typeOptionActive]}
-                  onPress={() => handleTypeChange(option.type, option.title)}
-                >
-                  <OptionIcon size={14} color={column.type === option.type ? COLORS.node.accent : COLORS.node.text} />
-                  <Text style={[styles.typeOptionText, column.type === option.type && styles.typeOptionTextActive]}>
-                    {option.title}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            {/* Node option */}
-            <TouchableOpacity
-              style={[styles.typeOption, column.type === 'node' && styles.typeOptionActive]}
-              onPress={() => handleTypeChange('node', 'Node Feed')}
-            >
-              <Hash size={14} color={column.type === 'node' ? COLORS.node.accent : COLORS.node.text} />
-              <Text style={[styles.typeOptionText, column.type === 'node' && styles.typeOptionTextActive]}>
-                Node Feed
-              </Text>
-            </TouchableOpacity>
-            {/* Search option */}
-            <TouchableOpacity
-              style={[styles.typeOption, column.type === 'search' && styles.typeOptionActive]}
-              onPress={() => handleTypeChange('search', 'Search')}
-            >
-              <Search size={14} color={column.type === 'search' ? COLORS.node.accent : COLORS.node.text} />
-              <Text style={[styles.typeOptionText, column.type === 'search' && styles.typeOptionTextActive]}>
-                Search
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      )}
-
-      {/* Node Picker Modal */}
-      <Modal visible={showNodePicker} transparent animationType="fade" onRequestClose={() => setShowNodePicker(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowNodePicker(false)}>
-          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Node</Text>
-              <TouchableOpacity onPress={() => setShowNodePicker(false)}>
-                <X size={20} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.nodeList}>
-              {nodes.map((node) => (
-                <TouchableOpacity key={node.id} style={styles.nodeItem} onPress={() => handleNodeSelect(node)}>
-                  {node.avatar ? (
-                    <Image source={{ uri: node.avatar }} style={styles.nodeAvatar} />
-                  ) : (
-                    <View style={[styles.nodeAvatarPlaceholder, { backgroundColor: node.color || COLORS.node.accent }]}>
-                      <Text style={styles.nodeAvatarText}>{node.name[0]}</Text>
-                    </View>
-                  )}
-                  <Text style={styles.nodeName}>{node.name}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Search Input Modal */}
-      <Modal visible={showSearchInput} transparent animationType="fade" onRequestClose={() => setShowSearchInput(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowSearchInput(false)}>
-          <TouchableOpacity style={styles.modalContent} activeOpacity={1} onPress={e => e.stopPropagation()}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Search Query</Text>
-              <TouchableOpacity onPress={() => setShowSearchInput(false)}>
-                <X size={20} color={COLORS.node.muted} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={styles.searchInput}
-              value={searchInputValue}
-              onChangeText={setSearchInputValue}
-              placeholder="Enter search query..."
-              placeholderTextColor={COLORS.node.muted}
-              autoFocus
-              returnKeyType="search"
-              onSubmitEditing={handleSearchSubmit}
-            />
-            <TouchableOpacity
-              style={[styles.searchButton, !searchInputValue.trim() && styles.searchButtonDisabled]}
-              onPress={handleSearchSubmit}
-              disabled={!searchInputValue.trim()}
-            >
-              <Text style={styles.searchButtonText}>Set Search</Text>
-            </TouchableOpacity>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Column Content */}
-      <View style={styles.content}>
-        {loading ? (
+    if (column.type === 'notifications') {
+      if (loading) {
+        return (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color={COLORS.node.accent} />
           </View>
-        ) : (
-          <Feed
-            posts={posts}
-            currentUser={currentUser}
-            onPostAction={onPostAction}
-            onPostClick={handlePostClick}
-            onAuthorClick={onAuthorClick}
-            onSaveToggle={onSaveToggle}
-            globalNodeId={globalNodeId}
-            onLoadMore={handleLoadMore}
-            hasMore={hasMore}
-            loadingMore={loadingMore}
-            searchUserResults={[]}
-            onUserClick={onUserClick}
-          />
+        );
+      }
+      if (notifications.length === 0) {
+        return <Text style={styles.emptyText}>No notifications yet</Text>;
+      }
+      return (
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }}>
+          {notifications.map((item) => {
+            const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
+            return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.notificationItem, isModNotification && styles.modNotification]}
+                onPress={() => {
+                  if (item.postId) onPostClick(item.postId);
+                  else if (item.actor?.id) onUserClick(item.actor.id);
+                }}
+              >
+                <View style={styles.notificationIcon}>
+                  {getNotificationIcon(item.type)}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.notificationText} numberOfLines={2}>
+                    {isModNotification ? (
+                      item.content
+                    ) : (
+                      <>
+                        <Text style={{ fontWeight: '600' }}>@{item.actor?.username}</Text> {item.content}
+                      </>
+                    )}
+                  </Text>
+                  <Text style={styles.notificationTime}>
+                    {new Date(item.createdAt).toLocaleDateString()}
+                  </Text>
+                </View>
+                {!item.read && <View style={styles.unreadDot} />}
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      );
+    }
+
+    // Default: Feed-based columns
+    if (loading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.node.accent} />
+        </View>
+      );
+    }
+    return (
+      <Feed
+        posts={posts}
+        currentUser={currentUser}
+        onPostAction={onPostAction}
+        onPostClick={handlePostClick}
+        onAuthorClick={onAuthorClick}
+        onSaveToggle={onSaveToggle}
+        globalNodeId={globalNodeId}
+        onLoadMore={handleLoadMore}
+        hasMore={hasMore}
+        loadingMore={loadingMore}
+        searchUserResults={[]}
+        onUserClick={onUserClick}
+      />
+    );
+  };
+
+  return (
+    <View style={styles.column}>
+      {/* Unified Column Header */}
+      <View style={styles.header}>
+        {/* Move Left Button */}
+        {onMoveLeft && (
+          <TouchableOpacity
+            testID="move-left-button"
+            onPress={onMoveLeft}
+            style={styles.headerButton}
+          >
+            <ChevronLeft size={14} color={COLORS.node.muted} />
+          </TouchableOpacity>
+        )}
+
+        {/* Search Bar */}
+        <ColumnSearchBar
+          currentType={column.type}
+          currentTitle={column.title}
+          onTypeChange={handleTypeChange}
+          onSearch={handleSearch}
+          nodes={nodes}
+        />
+
+        {/* Settings Button (only for feed-based columns) */}
+        {supportsVibeSettings && (
+          <TouchableOpacity
+            testID="settings-button"
+            onPress={() => setShowVibeModal(true)}
+            style={styles.headerButton}
+          >
+            <Settings size={16} color={COLORS.node.muted} />
+          </TouchableOpacity>
+        )}
+
+        {/* Move Right Button */}
+        {onMoveRight && (
+          <TouchableOpacity
+            testID="move-right-button"
+            onPress={onMoveRight}
+            style={styles.headerButton}
+          >
+            <ChevronRight size={14} color={COLORS.node.muted} />
+          </TouchableOpacity>
+        )}
+
+        {/* Remove Column Button */}
+        {canRemove && (
+          <TouchableOpacity
+            testID="remove-column-button"
+            onPress={onRemove}
+            style={styles.headerButton}
+          >
+            <X size={16} color={COLORS.node.muted} />
+          </TouchableOpacity>
         )}
       </View>
+
+      {/* Column Content */}
+      <View style={styles.content}>
+        {renderContent()}
+      </View>
+
+      {/* VibeValidator Modal */}
+      <VibeValidatorModal
+        visible={showVibeModal}
+        settings={column.vibeSettings || DEFAULT_VIBE_SETTINGS}
+        onUpdate={handleVibeSettingsUpdate}
+        onClose={() => setShowVibeModal(false)}
+        columnTitle={column.title}
+      />
     </View>
   );
 };

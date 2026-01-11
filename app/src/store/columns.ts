@@ -13,6 +13,31 @@ export type ColumnType =
   | 'search'
   | 'trending';
 
+// Vibe settings for feed algorithm (matches VibeValidator)
+export interface ColumnVibeSettings {
+  preset?: string;
+  weights: {
+    quality: number;
+    recency: number;
+    engagement: number;
+    personalization: number;
+  };
+  mode?: 'simple' | 'intermediate' | 'advanced' | 'expert';
+  intermediate?: {
+    timeRange: '1h' | '6h' | '24h' | '7d' | 'all';
+    discoveryRate: number;
+    hideMutedWords: boolean;
+    showSeenPosts: boolean;
+    textOnly: boolean;
+    mediaOnly: boolean;
+    linksOnly: boolean;
+    hasDiscussion: boolean;
+  };
+  // Advanced and expert settings are optional and stored as-is
+  advanced?: Record<string, unknown>;
+  expert?: Record<string, unknown>;
+}
+
 export interface FeedColumn {
   id: string;
   type: ColumnType;
@@ -20,6 +45,7 @@ export interface FeedColumn {
   nodeId?: string;        // For node-type columns
   searchQuery?: string;   // For search-type columns
   userId?: string;        // For profile-type columns
+  vibeSettings?: ColumnVibeSettings; // Per-column feed algorithm settings
 }
 
 // Generate unique ID for columns

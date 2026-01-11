@@ -35,6 +35,7 @@ import appealRoutes from './routes/appeals.js';
 import searchRoutes from './routes/search.js';
 import uploadsRoutes from './routes/uploads.js';
 import trendingRoutes from './routes/trending.js';
+import trustRoutes from './routes/trust.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
@@ -215,6 +216,7 @@ export async function build(): Promise<FastifyInstance> {
     await fastify.register(vouchRoutes, { prefix: '/api/v1/vouch' });
     await fastify.register(councilRoutes, { prefix: '/api/v1/council' });
     await fastify.register(appealRoutes, { prefix: '/api/v1/appeals' });
+    await fastify.register(trustRoutes, { prefix: '/api/v1/trust' });
   });
   await app.register(usersRoutes, { prefix: '/users' });
   await app.register(metadataRoutes, { prefix: '/metadata' });
