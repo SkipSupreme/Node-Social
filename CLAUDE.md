@@ -540,6 +540,9 @@ docker-compose down     # Stop containers
 - **Backend:** Fastify, Prisma, PostgreSQL, Redis, MeiliSearch, Socket.io, Zod, Argon2
 - **Frontend:** Expo SDK 54, React 19, React Query, Zustand, Socket.io-client
 
+### Mobile Build Environment
+**This project uses Expo development builds exclusively. We never use Expo Go.** Native modules like `react-native-webview` require development builds with prebuilt native code. If native module errors occur, run `npx expo prebuild --clean` and rebuild.
+
 ### Authentication
 Three auth methods: email/password (Argon2), Google OAuth, Apple Sign-In. JWT access tokens (15min) + httpOnly refresh cookies (7 days).
 
