@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2 } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
@@ -1610,12 +1610,14 @@ interface FeedProps {
     loadingMore?: boolean;
     searchUserResults?: SearchUser[];
     onUserClick?: (userId: string) => void;
+    onRefresh?: () => void;
+    refreshing?: boolean;
 }
 
 // Type for unified feed items
 type FeedItem = { type: 'node'; data: UIPost } | { type: 'external'; data: ExternalPost };
 
-export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick }: FeedProps) => {
+export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick, onRefresh, refreshing = false }: FeedProps) => {
     const prefetchedRef = useRef<Set<string>>(new Set());
 
     // Memoized combined and sorted feed data
@@ -1759,6 +1761,17 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
             ListHeaderComponent={ListHeader}
             ListFooterComponent={ListFooter}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+                onRefresh ? (
+                    <RefreshControl
+                        refreshing={refreshing}
+                        onRefresh={onRefresh}
+                        tintColor={COLORS.node.accent}
+                        colors={[COLORS.node.accent]}
+                        progressViewOffset={headerOffset}
+                    />
+                ) : undefined
+            }
             // Virtualization optimizations
             windowSize={5}
             maxToRenderPerBatch={10}

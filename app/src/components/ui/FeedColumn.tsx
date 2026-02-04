@@ -1,6 +1,6 @@
 // Individual feed column with independent state and scrolling
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
 import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
 import { COLORS, COLUMNS } from '../../constants/theme';
 import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
@@ -499,7 +499,19 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         return <Text style={styles.emptyText}>No notifications yet</Text>;
       }
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 8 }}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.node.accent}
+              colors={[COLORS.node.accent]}
+            />
+          }
+        >
           {notifications.map((item) => {
             const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
             return (
@@ -553,6 +565,14 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: 8 }}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={COLORS.node.accent}
+              colors={[COLORS.node.accent]}
+            />
+          }
           onScroll={({ nativeEvent }) => {
             const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
             const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 500;
@@ -596,6 +616,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         loadingMore={loadingMore}
         searchUserResults={[]}
         onUserClick={onUserClick}
+        onRefresh={handleRefresh}
+        refreshing={refreshing}
       />
     );
   };

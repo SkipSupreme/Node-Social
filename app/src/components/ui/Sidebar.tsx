@@ -1,5 +1,5 @@
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
@@ -33,6 +33,7 @@ interface SidebarProps {
     currentView?: string;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
+    onSearch?: (query: string) => void;
 }
 
 // Animated Logo Component
@@ -138,8 +139,21 @@ export const Sidebar = ({
     isMultiColumnEnabled = false,
     currentView,
     collapsed = false,
-    onToggleCollapse
+    onToggleCollapse,
+    onSearch
 }: SidebarProps) => {
+    const [searchQuery, setSearchQuery] = useState('');
+
+    const handleSearchSubmit = () => {
+        const trimmed = searchQuery.trim();
+        if (trimmed && onSearch) {
+            onSearch(trimmed);
+            setSearchQuery('');
+            if (onClose && !isDesktop) {
+                onClose();
+            }
+        }
+    };
 
     const handleNodeClick = (nodeId: string | null) => {
         if (onNodeSelect) {
@@ -300,9 +314,21 @@ export const Sidebar = ({
                     <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
                     <TextInput
                         style={styles.input}
-                        placeholder="Search..."
+                        placeholder="Search posts, users, nodes..."
                         placeholderTextColor={COLORS.node.muted}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
+                        onSubmitEditing={handleSearchSubmit}
+                        returnKeyType="search"
                     />
+                    {searchQuery.length > 0 && (
+                        <TouchableOpacity
+                            onPress={() => setSearchQuery('')}
+                            style={{ position: 'absolute', right: 12, top: 8 }}
+                        >
+                            <X size={16} color={COLORS.node.muted} />
+                        </TouchableOpacity>
+                    )}
                 </View>
             )}
 

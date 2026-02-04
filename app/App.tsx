@@ -106,6 +106,7 @@ const MainApp = () => {
   const [posts, setPosts] = useState<any[]>([]);
   const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
@@ -622,7 +623,14 @@ const MainApp = () => {
       console.error('Failed to fetch feed:', error);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
+  };
+
+  // Pull-to-refresh handler
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await fetchFeed(selectedNodeId, feedMode);
   };
 
   const loadMorePosts = async () => {
@@ -844,6 +852,68 @@ const MainApp = () => {
     }
   };
 
+  // Helper for sidebar search - sets query state then searches
+  const handleSearchWithQuery = (query: string) => {
+    setSearchQuery(query);
+    // Execute search directly with the query (don't rely on state)
+    if (!query.trim()) {
+      setSearchUserResults([]);
+      fetchFeed(selectedNodeId, feedMode);
+      return;
+    }
+    setLoading(true);
+    setCurrentView('feed');
+    Promise.all([
+      searchPosts(query),
+      searchUsers(query, 5),
+    ]).then(([postsData, usersData]) => {
+      setSearchUserResults(usersData.users || []);
+      const mappedPosts = postsData.posts.map((p: any) => ({
+        id: p.id,
+        node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
+        author: {
+          id: p.author.id,
+          username: p.author.username || 'User',
+          avatar: p.author.avatar,
+          era: p.author.era || 'Lurker Era',
+          cred: p.author.cred || 0
+        },
+        title: p.title || 'Untitled Post',
+        content: p.content,
+        commentCount: p.commentCount,
+        createdAt: p.createdAt,
+        expertGated: false,
+        vibes: [],
+        linkUrl: p.linkUrl,
+        mediaUrl: p.mediaUrl,
+        linkMeta: p.linkMeta,
+        poll: p.poll,
+        myReaction: p.myReaction,
+        vibeAggregate: p.vibeAggregate,
+        isSaved: p.isSaved ?? false,
+        comments: p.comments?.map((c: any) => ({
+          id: c.id,
+          author: {
+            id: c.author.id,
+            username: c.author.username || 'User',
+            avatar: c.author.avatar,
+            era: c.author.era || 'Lurker Era',
+            cred: c.author.cred || 0
+          },
+          content: c.content,
+          timestamp: new Date(c.createdAt),
+          depth: 0,
+          replies: []
+        })) || []
+      }));
+      setPosts(mappedPosts);
+    }).catch(error => {
+      console.error('Search failed:', error);
+    }).finally(() => {
+      setLoading(false);
+    });
+  };
+
   useEffect(() => {
     const init = async () => {
       // Parallelize init calls for faster startup (-1.5-2s improvement)
@@ -995,6 +1065,7 @@ const MainApp = () => {
               currentView={currentView}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+              onSearch={handleSearchWithQuery}
             />
           </View>
         )}
@@ -1121,6 +1192,8 @@ const MainApp = () => {
                       loadingMore={loadingMore}
                       searchUserResults={searchUserResults}
                       onUserClick={(userId) => navigateTo('profile', { userId })}
+                      onRefresh={handleRefresh}
+                      refreshing={refreshing}
                     />
                   )
                 )}
@@ -1346,6 +1419,7 @@ const MainApp = () => {
                 unreadNotifications={0}
                 unreadMessages={0}
                 currentView={currentView}
+                onSearch={handleSearchWithQuery}
               />
             </View>
             <TouchableOpacity style={{ flex: 1 }} onPress={() => setMenuVisible(false)} />
