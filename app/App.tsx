@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { View, StatusBar, Platform, TouchableOpacity, Text, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, TextInput, Animated } from 'react-native';
+import { View, StatusBar, Platform, TouchableOpacity, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, Animated, Image, Text } from 'react-native';
+import { HelpCircle } from './src/components/ui/Icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalProvider, PortalHost } from '@gorhom/portal';
-import { Menu, PanelRight, Search, ChevronDown, MessageSquare, Bell } from './src/components/ui/Icons';
 import { useAuthStore } from './src/store/auth';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
@@ -15,20 +15,16 @@ import { VerifyEmailScreen } from './src/screens/VerifyEmailScreen';
 import * as Linking from 'expo-linking';
 import { COLORS } from './src/constants/theme';
 import { MobileBottomNav } from './src/components/ui/MobileBottomNav';
-import { getPresetDisplayName, PresetType } from './src/components/ui/PresetBottomSheet';
-import { NodeLogo } from './src/components/ui/NodeLogo';
 
 // New UI Components
 import { Sidebar } from './src/components/ui/Sidebar';
 import { Feed } from './src/components/ui/Feed';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VibeValidator, VibeValidatorSettings } from './src/components/ui/VibeValidator';
-import { getFeed, getNodes, Post, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences } from './src/lib/api';
+import { getFeed, getNodes, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences, getCombinedExternalFeed, getBlueskyDiscover, getMastodonTrending, ExternalPost } from './src/lib/api';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
-import { Plus } from 'lucide-react-native';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SavedPostsScreen } from './src/screens/SavedPostsScreen';
-import { BetaTestScreen } from './src/screens/BetaTestScreen';
 import { ThemesScreen } from './src/screens/ThemesScreen';
 import { CredHistoryScreen } from './src/screens/CredHistoryScreen';
 import { MessagesScreen } from './src/screens/MessagesScreen';
@@ -52,20 +48,37 @@ import { NodeLandingPage } from './src/components/ui/NodeLandingPage';
 import { ToastContainer } from './src/components/ui/Toast';
 import { MultiColumnContainer } from './src/components/ui/MultiColumnContainer';
 import { useColumnsStore } from './src/store/columns';
+import { SkeletonFeed } from './src/components/ui/SkeletonPostCard';
+import { NodeInfoSheet } from './src/components/ui/NodeInfoSheet';
+import { storage } from './src/lib/storage';
 
-// Initialize Query Client
-const queryClient = new QueryClient();
+// Initialize Query Client with performance-optimized settings (Tier 4)
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Keep data fresh for 30 seconds before refetching
+      staleTime: 30 * 1000,
+      // Cache data for 5 minutes even when unused
+      gcTime: 5 * 60 * 1000,
+      // Retry failed requests up to 2 times
+      retry: 2,
+      // Don't refetch on window focus for mobile (saves bandwidth)
+      refetchOnWindowFocus: false,
+      // Refetch on reconnect for real-time feel
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 const MainApp = () => {
-  const { user, logout } = useAuthStore();
+  const { user } = useAuthStore();
   const { requireAuth } = useAuthPrompt();
   const { isMultiColumnEnabled, loadFromStorage: loadColumnsConfig } = useColumnsStore();
   const insets = useSafeAreaInsets();
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
-  const [rightPanelOpen, setRightPanelOpen] = useState(true); // Right sidebar toggle
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'beta' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
@@ -91,12 +104,37 @@ const MainApp = () => {
   };
 
   const [posts, setPosts] = useState<any[]>([]);
+  const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
+  const [nodeInfoVisible, setNodeInfoVisible] = useState(false);
+  const [nodeInfoNodeId, setNodeInfoNodeId] = useState<string | null>(null);
+
+  // Feed source for mobile mixed feed (node, bluesky, mastodon, or mixed)
+  // Persisted to storage so it survives layout changes
+  const [feedSource, setFeedSourceState] = useState<'node' | 'bluesky' | 'mastodon' | 'mixed'>('node');
+  const feedSourceRef = useRef(feedSource);
+
+  // Load feedSource from storage on mount
+  useEffect(() => {
+    storage.getItem('feedSource').then((saved) => {
+      if (saved && ['node', 'bluesky', 'mastodon', 'mixed'].includes(saved)) {
+        setFeedSourceState(saved as 'node' | 'bluesky' | 'mastodon' | 'mixed');
+        feedSourceRef.current = saved as 'node' | 'bluesky' | 'mastodon' | 'mixed';
+      }
+    });
+  }, []);
+
+  // Wrapper to persist feedSource changes
+  const setFeedSource = (source: 'node' | 'bluesky' | 'mastodon' | 'mixed') => {
+    setFeedSourceState(source);
+    feedSourceRef.current = source;
+    storage.setItem('feedSource', source);
+  };
 
   // Mobile-specific states
   const headerTranslateY = useRef(new Animated.Value(0)).current;
@@ -104,8 +142,14 @@ const MainApp = () => {
   const headerVisible = useRef(true);
 
   // Handle post click to open detail view
-  const handlePostClick = (post: any) => {
-    navigateTo('post-detail', { postId: post.id });
+  // Accepts either a post object or just a postId string (from desktop columns)
+  const handlePostClick = (postOrId: any) => {
+    const postId = typeof postOrId === 'string' ? postOrId : postOrId?.id;
+    if (!postId) {
+      console.error('handlePostClick called with invalid post:', postOrId);
+      return;
+    }
+    navigateTo('post-detail', { postId });
   };
 
   // Handle scroll to hide/show header on mobile
@@ -186,6 +230,8 @@ const MainApp = () => {
       mediaOnly: false,
       linksOnly: false,
       hasDiscussion: false,
+      textDensity: 'any',
+      mediaType: 'any',
     },
     advanced: {
       authorCredWeight: 50,
@@ -278,6 +324,8 @@ const MainApp = () => {
           mediaOnly: prefs.mediaOnly ?? false,
           linksOnly: prefs.linksOnly ?? false,
           hasDiscussion: prefs.hasDiscussion ?? false,
+          textDensity: 'any',
+          mediaType: 'any',
         },
         advanced: {
           authorCredWeight: prefs.authorCredWeight ?? 50,
@@ -322,7 +370,7 @@ const MainApp = () => {
       setAlgoSettings(settings);
       return settings;
     } catch (error) {
-      console.log('Using default feed preferences');
+      // Use default feed preferences
       return null;
     }
   };
@@ -394,7 +442,6 @@ const MainApp = () => {
   };
 
   const { width } = useWindowDimensions();
-  const isTablet = width >= 768;
   const isDesktop = width >= 1024; // 3-column breakpoint
 
   const [nodes, setNodes] = useState<any[]>([]);
@@ -402,12 +449,10 @@ const MainApp = () => {
   const fetchNodes = async () => {
     try {
       const data = await getNodes();
-      console.log('[fetchNodes] Got', data.length, 'nodes:', data.map((n: any) => ({ id: n.id, name: n.name, slug: n.slug })));
       // Map API nodes to UI nodes (preserve avatar/color, add defaults if missing)
       const mappedNodes = data.map((n: any) => ({
         ...n,
         type: 'child', // Default type
-        vibeVelocity: Math.floor(Math.random() * 100), // Mock velocity
         color: n.color || '#6366f1', // Use API color or consistent fallback (matches NodeLandingPage)
       }));
       setNodes(mappedNodes);
@@ -450,6 +495,8 @@ const MainApp = () => {
     },
     title: p.title || 'Untitled Post',
     content: p.content,
+    contentJson: p.contentJson, // TipTap JSON for rich text
+    contentFormat: p.contentFormat, // 'markdown' | 'tiptap'
     commentCount: p.commentCount,
     createdAt: p.createdAt,
     expertGated: false,
@@ -480,11 +527,62 @@ const MainApp = () => {
   const fetchFeed = async (nodeId?: string | null, mode: 'global' | 'discovery' | 'following' = 'global') => {
     // Use ref to get latest algoSettings to avoid stale closure issues during initialization
     const settings = algoSettingsRef.current;
-    console.log('[fetchFeed] Called with:', { nodeId, mode });
+    const source = feedSourceRef.current;
     setLoading(true);
     setNextCursor(undefined);
     setHasMore(true);
+    setExternalPosts([]);
+
     try {
+      // For external-only feeds (Bluesky or Mastodon only)
+      if (source === 'bluesky') {
+        const result = await getBlueskyDiscover(20);
+        setExternalPosts(result.posts);
+        setPosts([]);
+        setHasMore(!!result.nextCursor);
+        setNextCursor(result.nextCursor);
+        return;
+      }
+
+      if (source === 'mastodon') {
+        const result = await getMastodonTrending('mastodon.social', 20);
+        setExternalPosts(result.posts);
+        setPosts([]);
+        setHasMore(!!result.nextCursor);
+        setNextCursor(result.nextCursor);
+        return;
+      }
+
+      // For mixed feed, fetch both in parallel
+      if (source === 'mixed') {
+        const params: any = {
+          nodeId: nodeId || undefined,
+          limit: 15, // Fetch fewer Node posts to make room for external
+          timeRange: settings.intermediate?.timeRange,
+          textOnly: settings.intermediate?.textOnly,
+          mediaOnly: settings.intermediate?.mediaOnly,
+          linksOnly: settings.intermediate?.linksOnly,
+          hasDiscussion: settings.intermediate?.hasDiscussion,
+          qualityWeight: settings.weights.quality,
+          recencyWeight: settings.weights.recency,
+          engagementWeight: settings.weights.engagement,
+          personalizationWeight: settings.weights.personalization,
+        };
+
+        const [nodeData, externalData] = await Promise.all([
+          getFeed(params),
+          getCombinedExternalFeed(['bluesky', 'mastodon'], 10),
+        ]);
+
+        const mappedPosts = nodeData.posts.map(mapPost);
+        setPosts(mappedPosts);
+        setExternalPosts(externalData.posts);
+        setNextCursor(nodeData.nextCursor);
+        setHasMore(nodeData.hasMore);
+        return;
+      }
+
+      // Node Social only feed
       const params: any = {
         nodeId: nodeId || undefined,
         limit: 20,
@@ -517,7 +615,6 @@ const MainApp = () => {
       const data = await getFeed(params);
 
       const mappedPosts = data.posts.map(mapPost);
-      console.log('[fetchFeed] Got', mappedPosts.length, 'posts');
       setPosts(mappedPosts);
       setNextCursor(data.nextCursor);
       setHasMore(data.hasMore);
@@ -574,7 +671,6 @@ const MainApp = () => {
       });
       setNextCursor(data.nextCursor);
       setHasMore(data.hasMore);
-      console.log('[loadMorePosts] Loaded', mappedPosts.length, 'more posts, hasMore:', data.hasMore);
     } catch (error) {
       console.error('Failed to load more posts:', error);
     } finally {
@@ -607,22 +703,65 @@ const MainApp = () => {
     return () => clearTimeout(timer);
   }, [algoSettings, settingsInitialized]);
 
-  const handleNodeSelect = (nodeId: string | null) => {
-    console.log('[handleNodeSelect] Called with nodeId:', nodeId);
+  const handleNodeSelect = (nodeId: string | null, name?: string, _slug?: string) => {
+    // In multi-column mode ON DESKTOP, update the first column AND manage node-info column
+    if (isDesktop && isMultiColumnEnabled && nodeId) {
+      const node = nodes.find(n => n.id === nodeId);
+      const nodeName = name || node?.name || 'Node';
+      const store = useColumnsStore.getState();
+      const columns = store.columns;
+
+      if (columns.length > 0) {
+        // Update the first column to show this node's feed
+        store.updateColumn(columns[0].id, {
+          type: 'node',
+          nodeId,
+          title: nodeName
+        });
+
+        // Find any existing node-info column (we only keep one, always beside the feed)
+        const existingInfoColIndex = columns.findIndex(c => c.type === 'node-info');
+
+        if (existingInfoColIndex !== -1) {
+          // Update the existing node-info column with the new node
+          store.updateColumn(columns[existingInfoColIndex].id, {
+            type: 'node-info',
+            nodeId,
+            title: `${nodeName} Info`
+          });
+
+          // If it's not already at position 1 (right after feed), move it there
+          if (existingInfoColIndex !== 1) {
+            store.reorderColumns(existingInfoColIndex, 1);
+          }
+        } else {
+          // No node-info column exists, add one and move it to position 1
+          store.addColumn({
+            type: 'node-info',
+            nodeId,
+            title: `${nodeName} Info`
+          });
+
+          // After adding, it's at the end - move it to position 1
+          const newColumns = store.columns;
+          if (newColumns.length > 2) {
+            store.reorderColumns(newColumns.length - 1, 1);
+          }
+        }
+      }
+      return; // Don't change main feed state in multi-column mode
+    }
+
+    // Single-feed mode: original behavior
     setSelectedNodeId(nodeId);
     setSearchQuery(''); // Clear search when changing nodes
     setSearchUserResults([]); // Clear user search results
     setCurrentView('feed'); // Always return to feed view when selecting a node
-    // If selecting a node, we implicitly go to global mode for that node
-    // But if we are in discovery/following, maybe we should stay there?
-    // For now, let's reset to global when picking a node to be safe/simple
     setFeedMode('global');
-    console.log('[handleNodeSelect] Calling fetchFeed with nodeId:', nodeId);
     fetchFeed(nodeId, 'global');
   };
 
   const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
-    console.log('[handleFeedModeSelect] Called with mode:', mode);
     setFeedMode(mode);
     setSelectedNodeId(null); // Clear node selection
     setSearchQuery('');
@@ -707,9 +846,13 @@ const MainApp = () => {
 
   useEffect(() => {
     const init = async () => {
-      await fetchNodes();
-      await loadColumnsConfig(); // Load multi-column config
-      const loadedSettings = await loadFeedPreferences();
+      // Parallelize init calls for faster startup (-1.5-2s improvement)
+      const [_, loadedSettings] = await Promise.all([
+        fetchNodes(),
+        loadFeedPreferences(),
+      ]);
+      // Load column config after nodes (may reference node data)
+      await loadColumnsConfig();
       // Update ref synchronously before triggering the fetch effect
       // This ensures fetchFeed uses the loaded settings, not defaults
       if (loadedSettings) {
@@ -796,16 +939,6 @@ const MainApp = () => {
     };
   }, [socket]);
 
-  // Check for Beta Route
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const path = window.location.pathname;
-      console.log('Current Path:', path); // DEBUG
-      if (path.includes('beta')) {
-        setCurrentView('beta');
-      }
-    }
-  }, []);
 
   // Status bar height for positioning
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : insets.top;
@@ -839,17 +972,26 @@ const MainApp = () => {
               onProfileClick={() => navigateTo('profile')}
               selectedNodeId={selectedNodeId}
               onNodeSelect={handleNodeSelect}
+              onNodeInfo={(nodeId) => {
+                setNodeInfoNodeId(nodeId);
+                setNodeInfoVisible(true);
+              }}
               feedMode={feedMode}
               onFeedModeSelect={handleFeedModeSelect}
               onThemesClick={() => navigateTo('themes')}
               onSavedClick={() => requireAuth('Sign in to see your saved posts') && navigateTo('saved')}
-              onBetaClick={() => navigateTo('beta')}
               onNewPostClick={() => requireAuth('Sign in to create posts') && setIsCreatePostOpen(true)}
               onModerationClick={() => navigateTo('moderation')}
               onAppealsClick={() => navigateTo('appeals')}
               onCouncilClick={() => navigateTo('council')}
               onVouchesClick={() => navigateTo('vouches')}
               onBlockedMutedClick={() => requireAuth('Sign in to manage blocked users') && navigateTo('blocked-muted')}
+              onNotificationsClick={() => requireAuth('Sign in to see your notifications') && navigateTo('notifications')}
+              onMessagesClick={() => requireAuth('Sign in to access messages') && navigateTo('messages')}
+              onAddColumnClick={() => setShowAddColumnModal(true)}
+              unreadNotifications={0}
+              unreadMessages={0}
+              isMultiColumnEnabled={isMultiColumnEnabled}
               currentView={currentView}
               collapsed={sidebarCollapsed}
               onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
@@ -859,80 +1001,6 @@ const MainApp = () => {
 
         {/* Main Content Wrapper */}
         <View style={{ flex: 1, borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
-
-          {/* Desktop Header - Full Width */}
-          {isDesktop && (
-            <View style={styles.desktopHeader}>
-              {/* Left: Search */}
-              <View style={styles.searchContainerDesktop}>
-                <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
-                <TextInput
-                  style={styles.inputDesktop}
-                  placeholder="Search posts, users, nodes... (press Enter)"
-                  placeholderTextColor={COLORS.node.muted}
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onSubmitEditing={handleSearch}
-                  returnKeyType="search"
-                />
-                {searchQuery.trim() && (
-                  <TouchableOpacity
-                    style={styles.searchButton}
-                    onPress={handleSearch}
-                  >
-                    <Search size={14} color="#fff" />
-                  </TouchableOpacity>
-                )}
-              </View>
-
-              {/* Center: Nav Icons */}
-              <View style={styles.navIconsDesktop}>
-                {isMultiColumnEnabled && (
-                  <TouchableOpacity style={styles.addColumnButtonHeader} onPress={() => setShowAddColumnModal(true)}>
-                    <Plus size={16} color={COLORS.node.accent} />
-                    <Text style={styles.addColumnButtonText}>Add Column</Text>
-                  </TouchableOpacity>
-                )}
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => requireAuth('Sign in to access messages') && navigateTo('messages')}>
-                  <MessageSquare size={20} color={COLORS.node.text} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => requireAuth('Sign in to see your notifications') && navigateTo('notifications')}>
-                  <Bell size={20} color={COLORS.node.text} />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconButtonDesktop} onPress={() => setRightPanelOpen(!rightPanelOpen)}>
-                  <PanelRight size={20} color={rightPanelOpen ? COLORS.node.accent : COLORS.node.text} />
-                </TouchableOpacity>
-              </View>
-
-              {/* Right: Vibe Validator Button + Dropdown (far right like mobile) */}
-              <View style={{ position: 'relative' }}>
-                <TouchableOpacity
-                  onPress={() => setVibeVisible(!vibeVisible)}
-                  style={styles.presetButton}
-                >
-                  <Text style={styles.presetButtonText} numberOfLines={1}>
-                    {getPresetDisplayName(algoSettings.preset as PresetType)}
-                  </Text>
-                  <ChevronDown size={14} color={COLORS.node.accent} />
-                </TouchableOpacity>
-
-                {/* Desktop Vibe Validator Dropdown */}
-                {vibeVisible && (
-                  <>
-                    {/* Invisible backdrop to close dropdown when clicking outside */}
-                    <TouchableOpacity
-                      style={styles.dropdownBackdrop}
-                      onPress={() => setVibeVisible(false)}
-                      activeOpacity={1}
-                    />
-                    <View style={styles.vibeDropdown}>
-                      <VibeValidator settings={algoSettings} onUpdate={setAlgoSettings} />
-                    </View>
-                  </>
-                )}
-              </View>
-            </View>
-          )}
 
           {/* Mobile Header */}
           {!isDesktop && (
@@ -946,9 +1014,54 @@ const MainApp = () => {
                 onSearch={handleSearch}
                 algoSettings={algoSettings}
                 onVibeClick={() => setVibeVisible(true)}
+                feedSource={feedSource}
+                onFeedSourceChange={(source) => {
+                  setFeedSource(source);
+                  // Trigger fetch with new source
+                  fetchFeed(selectedNodeId, feedMode);
+                }}
                 onMenuClick={() => setMenuVisible(true)}
                 isDesktop={false}
               />
+              {/* Node Header - Show when viewing a specific node, animates with main header */}
+              {selectedNodeId && currentView === 'feed' && (() => {
+                const currentNode = nodes.find(n => n.id === selectedNodeId);
+                if (!currentNode) return null;
+                return (
+                  <View style={styles.mobileNodeHeader}>
+                    <TouchableOpacity
+                      style={styles.mobileNodeHeaderBack}
+                      onPress={() => handleNodeSelect(null)}
+                    >
+                      <Text style={styles.mobileNodeHeaderBackText}>← All</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.mobileNodeHeaderInfo}
+                      onPress={() => {
+                        setNodeInfoNodeId(selectedNodeId);
+                        setNodeInfoVisible(true);
+                      }}
+                    >
+                      {currentNode.avatar ? (
+                        <Image
+                          source={{ uri: currentNode.avatar }}
+                          style={styles.mobileNodeHeaderAvatar}
+                        />
+                      ) : (
+                        <View style={[styles.mobileNodeHeaderAvatar, { backgroundColor: currentNode.color || '#6366f1' }]}>
+                          <Text style={styles.mobileNodeHeaderAvatarText}>
+                            {currentNode.name?.charAt(0).toUpperCase() || 'N'}
+                          </Text>
+                        </View>
+                      )}
+                      <Text style={styles.mobileNodeHeaderName} numberOfLines={1}>
+                        {currentNode.name}
+                      </Text>
+                      <HelpCircle size={16} color={COLORS.node.muted} />
+                    </TouchableOpacity>
+                  </View>
+                );
+              })()}
             </Animated.View>
           )}
 
@@ -979,32 +1092,37 @@ const MainApp = () => {
                   />
                 ) : (
                   /* Mobile/Tablet Single Feed */
-                  <Feed
-                    posts={posts}
-                    currentUser={user}
-                    onPostAction={(postId, _action) => {
-                      // Optimistic update: remove post from feed
-                      setPosts(prev => prev.filter(p => p.id !== postId));
-                    }}
-                    onPostClick={handlePostClick}
-                    onAuthorClick={(authorId) => {
-                      navigateTo('profile', { userId: authorId });
-                    }}
-                    onSaveToggle={(postId, saved) => {
-                      // Update post's saved state in feed
-                      setPosts(prev => prev.map(p =>
-                        p.id === postId ? { ...p, isSaved: saved } : p
-                      ));
-                    }}
-                    globalNodeId={nodes.find(n => n.slug === 'global')?.id}
-                    onScroll={!isDesktop ? handleScroll : undefined}
-                    headerOffset={!isDesktop ? 64 : 0}
-                    onLoadMore={loadMorePosts}
-                    hasMore={hasMore}
-                    loadingMore={loadingMore}
-                    searchUserResults={searchUserResults}
-                    onUserClick={(userId) => navigateTo('profile', { userId })}
-                  />
+                  loading && posts.length === 0 ? (
+                    <SkeletonFeed count={6} />
+                  ) : (
+                    <Feed
+                      posts={posts}
+                      externalPosts={externalPosts}
+                      currentUser={user}
+                      onPostAction={(postId, _action) => {
+                        // Optimistic update: remove post from feed
+                        setPosts(prev => prev.filter(p => p.id !== postId));
+                      }}
+                      onPostClick={handlePostClick}
+                      onAuthorClick={(authorId) => {
+                        navigateTo('profile', { userId: authorId });
+                      }}
+                      onSaveToggle={(postId, saved) => {
+                        // Update post's saved state in feed
+                        setPosts(prev => prev.map(p =>
+                          p.id === postId ? { ...p, isSaved: saved } : p
+                        ));
+                      }}
+                      globalNodeId={nodes.find(n => n.slug === 'global')?.id}
+                      onScroll={!isDesktop ? handleScroll : undefined}
+                      headerOffset={!isDesktop ? (selectedNodeId ? 64 + 44 : 64) : 0}
+                      onLoadMore={loadMorePosts}
+                      hasMore={hasMore}
+                      loadingMore={loadingMore}
+                      searchUserResults={searchUserResults}
+                      onUserClick={(userId) => navigateTo('profile', { userId })}
+                    />
+                  )
                 )}
               </View>
             ) : currentView === 'profile' ? (
@@ -1015,8 +1133,6 @@ const MainApp = () => {
                 userId={viewParams?.userId}
                 onViewTrustGraph={() => navigateTo('trust-graph')}
               />
-            ) : currentView === 'beta' ? (
-              <BetaTestScreen onBack={goBack} />
             ) : currentView === 'notifications' ? (
               <NotificationsScreen
                 onBack={goBack}
@@ -1116,7 +1232,7 @@ const MainApp = () => {
         </View>
 
         {/* Desktop Right Panel - Hidden when multi-column mode is enabled (WhatsVibing is now a column type) */}
-        {isDesktop && rightPanelOpen && !isMultiColumnEnabled && (
+        {isDesktop && !isMultiColumnEnabled && (
           <View style={styles.drawerRight}>
             {selectedNodeId ? (
               <NodeLandingPage
@@ -1178,6 +1294,11 @@ const MainApp = () => {
                 }}
                 selectedNodeId={selectedNodeId}
                 onNodeSelect={handleNodeSelect}
+                onNodeInfo={(nodeId) => {
+                  // Don't close the sidebar - show NodeInfoSheet on top
+                  setNodeInfoNodeId(nodeId);
+                  setNodeInfoVisible(true);
+                }}
                 feedMode={feedMode}
                 onFeedModeSelect={handleFeedModeSelect}
                 onThemesClick={() => {
@@ -1187,10 +1308,6 @@ const MainApp = () => {
                 onSavedClick={() => {
                   setMenuVisible(false);
                   navigateTo('saved');
-                }}
-                onBetaClick={() => {
-                  setMenuVisible(false);
-                  navigateTo('beta');
                 }}
                 onModerationClick={() => {
                   setMenuVisible(false);
@@ -1214,6 +1331,20 @@ const MainApp = () => {
                     navigateTo('blocked-muted');
                   }
                 }}
+                onNotificationsClick={() => {
+                  setMenuVisible(false);
+                  if (requireAuth('Sign in to see your notifications')) {
+                    navigateTo('notifications');
+                  }
+                }}
+                onMessagesClick={() => {
+                  setMenuVisible(false);
+                  if (requireAuth('Sign in to access messages')) {
+                    navigateTo('messages');
+                  }
+                }}
+                unreadNotifications={0}
+                unreadMessages={0}
                 currentView={currentView}
               />
             </View>
@@ -1256,6 +1387,23 @@ const MainApp = () => {
           </View>
         </Modal>
       )}
+
+      {/* Node Info Sheet */}
+      <NodeInfoSheet
+        visible={nodeInfoVisible}
+        onClose={() => {
+          setNodeInfoVisible(false);
+          setNodeInfoNodeId(null);
+        }}
+        nodeId={nodeInfoNodeId}
+        onViewPosts={() => {
+          if (nodeInfoNodeId) {
+            // Close the sidebar menu too when viewing posts
+            setMenuVisible(false);
+            handleNodeSelect(nodeInfoNodeId);
+          }
+        }}
+      />
 
     </SafeAreaView>
     </View>
@@ -1389,92 +1537,6 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
-  // Desktop Header
-  desktopHeader: {
-    height: 64,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
-    backgroundColor: COLORS.node.bg,
-    width: '100%',
-    zIndex: 10000,
-    position: 'relative',
-  },
-  searchContainerDesktop: {
-    flex: 1,
-    maxWidth: 400,
-    position: 'relative',
-    justifyContent: 'center',
-  },
-  inputDesktop: {
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    paddingVertical: 8,
-    paddingLeft: 36,
-    paddingRight: 40,
-    color: '#fff',
-    fontSize: 14,
-  },
-  searchButton: {
-    position: 'absolute',
-    right: 8,
-    top: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: COLORS.node.accent,
-    borderRadius: 6,
-  },
-  navIconsDesktop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  iconButtonDesktop: {
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.node.panel,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  addColumnButtonHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    backgroundColor: `${COLORS.node.accent}15`,
-    borderWidth: 1,
-    borderColor: COLORS.node.accent,
-    marginRight: 8,
-  },
-  addColumnButtonText: {
-    color: COLORS.node.accent,
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  presetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    backgroundColor: `${COLORS.node.accent}15`,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.accent,
-  },
-  presetButtonText: {
-    color: COLORS.node.accent,
-    fontSize: 13,
-    fontWeight: '600',
-  },
   // Mobile Header
   mobileHeader: {
     position: 'absolute',
@@ -1506,32 +1568,6 @@ const styles = StyleSheet.create({
     height: '100%',
     position: 'relative',
   },
-  // Desktop Vibe Validator Dropdown (like banner editor)
-  dropdownBackdrop: {
-    position: 'fixed' as any,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 9998,
-  },
-  vibeDropdown: {
-    position: 'absolute',
-    top: '100%',
-    right: 0,
-    marginTop: 8,
-    width: 400,
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-    zIndex: 9999,
-  },
   // Mobile Vibe Validator - 90% height bottom sheet
   vibeModalOverlay: {
     flex: 1,
@@ -1546,5 +1582,56 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     height: '90%',
+  },
+  // Mobile Node Header - shown when viewing a specific node (inside animated header)
+  mobileNodeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: COLORS.node.panel,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.node.border,
+  },
+  mobileNodeHeaderBack: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: COLORS.node.bg,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: COLORS.node.border,
+  },
+  mobileNodeHeaderBackText: {
+    fontSize: 13,
+    color: COLORS.node.textSecondary,
+    fontWeight: '500',
+  },
+  mobileNodeHeaderInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginLeft: 12,
+  },
+  mobileNodeHeaderAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  mobileNodeHeaderAvatarText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  mobileNodeHeaderName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: COLORS.node.text,
+    maxWidth: 150,
   },
 });

@@ -55,6 +55,10 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
     }
   };
 
+  // Info-type columns (node-info, trending) are narrower
+  const isNarrowColumn = (type: string) => type === 'node-info' || type === 'trending';
+  const NARROW_COLUMN_WIDTH = 280;
+
   return (
     <View style={styles.container}>
       {/* Columns Row - flex layout, no horizontal scroll */}
@@ -64,7 +68,11 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
             key={column.id}
             style={[
               styles.columnWrapper,
-              { marginLeft: index === 0 ? 0 : COLUMNS.gap }
+              { marginLeft: index === 0 ? 0 : 1 }, // Minimal gap between columns
+              // Narrow columns get fixed width, others get flex
+              isNarrowColumn(column.type)
+                ? { flex: 0, width: NARROW_COLUMN_WIDTH, minWidth: NARROW_COLUMN_WIDTH }
+                : { flex: 1 }
             ]}
           >
             <FeedColumn
@@ -105,14 +113,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.node.bg,
-    padding: 12,
   },
   columnsRow: {
     flex: 1,
     flexDirection: 'row',
   },
   columnWrapper: {
-    flex: 1,
     minWidth: COLUMNS.minWidth,
   },
 });

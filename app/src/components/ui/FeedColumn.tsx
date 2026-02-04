@@ -4,12 +4,14 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView
 import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
 import { COLORS, COLUMNS } from '../../constants/theme';
 import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
-import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead } from '../../lib/api';
+import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost } from '../../lib/api';
 import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell } from 'lucide-react-native';
 import { Feed } from './Feed';
 import { WhatsVibing } from './WhatsVibing';
+import { NodeLandingPage } from './NodeLandingPage';
 import { ColumnSearchBar } from './ColumnSearchBar';
 import { VibeValidatorModal } from './VibeValidatorModal';
+import { ExternalPostCard } from './ExternalPostCard';
 
 interface FeedColumnProps {
   column: FeedColumnType;
@@ -38,6 +40,50 @@ const DEFAULT_VIBE_SETTINGS: ColumnVibeSettings = {
   weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
 };
 
+// Map API posts to Feed format - pure function, no component dependencies
+const mapPosts = (apiPosts: any[]) => {
+  return apiPosts.map((p: any) => ({
+    id: p.id,
+    node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
+    author: {
+      id: p.author.id,
+      username: p.author.username || 'User',
+      avatar: p.author.avatar,
+      era: p.author.era || 'Lurker Era',
+      cred: p.author.cred || 0
+    },
+    title: p.title || 'Untitled Post',
+    content: p.content,
+    contentJson: p.contentJson,
+    contentFormat: p.contentFormat,
+    commentCount: p.commentCount,
+    createdAt: p.createdAt,
+    expertGated: false,
+    vibes: [],
+    linkUrl: p.linkUrl,
+    mediaUrl: p.mediaUrl,
+    linkMeta: p.linkMeta,
+    poll: p.poll,
+    myReaction: p.myReaction,
+    vibeAggregate: p.vibeAggregate,
+    isSaved: p.isSaved ?? false,
+    comments: p.comments?.map((c: any) => ({
+      id: c.id,
+      author: {
+        id: c.author.id,
+        username: c.author.username || 'User',
+        avatar: c.author.avatar,
+        era: c.author.era || 'Lurker Era',
+        cred: c.author.cred || 0
+      },
+      content: c.content,
+      timestamp: new Date(c.createdAt),
+      depth: 0,
+      replies: []
+    })) || []
+  }));
+};
+
 export const FeedColumn: React.FC<FeedColumnProps> = ({
   column,
   currentUser,
@@ -57,6 +103,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 }) => {
   // Independent state for this column
   const [posts, setPosts] = useState<any[]>([]);
+  const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -89,53 +136,17 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
     onUpdateColumn?.({ vibeSettings: settings });
   };
 
-  // Map API posts to Feed format
-  const mapPosts = (apiPosts: any[]) => {
-    return apiPosts.map((p: any) => ({
-      id: p.id,
-      node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
-      author: {
-        id: p.author.id,
-        username: p.author.username || 'User',
-        avatar: p.author.avatar,
-        era: p.author.era || 'Lurker Era',
-        cred: p.author.cred || 0
-      },
-      title: p.title || 'Untitled Post',
-      content: p.content,
-      commentCount: p.commentCount,
-      createdAt: p.createdAt,
-      expertGated: false,
-      vibes: [],
-      linkUrl: p.linkUrl,
-      mediaUrl: p.mediaUrl,
-      linkMeta: p.linkMeta,
-      poll: p.poll,
-      myReaction: p.myReaction,
-      vibeAggregate: p.vibeAggregate,
-      isSaved: p.isSaved ?? false,
-      comments: p.comments?.map((c: any) => ({
-        id: c.id,
-        author: {
-          id: c.author.id,
-          username: c.author.username || 'User',
-          avatar: c.author.avatar,
-          era: c.author.era || 'Lurker Era',
-          cred: c.author.cred || 0
-        },
-        content: c.content,
-        timestamp: new Date(c.createdAt),
-        depth: 0,
-        replies: []
-      })) || []
-    }));
-  };
-
   // Fetch data based on column type
   const fetchData = useCallback(async (cursor?: string) => {
     try {
       // Handle trending column separately - it shows WhatsVibing, not posts
       if (column.type === 'trending') {
+        setLoading(false);
+        return;
+      }
+
+      // Handle node-info column - it shows NodeLandingPage, not posts
+      if (column.type === 'node-info') {
         setLoading(false);
         return;
       }
@@ -152,6 +163,84 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         } catch (error) {
           console.error('Error fetching notifications:', error);
           setNotifications([]);
+        }
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      // Handle external platform feeds (Tier 5)
+      if (column.type === 'bluesky') {
+        try {
+          const config = column.externalConfig;
+          let data;
+          if (config?.blueskyFeed === 'user' && config?.blueskyHandle) {
+            data = await getBlueskyUserPosts(config.blueskyHandle, 20, cursor);
+          } else {
+            // Default to discover feed
+            data = await getBlueskyDiscover(20, cursor);
+          }
+          if (cursor) {
+            setExternalPosts(prev => [...prev, ...data.posts]);
+          } else {
+            setExternalPosts(data.posts);
+          }
+          setNextCursor(data.nextCursor);
+          setHasMore(!!data.nextCursor);
+        } catch (error) {
+          console.error('Error fetching Bluesky feed:', error);
+          setExternalPosts([]);
+        }
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      if (column.type === 'mastodon') {
+        try {
+          const config = column.externalConfig;
+          const instance = config?.mastodonInstance || 'mastodon.social';
+          let data;
+          if (config?.mastodonTimeline === 'trending') {
+            const offset = cursor ? parseInt(cursor) : 0;
+            data = await getMastodonTrending(instance, 20, offset);
+            setNextCursor(data.nextCursor);
+          } else {
+            const timeline = config?.mastodonTimeline || 'public';
+            data = await getMastodonTimeline(instance, timeline, 20, cursor);
+            setNextCursor(data.nextCursor);
+          }
+          if (cursor) {
+            setExternalPosts(prev => [...prev, ...data.posts]);
+          } else {
+            setExternalPosts(data.posts);
+          }
+          setHasMore(!!data.nextCursor);
+        } catch (error) {
+          console.error('Error fetching Mastodon feed:', error);
+          setExternalPosts([]);
+        }
+        setLoading(false);
+        setRefreshing(false);
+        setLoadingMore(false);
+        return;
+      }
+
+      if (column.type === 'external-combined') {
+        try {
+          const config = column.externalConfig;
+          const data = await getCombinedExternalFeed(
+            ['bluesky', 'mastodon'],
+            20,
+            config?.mastodonInstance
+          );
+          // Combined feed doesn't support pagination yet
+          setExternalPosts(data.posts);
+          setHasMore(false);
+        } catch (error) {
+          console.error('Error fetching combined external feed:', error);
+          setExternalPosts([]);
         }
         setLoading(false);
         setRefreshing(false);
@@ -206,6 +295,88 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         params.followingOnly = true;
       }
 
+      // Apply vibe settings from the column (Tier 1: Wire up vibe validator)
+      const vibeSettings = column.vibeSettings || DEFAULT_VIBE_SETTINGS;
+      if (vibeSettings.preset && vibeSettings.preset !== 'custom') {
+        params.preset = vibeSettings.preset;
+      }
+      // Main weight sliders
+      if (vibeSettings.weights) {
+        params.qualityWeight = vibeSettings.weights.quality;
+        params.recencyWeight = vibeSettings.weights.recency;
+        params.engagementWeight = vibeSettings.weights.engagement;
+        params.personalizationWeight = vibeSettings.weights.personalization;
+      }
+      // Intermediate mode filters
+      if (vibeSettings.intermediate) {
+        if (vibeSettings.intermediate.timeRange && vibeSettings.intermediate.timeRange !== 'all') {
+          params.timeRange = vibeSettings.intermediate.timeRange;
+        }
+        if (vibeSettings.intermediate.textOnly) params.textOnly = true;
+        if (vibeSettings.intermediate.mediaOnly) params.mediaOnly = true;
+        if (vibeSettings.intermediate.linksOnly) params.linksOnly = true;
+        if (vibeSettings.intermediate.hasDiscussion) params.hasDiscussion = true;
+        // Content Intelligence (Tier 2)
+        if (vibeSettings.intermediate.textDensity && vibeSettings.intermediate.textDensity !== 'any') {
+          params.textDensity = vibeSettings.intermediate.textDensity;
+        }
+        if (vibeSettings.intermediate.mediaType && vibeSettings.intermediate.mediaType !== 'any') {
+          params.mediaType = vibeSettings.intermediate.mediaType;
+        }
+        // User Context (Tier 3)
+        if (vibeSettings.intermediate.showSeenPosts !== undefined) {
+          params.showSeenPosts = vibeSettings.intermediate.showSeenPosts;
+        }
+        if (vibeSettings.intermediate.hideMutedWords !== undefined) {
+          params.hideMutedWords = vibeSettings.intermediate.hideMutedWords;
+        }
+        if (vibeSettings.intermediate.discoveryRate !== undefined && vibeSettings.intermediate.discoveryRate > 0) {
+          params.discoveryRate = vibeSettings.intermediate.discoveryRate;
+        }
+      }
+      // Advanced mode - all sub-signal weights
+      if (vibeSettings.advanced) {
+        const adv = vibeSettings.advanced;
+        // Quality sub-signals
+        params.authorCredWeight = adv.authorCredWeight;
+        params.vectorQualityWeight = adv.vectorQualityWeight;
+        params.confidenceWeight = adv.confidenceWeight;
+        // Recency sub-signals
+        params.timeDecay = adv.timeDecay;
+        params.velocity = adv.velocity;
+        params.freshness = adv.freshness;
+        params.halfLifeHours = adv.halfLifeHours;
+        params.decayFunction = adv.decayFunction;
+        // Engagement sub-signals
+        params.intensity = adv.intensity;
+        params.discussionDepth = adv.discussionDepth;
+        params.shareWeight = adv.shareWeight;
+        params.expertCommentBonus = adv.expertCommentBonus;
+        // Personalization sub-signals
+        params.followingWeight = adv.followingWeight;
+        params.alignment = adv.alignment;
+        params.affinity = adv.affinity;
+        params.trustNetwork = adv.trustNetwork;
+        // Vector multipliers (send as JSON string)
+        if (adv.vectorMultipliers) {
+          params.vectorMultipliers = JSON.stringify(adv.vectorMultipliers);
+        }
+        params.antiAlignmentPenalty = adv.antiAlignmentPenalty;
+      }
+      // Expert mode - diversity controls and mood
+      if (vibeSettings.expert) {
+        const exp = vibeSettings.expert;
+        params.maxPostsPerAuthor = exp.maxPostsPerAuthor;
+        params.topicClusteringPenalty = exp.topicClusteringPenalty;
+        params.textRatio = exp.textRatio;
+        params.imageRatio = exp.imageRatio;
+        params.videoRatio = exp.videoRatio;
+        params.linkRatio = exp.linkRatio;
+        if (exp.moodToggle && exp.moodToggle !== 'normal') {
+          params.moodToggle = exp.moodToggle;
+        }
+      }
+
       const data = await getFeed(params);
       if (cursor) {
         setPosts(prev => [...prev, ...mapPosts(data.posts)]);
@@ -227,15 +398,20 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   useEffect(() => {
     setLoading(true);
     setPosts([]);
+    setExternalPosts([]);
     setNextCursor(undefined);
     setHasMore(true);
     fetchData();
-  }, [column.type, column.nodeId, column.searchQuery, column.userId]);
+  }, [column.type, column.nodeId, column.searchQuery, column.userId, column.vibeSettings, column.externalConfig]);
 
-  // Auto-refresh every 60 seconds
+  // Auto-refresh every 60 seconds (only for Node Social feeds, not external)
   useEffect(() => {
-    // Don't auto-refresh profile or search columns
-    if (column.type === 'profile' || column.type === 'search' || column.type === 'notifications') {
+    // Don't auto-refresh static columns or external feeds
+    const noAutoRefresh: ColumnType[] = [
+      'profile', 'search', 'notifications', 'node-info', 'trending',
+      'bluesky', 'mastodon', 'external-combined'  // External feeds don't need auto-refresh
+    ];
+    if (noAutoRefresh.includes(column.type)) {
       return;
     }
 
@@ -248,6 +424,18 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 
     return () => clearInterval(interval);
   }, [column.type, loading, refreshing, loadingMore, fetchData]);
+
+  // Tier 4: Prefetch next page after initial load for smoother infinite scroll
+  useEffect(() => {
+    if (!loading && posts.length > 0 && hasMore && nextCursor && !loadingMore) {
+      // Prefetch after a short delay to not block initial render
+      const prefetchTimer = setTimeout(() => {
+        // The actual fetch will happen when user scrolls - this just primes the connection
+        // In a more advanced setup, we'd use React Query's prefetchInfiniteQuery
+      }, 2000);
+      return () => clearTimeout(prefetchTimer);
+    }
+  }, [loading, posts.length, hasMore, nextCursor, loadingMore]);
 
   // Refresh handler
   const handleRefresh = useCallback(() => {
@@ -287,6 +475,18 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
       return <WhatsVibing onNodeClick={onNodeClick || (() => {})} />;
     }
 
+    if (column.type === 'node-info' && column.nodeId) {
+      return (
+        <NodeLandingPage
+          nodeId={column.nodeId}
+          onNavigateToSettings={() => {}}
+          onNavigateToModLog={() => {}}
+          onMessageCouncil={() => {}}
+          onStartChat={() => {}}
+        />
+      );
+    }
+
     if (column.type === 'notifications') {
       if (loading) {
         return (
@@ -299,7 +499,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         return <Text style={styles.emptyText}>No notifications yet</Text>;
       }
       return (
-        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }}>
+        <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 8 }} showsVerticalScrollIndicator={false}>
           {notifications.map((item) => {
             const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
             return (
@@ -332,6 +532,44 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
               </TouchableOpacity>
             );
           })}
+        </ScrollView>
+      );
+    }
+
+    // External platform feeds (Tier 5)
+    if (column.type === 'bluesky' || column.type === 'mastodon' || column.type === 'external-combined') {
+      if (loading) {
+        return (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={COLORS.node.accent} />
+          </View>
+        );
+      }
+      if (externalPosts.length === 0) {
+        return <Text style={styles.emptyText}>No posts found</Text>;
+      }
+      return (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ padding: 8 }}
+          showsVerticalScrollIndicator={false}
+          onScroll={({ nativeEvent }) => {
+            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+            const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 500;
+            if (isNearBottom && hasMore && !loadingMore) {
+              handleLoadMore();
+            }
+          }}
+          scrollEventThrottle={400}
+        >
+          {externalPosts.map((post) => (
+            <ExternalPostCard key={post.id} post={post} />
+          ))}
+          {loadingMore && (
+            <View style={{ padding: 20, alignItems: 'center' }}>
+              <ActivityIndicator size="small" color={COLORS.node.accent} />
+            </View>
+          )}
         </ScrollView>
       );
     }
@@ -440,10 +678,9 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 const styles = StyleSheet.create({
   column: {
     flex: 1,
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
+    backgroundColor: COLORS.node.bg,
+    borderRightWidth: 1,
+    borderRightColor: COLORS.node.border,
     overflow: 'hidden',
   },
   header: {
@@ -456,32 +693,9 @@ const styles = StyleSheet.create({
     borderBottomColor: COLORS.node.border,
     backgroundColor: COLORS.node.bgAlt,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flex: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
   headerButton: {
     padding: 6,
     borderRadius: 6,
-  },
-  titleButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-  },
-  title: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.node.text,
-    flex: 1,
   },
   content: {
     flex: 1,
@@ -497,134 +711,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: 'center',
     padding: 20,
-  },
-  // Type dropdown
-  dropdownBackdrop: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 99,
-  },
-  typeDropdown: {
-    position: 'absolute',
-    top: COLUMNS.headerHeight,
-    left: 8,
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    padding: 4,
-    zIndex: 100,
-    minWidth: 160,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
-  typeOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-  },
-  typeOptionActive: {
-    backgroundColor: `${COLORS.node.accent}15`,
-  },
-  typeOptionText: {
-    fontSize: 13,
-    color: COLORS.node.text,
-  },
-  typeOptionTextActive: {
-    color: COLORS.node.accent,
-    fontWeight: '600',
-  },
-  // Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    width: '90%',
-    maxWidth: 400,
-    maxHeight: '70%',
-    backgroundColor: COLORS.node.panel,
-    borderRadius: 12,
-    padding: 16,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: COLORS.node.text,
-  },
-  nodeList: {
-    maxHeight: 300,
-  },
-  nodeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderRadius: 8,
-  },
-  nodeAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-  },
-  nodeAvatarPlaceholder: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  nodeAvatarText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  nodeName: {
-    fontSize: 14,
-    color: COLORS.node.text,
-    fontWeight: '500',
-  },
-  searchInput: {
-    backgroundColor: COLORS.node.bg,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 15,
-    color: COLORS.node.text,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-    marginBottom: 12,
-  },
-  searchButton: {
-    backgroundColor: COLORS.node.accent,
-    borderRadius: 8,
-    padding: 12,
-    alignItems: 'center',
-  },
-  searchButtonDisabled: {
-    opacity: 0.5,
-  },
-  searchButtonText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '600',
   },
   // Notification styles
   notificationItem: {

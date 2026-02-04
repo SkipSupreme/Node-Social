@@ -36,6 +36,7 @@ import searchRoutes from './routes/search.js';
 import uploadsRoutes from './routes/uploads.js';
 import trendingRoutes from './routes/trending.js';
 import trustRoutes from './routes/trust.js';
+import externalRoutes from './routes/external.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
@@ -224,6 +225,7 @@ export async function build(): Promise<FastifyInstance> {
   await app.register(searchRoutes); // Search routes - /search/posts
   await app.register(uploadsRoutes, { prefix: '/api/uploads' }); // File upload routes (separate from static /uploads)
   await app.register(trendingRoutes); // Trending routes - /trending/vibes, /trending/nodes, /discover/nodes
+  await app.register(externalRoutes, { prefix: '/external' }); // Tier 5: External platform feeds (Bluesky, Mastodon)
 
   // health check
   app.get('/health', async () => ({ ok: true }));

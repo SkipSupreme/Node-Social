@@ -6,12 +6,16 @@ import { storage } from "../lib/storage";
 export type ColumnType =
   | 'global'
   | 'node'
+  | 'node-info'
   | 'discovery'
   | 'following'
   | 'profile'
   | 'notifications'
   | 'search'
-  | 'trending';
+  | 'trending'
+  | 'bluesky'
+  | 'mastodon'
+  | 'external-combined';
 
 // Vibe settings for feed algorithm (matches VibeValidator)
 export interface ColumnVibeSettings {
@@ -32,10 +36,25 @@ export interface ColumnVibeSettings {
     mediaOnly: boolean;
     linksOnly: boolean;
     hasDiscussion: boolean;
+    // Content Intelligence (Tier 2)
+    textDensity: 'any' | 'micro' | 'short' | 'medium' | 'long';
+    mediaType: 'any' | 'photo' | 'video' | 'gif';
   };
   // Advanced and expert settings are optional and stored as-is
   advanced?: Record<string, unknown>;
   expert?: Record<string, unknown>;
+}
+
+// External platform configuration
+export interface ExternalFeedConfig {
+  platform: 'bluesky' | 'mastodon';
+  // Bluesky options
+  blueskyFeed?: 'discover' | 'feed' | 'user';
+  blueskyHandle?: string;  // For user feed
+  blueskyFeedUri?: string; // For custom feed
+  // Mastodon options
+  mastodonInstance?: string;
+  mastodonTimeline?: 'public' | 'local' | 'trending';
 }
 
 export interface FeedColumn {
@@ -46,6 +65,7 @@ export interface FeedColumn {
   searchQuery?: string;   // For search-type columns
   userId?: string;        // For profile-type columns
   vibeSettings?: ColumnVibeSettings; // Per-column feed algorithm settings
+  externalConfig?: ExternalFeedConfig; // For external platform columns (Tier 5)
 }
 
 // Generate unique ID for columns

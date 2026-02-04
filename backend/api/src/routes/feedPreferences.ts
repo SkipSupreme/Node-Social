@@ -390,6 +390,252 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       });
     }
   );
+
+  // ============================================
+  // TIER 3: MUTED WORDS MANAGEMENT
+  // ============================================
+
+  // Get user's muted words
+  fastify.get(
+    '/muted-words',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const mutedWords = await fastify.prisma.userMutedWord.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      return reply.send({ mutedWords });
+    }
+  );
+
+  // Add a muted word
+  fastify.post(
+    '/muted-words',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        word: z.string().min(1).max(100).transform(w => w.toLowerCase().trim()),
+        isRegex: z.boolean().optional().default(false),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { word, isRegex } = parsed.data;
+
+      // Validate regex if provided
+      if (isRegex) {
+        try {
+          new RegExp(word, 'i');
+        } catch (e) {
+          return reply.status(400).send({ error: 'Invalid regex pattern' });
+        }
+      }
+
+      // Check if already exists
+      const existing = await fastify.prisma.userMutedWord.findUnique({
+        where: { userId_word: { userId, word } },
+      });
+
+      if (existing) {
+        return reply.status(409).send({ error: 'Word already muted' });
+      }
+
+      const mutedWord = await fastify.prisma.userMutedWord.create({
+        data: { userId, word, isRegex },
+      });
+
+      return reply.status(201).send({ mutedWord });
+    }
+  );
+
+  // Delete a muted word
+  fastify.delete(
+    '/muted-words/:id',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+      const { id } = request.params as { id: string };
+
+      const mutedWord = await fastify.prisma.userMutedWord.findUnique({
+        where: { id },
+      });
+
+      if (!mutedWord || mutedWord.userId !== userId) {
+        return reply.status(404).send({ error: 'Muted word not found' });
+      }
+
+      await fastify.prisma.userMutedWord.delete({ where: { id } });
+
+      return reply.send({ message: 'Muted word removed' });
+    }
+  );
+
+  // Bulk delete muted words
+  fastify.delete(
+    '/muted-words',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        ids: z.array(z.string().uuid()).optional(),
+        all: z.boolean().optional(),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { ids, all } = parsed.data;
+
+      if (all) {
+        await fastify.prisma.userMutedWord.deleteMany({ where: { userId } });
+        return reply.send({ message: 'All muted words removed' });
+      }
+
+      if (ids && ids.length > 0) {
+        await fastify.prisma.userMutedWord.deleteMany({
+          where: { id: { in: ids }, userId },
+        });
+        return reply.send({ message: `${ids.length} muted words removed` });
+      }
+
+      return reply.status(400).send({ error: 'Provide ids array or all: true' });
+    }
+  );
+
+  // ============================================
+  // TIER 3: POST VIEW TRACKING
+  // ============================================
+
+  // Track post view (called when user sees a post in feed)
+  fastify.post(
+    '/post-views',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        postId: z.string().min(1),
+        dwellTimeMs: z.number().int().min(0).optional(),
+        scrollDepth: z.number().min(0).max(1).optional(),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { postId, dwellTimeMs, scrollDepth } = parsed.data;
+
+      // Upsert - update existing view or create new one
+      const view = await fastify.prisma.userPostView.upsert({
+        where: { userId_postId: { userId, postId } },
+        create: { userId, postId, dwellTimeMs, scrollDepth },
+        update: { viewedAt: new Date(), dwellTimeMs, scrollDepth },
+      });
+
+      return reply.send({ view });
+    }
+  );
+
+  // Batch track post views (more efficient for feed scrolling)
+  fastify.post(
+    '/post-views/batch',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        postIds: z.array(z.string().min(1)).min(1).max(50),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { postIds } = parsed.data;
+
+      // Batch upsert using createMany with skipDuplicates + updateMany
+      // This is efficient for marking many posts as seen at once
+      await fastify.prisma.$transaction([
+        // Create new views for posts not yet seen
+        fastify.prisma.userPostView.createMany({
+          data: postIds.map(postId => ({ userId, postId })),
+          skipDuplicates: true,
+        }),
+        // Update viewedAt for already seen posts
+        fastify.prisma.userPostView.updateMany({
+          where: { userId, postId: { in: postIds } },
+          data: { viewedAt: new Date() },
+        }),
+      ]);
+
+      return reply.send({ message: `Tracked ${postIds.length} post views` });
+    }
+  );
+
+  // Get seen post IDs (for client-side filtering or sync)
+  fastify.get(
+    '/post-views',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const userId = (request.user as { sub: string }).sub;
+
+      const schema = z.object({
+        limit: z.coerce.number().min(1).max(1000).default(500),
+        since: z.string().datetime().optional(), // Only get views since this time
+      });
+
+      const parsed = schema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid query parameters' });
+      }
+
+      const { limit, since } = parsed.data;
+
+      const where: { userId: string; viewedAt?: { gte: Date } } = { userId };
+      if (since) {
+        where.viewedAt = { gte: new Date(since) };
+      }
+
+      const views = await fastify.prisma.userPostView.findMany({
+        where,
+        select: { postId: true, viewedAt: true },
+        orderBy: { viewedAt: 'desc' },
+        take: limit,
+      });
+
+      return reply.send({
+        postIds: views.map(v => v.postId),
+        views,
+      });
+    }
+  );
 };
 
 export default feedPreferenceRoutes;

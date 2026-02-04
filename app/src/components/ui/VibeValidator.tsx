@@ -4,9 +4,10 @@ import Slider from '@react-native-community/slider';
 import {
     Settings, TrendingUp, Clock, UserCheck, Sparkles, ChevronDown, ChevronUp,
     Zap, MessageSquare, Users, Eye, EyeOff, FileText, Image, Link2, Waypoints,
-    Shuffle, Target, Award, Scale, Flame
+    Shuffle, Target, Award, Scale, Flame, RefreshCw, Edit2
 } from './Icons';
 import { COLORS } from '../../constants/theme';
+import { MutedWordsManager } from './MutedWordsManager';
 
 // ============================================
 // TYPES
@@ -63,6 +64,9 @@ interface IntermediateSettings {
     mediaOnly: boolean;
     linksOnly: boolean;
     hasDiscussion: boolean;
+    // Content Intelligence (Tier 2)
+    textDensity: 'any' | 'micro' | 'short' | 'medium' | 'long';
+    mediaType: 'any' | 'photo' | 'video' | 'gif';
 }
 
 interface ExpertSettings {
@@ -151,6 +155,8 @@ const DEFAULT_INTERMEDIATE: IntermediateSettings = {
     mediaOnly: false,
     linksOnly: false,
     hasDiscussion: false,
+    textDensity: 'any',
+    mediaType: 'any',
 };
 
 const DEFAULT_ADVANCED: AdvancedSettings = {
@@ -193,6 +199,16 @@ const DEFAULT_EXPERT: ExpertSettings = {
     timeBasedProfiles: false,
     moodToggle: 'normal',
 };
+
+// Helper to get fully reset default settings
+const getDefaultSettings = (): VibeValidatorSettings => ({
+    preset: 'balanced',
+    weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
+    mode: 'simple',
+    intermediate: { ...DEFAULT_INTERMEDIATE, timeRange: 'all' }, // Use 'all' as safer default
+    advanced: { ...DEFAULT_ADVANCED },
+    expert: { ...DEFAULT_EXPERT },
+});
 
 // ============================================
 // HELPER COMPONENTS
@@ -442,6 +458,7 @@ const IntermediateMode = ({ settings, onUpdate }: {
     settings: VibeValidatorSettings;
     onUpdate: (s: VibeValidatorSettings) => void;
 }) => {
+    const [showMutedWords, setShowMutedWords] = useState(false);
     const weights = settings.weights;
     const intermediate = settings.intermediate || DEFAULT_INTERMEDIATE;
 
@@ -496,16 +513,63 @@ const IntermediateMode = ({ settings, onUpdate }: {
                 <Text style={intStyles.hint}>Higher = more content outside your usual preferences</Text>
             </View>
 
+            {/* Content Intelligence - Tier 2 */}
+            <View style={intStyles.section}>
+                <Text style={intStyles.sectionTitle}>Post Length</Text>
+                <View style={intStyles.pillRow}>
+                    {(['any', 'micro', 'short', 'medium', 'long'] as const).map((density) => (
+                        <TouchableOpacity
+                            key={density}
+                            style={[intStyles.pill, intermediate.textDensity === density && intStyles.pillActive]}
+                            onPress={() => updateIntermediate('textDensity', density)}
+                        >
+                            <Text style={[intStyles.pillText, intermediate.textDensity === density && intStyles.pillTextActive]}>
+                                {density === 'any' ? 'Any' : density === 'micro' ? 'Micro (<50)' : density === 'short' ? 'Short (tweets)' : density === 'medium' ? 'Medium' : 'Long'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+
+            <View style={intStyles.section}>
+                <Text style={intStyles.sectionTitle}>Media Type</Text>
+                <View style={intStyles.pillRow}>
+                    {(['any', 'photo', 'video', 'gif'] as const).map((type) => (
+                        <TouchableOpacity
+                            key={type}
+                            style={[intStyles.pill, intermediate.mediaType === type && intStyles.pillActive]}
+                            onPress={() => updateIntermediate('mediaType', type)}
+                        >
+                            <Text style={[intStyles.pillText, intermediate.mediaType === type && intStyles.pillTextActive]}>
+                                {type === 'any' ? 'Any' : type.charAt(0).toUpperCase() + type.slice(1) + 's'}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            </View>
+
             {/* Quick Toggles */}
             <View style={intStyles.section}>
                 <Text style={intStyles.sectionTitle}>Quick Filters</Text>
-                <ToggleRow label="Hide muted words" value={intermediate.hideMutedWords} onChange={(v) => updateIntermediate('hideMutedWords', v)} icon={EyeOff} />
+                <View style={intStyles.mutedWordsRow}>
+                    <ToggleRow label="Hide muted words" value={intermediate.hideMutedWords} onChange={(v) => updateIntermediate('hideMutedWords', v)} icon={EyeOff} />
+                    <TouchableOpacity style={intStyles.manageButton} onPress={() => setShowMutedWords(true)}>
+                        <Edit2 size={14} color={COLORS.node.accent} />
+                        <Text style={intStyles.manageButtonText}>Manage</Text>
+                    </TouchableOpacity>
+                </View>
                 <ToggleRow label="Show seen posts" value={intermediate.showSeenPosts} onChange={(v) => updateIntermediate('showSeenPosts', v)} icon={Eye} />
                 <ToggleRow label="Text only" value={intermediate.textOnly} onChange={(v) => updateIntermediate('textOnly', v)} icon={FileText} />
                 <ToggleRow label="Media only" value={intermediate.mediaOnly} onChange={(v) => updateIntermediate('mediaOnly', v)} icon={Image} />
                 <ToggleRow label="Links only" value={intermediate.linksOnly} onChange={(v) => updateIntermediate('linksOnly', v)} icon={Link2} />
                 <ToggleRow label="Has discussion" value={intermediate.hasDiscussion} onChange={(v) => updateIntermediate('hasDiscussion', v)} icon={MessageSquare} />
             </View>
+
+            {/* Muted Words Manager Modal */}
+            <MutedWordsManager
+                visible={showMutedWords}
+                onClose={() => setShowMutedWords(false)}
+            />
         </ScrollView>
     );
 };
@@ -553,6 +617,28 @@ const intStyles = StyleSheet.create({
         color: COLORS.node.muted,
         fontSize: 11,
         marginTop: 4,
+    },
+    mutedWordsRow: {
+        position: 'relative',
+    },
+    manageButton: {
+        position: 'absolute',
+        right: 70,
+        top: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        backgroundColor: `${COLORS.node.accent}15`,
+        borderRadius: 6,
+        borderWidth: 1,
+        borderColor: `${COLORS.node.accent}30`,
+    },
+    manageButtonText: {
+        fontSize: 12,
+        color: COLORS.node.accent,
+        fontWeight: '600',
     },
 });
 
@@ -740,6 +826,13 @@ export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProp
         onUpdate({ ...settings, mode: newMode });
     };
 
+    const handleReset = () => {
+        const defaultSettings = getDefaultSettings();
+        setMode('simple');
+        setActivePreset('balanced');
+        onUpdate(defaultSettings);
+    };
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -749,11 +842,17 @@ export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProp
                         <Waypoints size={20} color={COLORS.node.accent} />
                         <Text style={styles.title}>Vibe Validator</Text>
                     </View>
-                    {onClose && (
-                        <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                            <Text style={styles.closeX}>✕</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+                            <RefreshCw size={14} color={COLORS.node.muted} />
+                            <Text style={styles.resetText}>Reset</Text>
                         </TouchableOpacity>
-                    )}
+                        {onClose && (
+                            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+                                <Text style={styles.closeX}>✕</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
                 </View>
                 <Text style={styles.subtitle}>Control your feed algorithm</Text>
             </View>
@@ -825,6 +924,20 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: COLORS.node.text,
         lineHeight: 22,
+    },
+    resetButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 6,
+        backgroundColor: COLORS.node.border,
+    },
+    resetText: {
+        fontSize: 12,
+        color: COLORS.node.muted,
+        fontWeight: '500',
     },
     title: {
         color: COLORS.node.text,

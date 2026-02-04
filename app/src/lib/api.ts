@@ -102,9 +102,25 @@ export type ModLogAction = {
   createdAt: string;
 };
 
+// TipTap JSON types for rich text content
+export interface TipTapNode {
+  type: string;
+  attrs?: Record<string, any>;
+  content?: TipTapNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+  text?: string;
+}
+
+export interface TipTapDoc {
+  type: 'doc';
+  content: TipTapNode[];
+}
+
 export type Post = {
   id: string;
-  content: string;
+  content: string | null;
+  contentJson?: TipTapDoc | null; // TipTap JSON content
+  contentFormat?: 'markdown' | 'tiptap'; // Content format type
   title?: string | null;
   author: {
     id: string;
@@ -926,7 +942,8 @@ export async function uploadBotAvatar(botId: string, imageUri: string): Promise<
 // --- Post Endpoints ---
 
 export function createPost(data: {
-  content?: string; // Optional for poll-only or link-only posts
+  content?: string; // Optional for poll-only or link-only posts (legacy markdown)
+  contentJson?: TipTapDoc; // Rich text content in TipTap JSON format
   nodeId?: string;
   title?: string;
   linkUrl?: string;
@@ -978,6 +995,44 @@ export function getFeed(params: {
   mediaOnly?: boolean;
   linksOnly?: boolean;
   hasDiscussion?: boolean;
+  // Content Intelligence (Tier 2)
+  textDensity?: string; // 'micro', 'short', 'medium', 'long'
+  mediaType?: string; // 'photo', 'video', 'gif', 'audio'
+  // User Context (Tier 3)
+  showSeenPosts?: boolean;
+  hideMutedWords?: boolean;
+  discoveryRate?: number;
+  // Advanced mode - Quality sub-signals
+  authorCredWeight?: number;
+  vectorQualityWeight?: number;
+  confidenceWeight?: number;
+  // Advanced mode - Recency sub-signals
+  timeDecay?: number;
+  velocity?: number;
+  freshness?: number;
+  halfLifeHours?: number;
+  decayFunction?: string;
+  // Advanced mode - Engagement sub-signals
+  intensity?: number;
+  discussionDepth?: number;
+  shareWeight?: number;
+  expertCommentBonus?: number;
+  // Advanced mode - Personalization sub-signals
+  followingWeight?: number;
+  alignment?: number;
+  affinity?: number;
+  trustNetwork?: number;
+  // Advanced mode - Vector multipliers
+  vectorMultipliers?: string; // JSON string
+  antiAlignmentPenalty?: number;
+  // Expert mode - Diversity controls
+  maxPostsPerAuthor?: number;
+  topicClusteringPenalty?: number;
+  textRatio?: number;
+  imageRatio?: number;
+  videoRatio?: number;
+  linkRatio?: number;
+  moodToggle?: string;
 } = {}) {
   const searchParams = new URLSearchParams();
   if (params.cursor) searchParams.append("cursor", params.cursor);
@@ -999,6 +1054,44 @@ export function getFeed(params: {
   if (params.mediaOnly) searchParams.append("mediaOnly", "true");
   if (params.linksOnly) searchParams.append("linksOnly", "true");
   if (params.hasDiscussion) searchParams.append("hasDiscussion", "true");
+  // Content Intelligence (Tier 2)
+  if (params.textDensity) searchParams.append("textDensity", params.textDensity);
+  if (params.mediaType) searchParams.append("mediaType", params.mediaType);
+  // User Context (Tier 3)
+  if (params.showSeenPosts !== undefined) searchParams.append("showSeenPosts", params.showSeenPosts.toString());
+  if (params.hideMutedWords !== undefined) searchParams.append("hideMutedWords", params.hideMutedWords.toString());
+  if (params.discoveryRate !== undefined) searchParams.append("discoveryRate", params.discoveryRate.toString());
+  // Advanced mode - Quality sub-signals
+  if (params.authorCredWeight !== undefined) searchParams.append("authorCredWeight", params.authorCredWeight.toString());
+  if (params.vectorQualityWeight !== undefined) searchParams.append("vectorQualityWeight", params.vectorQualityWeight.toString());
+  if (params.confidenceWeight !== undefined) searchParams.append("confidenceWeight", params.confidenceWeight.toString());
+  // Advanced mode - Recency sub-signals
+  if (params.timeDecay !== undefined) searchParams.append("timeDecay", params.timeDecay.toString());
+  if (params.velocity !== undefined) searchParams.append("velocity", params.velocity.toString());
+  if (params.freshness !== undefined) searchParams.append("freshness", params.freshness.toString());
+  if (params.halfLifeHours !== undefined) searchParams.append("halfLifeHours", params.halfLifeHours.toString());
+  if (params.decayFunction) searchParams.append("decayFunction", params.decayFunction);
+  // Advanced mode - Engagement sub-signals
+  if (params.intensity !== undefined) searchParams.append("intensity", params.intensity.toString());
+  if (params.discussionDepth !== undefined) searchParams.append("discussionDepth", params.discussionDepth.toString());
+  if (params.shareWeight !== undefined) searchParams.append("shareWeight", params.shareWeight.toString());
+  if (params.expertCommentBonus !== undefined) searchParams.append("expertCommentBonus", params.expertCommentBonus.toString());
+  // Advanced mode - Personalization sub-signals
+  if (params.followingWeight !== undefined) searchParams.append("followingWeight", params.followingWeight.toString());
+  if (params.alignment !== undefined) searchParams.append("alignment", params.alignment.toString());
+  if (params.affinity !== undefined) searchParams.append("affinity", params.affinity.toString());
+  if (params.trustNetwork !== undefined) searchParams.append("trustNetwork", params.trustNetwork.toString());
+  // Advanced mode - Vector multipliers and anti-alignment
+  if (params.vectorMultipliers) searchParams.append("vectorMultipliers", params.vectorMultipliers);
+  if (params.antiAlignmentPenalty !== undefined) searchParams.append("antiAlignmentPenalty", params.antiAlignmentPenalty.toString());
+  // Expert mode - Diversity controls
+  if (params.maxPostsPerAuthor !== undefined) searchParams.append("maxPostsPerAuthor", params.maxPostsPerAuthor.toString());
+  if (params.topicClusteringPenalty !== undefined) searchParams.append("topicClusteringPenalty", params.topicClusteringPenalty.toString());
+  if (params.textRatio !== undefined) searchParams.append("textRatio", params.textRatio.toString());
+  if (params.imageRatio !== undefined) searchParams.append("imageRatio", params.imageRatio.toString());
+  if (params.videoRatio !== undefined) searchParams.append("videoRatio", params.videoRatio.toString());
+  if (params.linkRatio !== undefined) searchParams.append("linkRatio", params.linkRatio.toString());
+  if (params.moodToggle) searchParams.append("moodToggle", params.moodToggle);
 
   return request<{ posts: Post[]; nextCursor?: string; hasMore: boolean }>(
     `/posts?${searchParams.toString()}`,
@@ -1185,6 +1278,57 @@ export function updateFeedPreferences(data: FeedPreferenceUpdate) {
   return request<FeedPreference>("/feed-preferences", {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+}
+
+// --- Muted Words Endpoints (Tier 3) ---
+
+export type MutedWord = {
+  id: string;
+  word: string;
+  isRegex: boolean;
+  createdAt: string;
+};
+
+export function getMutedWords() {
+  return request<{ mutedWords: MutedWord[] }>("/feed-preferences/muted-words", {
+    method: "GET",
+  });
+}
+
+export function addMutedWord(word: string, isRegex: boolean = false) {
+  return request<{ mutedWord: MutedWord }>("/feed-preferences/muted-words", {
+    method: "POST",
+    body: JSON.stringify({ word, isRegex }),
+  });
+}
+
+export function removeMutedWord(id: string) {
+  return request<{ message: string }>(`/feed-preferences/muted-words/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export function clearAllMutedWords() {
+  return request<{ message: string }>("/feed-preferences/muted-words", {
+    method: "DELETE",
+    body: JSON.stringify({ all: true }),
+  });
+}
+
+// --- Post View Tracking (Tier 3) ---
+
+export function trackPostView(postId: string, dwellTimeMs?: number, scrollDepth?: number) {
+  return request<{ view: { id: string; postId: string; viewedAt: string } }>("/feed-preferences/post-views", {
+    method: "POST",
+    body: JSON.stringify({ postId, dwellTimeMs, scrollDepth }),
+  });
+}
+
+export function trackPostViewsBatch(postIds: string[]) {
+  return request<{ message: string }>("/feed-preferences/post-views/batch", {
+    method: "POST",
+    body: JSON.stringify({ postIds }),
   });
 }
 
@@ -1903,6 +2047,157 @@ export function sendMessage(conversationId: string, content: string) {
   return request<Message>(`/api/conversations/${conversationId}/messages`, {
     method: "POST",
     body: JSON.stringify({ content }),
+  });
+}
+
+// ========== External Platform Feeds (Tier 5) ==========
+
+export interface ExternalPost {
+  id: string;
+  platform: 'bluesky' | 'mastodon';
+  externalId: string;
+  externalUrl: string;
+  author: {
+    id: string;
+    username: string;
+    displayName: string;
+    avatar: string | null;
+    profileUrl: string;
+  };
+  content: string;
+  contentHtml?: string;
+  createdAt: string;
+  mediaUrls: string[];
+  replyCount: number;
+  repostCount: number;
+  likeCount: number;
+  isRepost: boolean;
+  repostedBy?: {
+    username: string;
+    displayName: string;
+  };
+}
+
+export interface ExternalFeedResult {
+  posts: ExternalPost[];
+  nextCursor?: string;
+  platform: 'bluesky' | 'mastodon';
+}
+
+// Bluesky feeds
+export function getBlueskyDiscover(limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (cursor) params.append('cursor', cursor);
+  return request<ExternalFeedResult>(`/external/bluesky/discover?${params}`, {
+    method: "GET",
+  });
+}
+
+export function getBlueskyFeed(feedUri?: string, limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (feedUri) params.append('feed', feedUri);
+  if (cursor) params.append('cursor', cursor);
+  return request<ExternalFeedResult>(`/external/bluesky/feed?${params}`, {
+    method: "GET",
+  });
+}
+
+export function getBlueskyUserPosts(handle: string, limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ limit: limit.toString() });
+  if (cursor) params.append('cursor', cursor);
+  return request<ExternalFeedResult>(`/external/bluesky/user/${encodeURIComponent(handle)}?${params}`, {
+    method: "GET",
+  });
+}
+
+// Mastodon feeds
+export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'public' | 'local' = 'public', limit = 20, cursor?: string) {
+  const params = new URLSearchParams({
+    instance,
+    timeline,
+    limit: limit.toString(),
+  });
+  if (cursor) params.append('cursor', cursor);
+  return request<ExternalFeedResult>(`/external/mastodon/timeline?${params}`, {
+    method: "GET",
+  });
+}
+
+export function getMastodonTrending(instance = 'mastodon.social', limit = 20, offset = 0) {
+  const params = new URLSearchParams({
+    instance,
+    limit: limit.toString(),
+    offset: offset.toString(),
+  });
+  return request<ExternalFeedResult>(`/external/mastodon/trending?${params}`, {
+    method: "GET",
+  });
+}
+
+// Combined external feed
+export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'mastodon'], limit = 20, mastodonInstance?: string) {
+  const params = new URLSearchParams({
+    limit: limit.toString(),
+    platforms: platforms.join(','),
+  });
+  if (mastodonInstance) params.append('mastodonInstance', mastodonInstance);
+  return request<{ posts: ExternalPost[]; platforms: string[] }>(`/external/combined?${params}`, {
+    method: "GET",
+  });
+}
+
+// Get available external platforms and feeds
+export interface ExternalPlatformInfo {
+  id: string;
+  name: string;
+  icon: string;
+  feeds: {
+    id: string;
+    name: string;
+    description: string;
+    requiresHandle?: boolean;
+  }[];
+  popularInstances?: string[];
+}
+
+export function getAvailableExternalFeeds() {
+  return request<{ platforms: ExternalPlatformInfo[] }>("/external/available", {
+    method: "GET",
+  });
+}
+
+// External post comment/reply types
+export interface ExternalComment {
+  id: string;
+  author: {
+    username: string;
+    displayName: string;
+    avatar: string | null;
+  };
+  content: string;
+  createdAt: string;
+  likeCount: number;
+  replyCount: number;
+}
+
+export interface ExternalThreadResult {
+  replies: ExternalComment[];
+  platform: 'bluesky' | 'mastodon';
+}
+
+// Fetch replies to a Bluesky post
+export function getBlueskyThread(postUri: string) {
+  const params = new URLSearchParams({ uri: postUri });
+  return request<ExternalThreadResult>(`/external/bluesky/thread?${params}`, {
+    method: "GET",
+  });
+}
+
+// Fetch replies to a Mastodon post
+export function getMastodonThread(instance: string, statusId: string) {
+  const params = new URLSearchParams({ instance, statusId });
+  return request<ExternalThreadResult>(`/external/mastodon/thread?${params}`, {
+    method: "GET",
   });
 }
 

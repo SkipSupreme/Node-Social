@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     View,
     Text,
@@ -12,10 +12,12 @@ import {
     Platform,
     useWindowDimensions
 } from 'react-native';
-import { X, Image as ImageIcon, BarChart2, Trash2, Bold, Italic, Link as LinkIcon, List, ChevronDown, Check, Search, Hash } from 'lucide-react-native';
+import { X, Image as ImageIcon, BarChart2, Trash2, ChevronDown, Check, Search, Hash } from 'lucide-react-native';
 import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
-import { createPost, Node, getLinkPreview } from '../../lib/api';
+import { createPost, Node, getLinkPreview, TipTapDoc } from '../../lib/api';
 import { LinkPreviewCard } from '../LinkPreviewCard';
+import { RichTextEditor, RichTextEditorRef, SelectionState } from './RichTextEditor';
+import { EditorToolbar } from './EditorToolbar';
 
 interface CreatePostModalProps {
     visible: boolean;
@@ -24,6 +26,21 @@ interface CreatePostModalProps {
     nodes: Node[];
     initialNodeId?: string | null;
 }
+
+// Default empty selection state
+const defaultSelectionState: SelectionState = {
+    isBold: false,
+    isItalic: false,
+    isStrike: false,
+    isCode: false,
+    isLink: false,
+    isHeading: false,
+    headingLevel: null,
+    isBulletList: false,
+    isOrderedList: false,
+    isCodeBlock: false,
+    isBlockquote: false,
+};
 
 export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     visible,
@@ -35,7 +52,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const { width } = useWindowDimensions();
     const isDesktop = width >= 768;
 
-    const [content, setContent] = useState('');
+    // Rich text editor state
+    const editorRef = useRef<RichTextEditorRef>(null);
+    const [contentJson, setContentJson] = useState<TipTapDoc | null>(null);
+    const [plainText, setPlainText] = useState('');
+    const [selectionState, setSelectionState] = useState<SelectionState>(defaultSelectionState);
+
     const [title, setTitle] = useState('');
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
@@ -59,10 +81,6 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const [showImageInput, setShowImageInput] = useState(false);
     const [imageUrl, setImageUrl] = useState('');
 
-    // Text selection for formatting
-    const contentRef = useRef<TextInput>(null);
-    const [selection, setSelection] = useState({ start: 0, end: 0 });
-
     // Get selected node info
     const selectedNode = useMemo(() => {
         if (!selectedNodeId) return null;
@@ -82,7 +100,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     // Reset state when modal opens
     useEffect(() => {
         if (visible) {
-            setContent('');
+            setContentJson(null);
+            setPlainText('');
             setTitle('');
             setSelectedNodeId(initialNodeId || null);
             setError(null);
@@ -95,13 +114,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             setImageUrl('');
             setShowNodePicker(false);
             setNodeSearch('');
+            setSelectionState(defaultSelectionState);
+            // Clear editor content when modal reopens
+            setTimeout(() => {
+                editorRef.current?.clear();
+            }, 100);
         }
     }, [visible, initialNodeId]);
 
-    // Detect URLs in content
+    // Detect URLs in content for link preview
     useEffect(() => {
         const urlRegex = /(https?:\/\/[^\s]+)/g;
-        const match = content.match(urlRegex);
+        const match = plainText.match(urlRegex);
 
         if (match && match[0] !== linkUrl) {
             const url = match[0];
@@ -111,7 +135,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             setLinkUrl(null);
             setLinkPreview(null);
         }
-    }, [content]);
+    }, [plainText, linkUrl]);
 
     const fetchPreview = async (url: string) => {
         setLoadingPreview(true);
@@ -125,29 +149,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
         }
     };
 
-    // Formatting helpers
-    const insertFormatting = (prefix: string, suffix: string, placeholder: string) => {
-        const { start, end } = selection;
-        const selectedText = content.substring(start, end);
-        const textToInsert = selectedText || placeholder;
-        const before = content.substring(0, start);
-        const after = content.substring(end);
-        const newContent = `${before}${prefix}${textToInsert}${suffix}${after}`;
-        setContent(newContent);
-        setTimeout(() => contentRef.current?.focus(), 50);
-    };
+    // Handle content changes from editor
+    const handleContentChange = useCallback((json: TipTapDoc, html: string, text: string) => {
+        setContentJson(json);
+        setPlainText(text);
+    }, []);
 
-    const formatBold = () => insertFormatting('**', '**', 'bold');
-    const formatItalic = () => insertFormatting('*', '*', 'italic');
-    const formatLink = () => insertFormatting('[', '](url)', 'link');
-    const formatList = () => {
-        const { start } = selection;
-        const before = content.substring(0, start);
-        const after = content.substring(start);
-        const prefix = before.length === 0 || before.endsWith('\n') ? '- ' : '\n- ';
-        setContent(`${before}${prefix}${after}`);
-        setTimeout(() => contentRef.current?.focus(), 50);
-    };
+    // Handle selection state changes for toolbar
+    const handleSelectionChange = useCallback((state: SelectionState) => {
+        setSelectionState(state);
+    }, []);
 
     const handleAddOption = () => {
         if (pollOptions.length < 4) {
@@ -202,8 +213,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 throw new Error('Title is required');
             }
 
+            // Check if we have rich content
+            const hasRichContent = contentJson && contentJson.content && contentJson.content.length > 0;
+            const hasText = plainText.trim().length > 0;
+
             await createPost({
-                content: content.trim() || undefined,
+                // Send TipTap JSON if we have rich content
+                contentJson: hasRichContent ? contentJson : undefined,
+                // Fallback to plain text content for backwards compatibility
+                content: !hasRichContent && hasText ? plainText.trim() : undefined,
                 title: finalTitle,
                 nodeId: selectedNodeId || undefined,
                 linkUrl: linkUrl || imageUrl || undefined,
@@ -292,16 +310,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                             multiline
                         />
 
-                        {/* Body Input - fills the space */}
-                        <TextInput
-                            ref={contentRef}
-                            style={[styles.bodyInput, isDesktop && styles.bodyInputDesktop]}
+                        {/* Rich Text Editor */}
+                        <RichTextEditor
+                            ref={editorRef}
                             placeholder="Tell your story..."
-                            placeholderTextColor={COLORS.node.muted}
-                            multiline
-                            value={content}
-                            onChangeText={setContent}
-                            onSelectionChange={(e) => setSelection(e.nativeEvent.selection)}
+                            onContentChange={handleContentChange}
+                            onSelectionChange={handleSelectionChange}
+                            minHeight={200}
+                            style={[styles.richEditor, isDesktop && styles.richEditorDesktop]}
                         />
 
                         {/* Image/Video URL Input */}
@@ -382,39 +398,14 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         )}
                     </ScrollView>
 
-                    {/* Bottom Toolbar - minimal and functional */}
-                    <View style={styles.toolbar}>
-                        <View style={styles.toolbarLeft}>
-                            {/* Formatting options - always visible */}
-                            <TouchableOpacity style={styles.formatBtn} onPress={formatBold}>
-                                <Bold size={18} color={COLORS.node.text} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.formatBtn} onPress={formatItalic}>
-                                <Italic size={18} color={COLORS.node.text} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.formatBtn} onPress={formatLink}>
-                                <LinkIcon size={18} color={COLORS.node.text} />
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.formatBtn} onPress={formatList}>
-                                <List size={18} color={COLORS.node.text} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.toolbarRight}>
-                            <TouchableOpacity
-                                style={[styles.toolbarBtn, showImageInput && styles.toolbarBtnActive]}
-                                onPress={() => setShowImageInput(!showImageInput)}
-                            >
-                                <ImageIcon size={20} color={showImageInput ? COLORS.node.accent : COLORS.node.muted} />
-                            </TouchableOpacity>
-                            <TouchableOpacity
-                                style={[styles.toolbarBtn, showPoll && styles.toolbarBtnActive]}
-                                onPress={() => setShowPoll(!showPoll)}
-                            >
-                                <BarChart2 size={20} color={showPoll ? COLORS.node.accent : COLORS.node.muted} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+                    {/* Rich Text Formatting Toolbar */}
+                    <EditorToolbar
+                        editorRef={editorRef}
+                        selectionState={selectionState}
+                        onImagePress={() => setShowImageInput(!showImageInput)}
+                        onPollPress={() => setShowPoll(!showPoll)}
+                        showPoll={showPoll}
+                    />
                 </View>
 
                 {/* Node Picker Modal */}
@@ -613,16 +604,10 @@ const styles = StyleSheet.create({
         lineHeight: 30,
         marginBottom: 16,
     },
-    bodyInput: {
-        fontSize: 17,
-        color: COLORS.node.text,
-        lineHeight: 28,
+    richEditor: {
         minHeight: 200,
-        textAlignVertical: 'top',
     },
-    bodyInputDesktop: {
-        fontSize: 18,
-        lineHeight: 30,
+    richEditorDesktop: {
         minHeight: 300,
     },
     // Attachments (image, poll)
@@ -708,39 +693,6 @@ const styles = StyleSheet.create({
     },
     previewContainer: {
         marginTop: 24,
-    },
-    // Bottom toolbar - minimal
-    toolbar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 12,
-        paddingVertical: 10,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
-        backgroundColor: COLORS.node.bgAlt,
-        paddingBottom: Platform.OS === 'ios' ? 28 : 10,
-    },
-    toolbarLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    toolbarRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    toolbarBtn: {
-        padding: 10,
-        borderRadius: RADIUS.md,
-    },
-    toolbarBtnActive: {
-        backgroundColor: `${COLORS.node.accent}15`,
-    },
-    formatBtn: {
-        padding: 8,
-        borderRadius: RADIUS.sm,
     },
     // Node Picker Modal
     pickerOverlay: {

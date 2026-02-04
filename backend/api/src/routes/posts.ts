@@ -7,14 +7,54 @@ import {
   calculateScoreBreakdown,
   getDefaultPreferences,
   calculatePersonalizationScore,
+  calculateQualityScore,
+  calculateRecencyScore,
+  calculateEngagementScore,
+  applyDiversityControls,
+  applyMoodPreset,
   buildVibeProfileFromReactions,
   buildTrustNetwork,
   type FeedPreferences,
-  type PersonalizationContext
+  type PersonalizationContext,
+  type QualityPreferences,
+  type RecencyPreferences,
+  type EngagementPreferences,
+  type PersonalizationPreferences,
+  type DiversityPreferences,
+  type VectorMultipliers,
+  type MoodType,
+  type ScoredPost,
 } from '../lib/feedScoring.js';
 import { syncPostToMeili } from '../lib/searchSync.js';
 import { logModAction } from '../lib/moderation.js';
 import { ExpertService, type ExpertRule } from '../services/expertService.js';
+import { analyzePost } from '../lib/contentIntelligence.js';
+
+// Helper to extract plain text from TipTap JSON for search indexing and content intelligence
+interface TipTapNode {
+  type: string;
+  content?: TipTapNode[];
+  text?: string;
+}
+
+function extractTextFromTipTap(doc: { type: string; content?: TipTapNode[] }): string {
+  const extractFromNode = (node: TipTapNode): string => {
+    if (node.text) {
+      return node.text;
+    }
+    if (node.content) {
+      return node.content.map(extractFromNode).join('');
+    }
+    // Add newlines after block elements
+    if (['paragraph', 'heading', 'listItem', 'blockquote'].includes(node.type)) {
+      return '\n';
+    }
+    return '';
+  };
+
+  if (!doc.content) return '';
+  return doc.content.map(extractFromNode).join('').trim();
+}
 
 const postRoutes: FastifyPluginAsync = async (fastify) => {
   // Create a new post
@@ -30,8 +70,26 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
+      // TipTap JSON schema for rich text content
+      const tipTapNodeSchema: z.ZodType<any> = z.lazy(() => z.object({
+        type: z.string(),
+        attrs: z.record(z.any()).optional(),
+        content: z.array(tipTapNodeSchema).optional(),
+        marks: z.array(z.object({
+          type: z.string(),
+          attrs: z.record(z.any()).optional(),
+        })).optional(),
+        text: z.string().optional(),
+      }));
+
+      const tipTapDocSchema = z.object({
+        type: z.literal('doc'),
+        content: z.array(tipTapNodeSchema),
+      });
+
       const schema = z.object({
-        content: z.string().min(1).max(6000).optional(), // Optional when poll is present
+        content: z.string().min(1).max(6000).optional(), // Legacy markdown content
+        contentJson: tipTapDocSchema.optional(), // TipTap JSON content
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().min(1).max(300),
         linkUrl: z.string().url().optional(),
@@ -42,7 +100,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           duration: z.number().min(1).max(7).default(3), // Days
         }).optional(),
       }).refine(
-        (data) => data.content || data.poll || data.linkUrl,
+        (data) => data.content || data.contentJson || data.poll || data.linkUrl,
         { message: 'Post must have content, a poll, or a link' }
       );
 
@@ -51,7 +109,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, nodeId: providedNodeId, title, linkUrl, poll, expertGateCred } = parsed.data;
+      const { content, contentJson, nodeId: providedNodeId, title, linkUrl, poll, expertGateCred } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Default to global node if no nodeId provided
@@ -80,17 +138,38 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Determine post type based on content
+      const hasContent = content || contentJson;
       let postType = 'text';
-      if (poll && !content) {
+      if (poll && !hasContent) {
         postType = 'poll';
-      } else if (linkUrl && !content) {
+      } else if (linkUrl && !hasContent) {
         postType = 'link';
       }
 
+      // Extract plain text from TipTap JSON for content intelligence
+      const plainTextContent = contentJson
+        ? extractTextFromTipTap(contentJson)
+        : content;
+
+      // Content Intelligence: analyze text and media
+      const { textLength, textDensity, mediaType } = analyzePost({
+        content: plainTextContent,
+        mediaUrl: undefined, // User-created posts don't have mediaUrl yet
+        postType,
+      });
+
+      // Determine content format
+      const contentFormat = contentJson ? 'tiptap' : 'markdown';
+
       const postData: Prisma.PostCreateInput = {
-        content: content ?? null,
+        content: content ?? (contentJson ? plainTextContent : null), // Store plain text for search/fallback
+        contentJson: contentJson ?? Prisma.JsonNull,
+        contentFormat,
         title: title ?? null,
         postType,
+        textLength,
+        textDensity,
+        mediaType,
         author: { connect: { id: userId } },
         linkUrl: linkUrl ?? null,
         expertGateCred: expertGateCred ?? null,
@@ -181,6 +260,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         postType: z.string().optional(), // Single post type: "text", "image", "video", "link"
         postTypes: z.string().optional(), // Multiple post types: "text,image,video" (comma-separated)
         preset: z.enum(['latest', 'balanced', 'popular', 'expert', 'personal']).optional(),
+        followingOnly: z.string().optional().transform(v => v === 'true'),
         qualityWeight: z.coerce.number().min(0).max(100).optional(),
         recencyWeight: z.coerce.number().min(0).max(100).optional(),
         engagementWeight: z.coerce.number().min(0).max(100).optional(),
@@ -191,6 +271,46 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         mediaOnly: z.string().optional().transform(v => v === 'true'),
         linksOnly: z.string().optional().transform(v => v === 'true'),
         hasDiscussion: z.string().optional().transform(v => v === 'true'),
+        // Content Intelligence (Tier 2)
+        textDensity: z.enum(['micro', 'short', 'medium', 'long']).optional(),
+        mediaType: z.enum(['photo', 'video', 'gif', 'audio']).optional(),
+        // User Context (Tier 3)
+        showSeenPosts: z.string().optional().transform(v => v === 'true'),
+        hideMutedWords: z.string().optional().transform(v => v !== 'false'), // Default true
+        discoveryRate: z.coerce.number().min(0).max(100).optional(),
+        // Advanced mode - Quality sub-signals
+        authorCredWeight: z.coerce.number().min(0).max(100).optional(),
+        vectorQualityWeight: z.coerce.number().min(0).max(100).optional(),
+        confidenceWeight: z.coerce.number().min(0).max(100).optional(),
+        // Advanced mode - Recency sub-signals
+        timeDecay: z.coerce.number().min(0).max(100).optional(),
+        velocity: z.coerce.number().min(0).max(100).optional(),
+        freshness: z.coerce.number().min(0).max(100).optional(),
+        halfLifeHours: z.coerce.number().min(1).max(168).optional(),
+        decayFunction: z.enum(['exponential', 'linear', 'step']).optional(),
+        // Advanced mode - Engagement sub-signals
+        intensity: z.coerce.number().min(0).max(100).optional(),
+        discussionDepth: z.coerce.number().min(0).max(100).optional(),
+        shareWeight: z.coerce.number().min(0).max(100).optional(),
+        expertCommentBonus: z.coerce.number().min(0).max(100).optional(),
+        // Advanced mode - Personalization sub-signals
+        followingWeight: z.coerce.number().min(0).max(100).optional(),
+        alignment: z.coerce.number().min(0).max(100).optional(),
+        affinity: z.coerce.number().min(0).max(100).optional(),
+        trustNetwork: z.coerce.number().min(0).max(100).optional(),
+        // Advanced mode - Vector multipliers (JSON string)
+        vectorMultipliers: z.string().optional().transform(v => v ? JSON.parse(v) : undefined),
+        antiAlignmentPenalty: z.coerce.number().min(0).max(100).optional(),
+        // Expert mode - Diversity controls
+        maxPostsPerAuthor: z.coerce.number().min(1).max(10).optional(),
+        topicClusteringPenalty: z.coerce.number().min(0).max(100).optional(),
+        // Expert mode - Content type ratios
+        textRatio: z.coerce.number().min(0).max(100).optional(),
+        imageRatio: z.coerce.number().min(0).max(100).optional(),
+        videoRatio: z.coerce.number().min(0).max(100).optional(),
+        linkRatio: z.coerce.number().min(0).max(100).optional(),
+        // Expert mode - Mood toggle
+        moodToggle: z.enum(['normal', 'chill', 'intense', 'discovery']).optional(),
       });
 
       // Preset weight configurations
@@ -207,7 +327,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { cursor, limit, nodeId, authorId, postType, postTypes, preset, timeRange, textOnly, mediaOnly, linksOnly, hasDiscussion } = parsed.data;
+      const { cursor, limit, nodeId, authorId, postType, postTypes, preset, followingOnly, timeRange, textOnly, mediaOnly, linksOnly, hasDiscussion } = parsed.data;
       // userId is optional - anonymous users can browse without logging in
       const userId = (request.user as { sub: string } | undefined)?.sub;
 
@@ -235,6 +355,15 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Load user feed preferences or use defaults
       let preferences: FeedPreferences;
+      // Advanced sub-signal preferences (Tier 1 wiring)
+      let qualityPrefs: QualityPreferences;
+      let recencyPrefs: RecencyPreferences;
+      let engagementPrefs: EngagementPreferences;
+      let personalizationPrefs: PersonalizationPreferences;
+      let vectorMultipliers: VectorMultipliers;
+      let antiAlignmentPenalty: number;
+      let diversityPrefs: DiversityPreferences;
+      let moodToggle: MoodType;
 
       // Ensure Prisma is available
       if (!fastify.prisma) {
@@ -251,32 +380,127 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         // Get preset weights if preset is specified
         const presetWeights = preset ? PRESET_WEIGHTS[preset] : null;
 
-        if (userPrefs) {
-          preferences = {
-            // Preset weights take priority, then query params, then user prefs
-            qualityWeight: presetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? userPrefs.qualityWeight,
-            recencyWeight: presetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? userPrefs.recencyWeight,
-            engagementWeight: presetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? userPrefs.engagementWeight,
-            personalizationWeight: presetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? userPrefs.personalizationWeight,
-            recencyHalfLife: userPrefs.recencyHalfLife,
-            followingOnly: userPrefs.followingOnly,
-          };
-        } else {
-          const defaults = getDefaultPreferences();
-          preferences = {
-            // Preset weights take priority, then query params, then defaults
-            qualityWeight: presetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? defaults.qualityWeight,
-            recencyWeight: presetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? defaults.recencyWeight,
-            engagementWeight: presetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? defaults.engagementWeight,
-            personalizationWeight: presetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? defaults.personalizationWeight,
-            recencyHalfLife: defaults.recencyHalfLife,
-            followingOnly: defaults.followingOnly,
-          };
-        }
+        // Build preferences: query params > preset > database > defaults
+        // This allows per-column settings in multi-column UI to override global user preferences
+        const defaults = getDefaultPreferences();
+        const dbPrefs = userPrefs || null;
+
+        preferences = {
+          qualityWeight: presetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? dbPrefs?.qualityWeight ?? defaults.qualityWeight,
+          recencyWeight: presetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? dbPrefs?.recencyWeight ?? defaults.recencyWeight,
+          engagementWeight: presetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? dbPrefs?.engagementWeight ?? defaults.engagementWeight,
+          personalizationWeight: presetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? dbPrefs?.personalizationWeight ?? defaults.personalizationWeight,
+          recencyHalfLife: dbPrefs?.recencyHalfLife ?? defaults.recencyHalfLife,
+          followingOnly: followingOnly ?? dbPrefs?.followingOnly ?? defaults.followingOnly,
+        };
+
+        // Advanced sub-signal preferences: query params > database > defaults
+        // Quality sub-signals
+        qualityPrefs = {
+          authorCredWeight: parsed.data.authorCredWeight ?? dbPrefs?.authorCredWeight ?? 50,
+          vectorQualityWeight: parsed.data.vectorQualityWeight ?? dbPrefs?.vectorQualityWeight ?? 35,
+          confidenceWeight: parsed.data.confidenceWeight ?? dbPrefs?.confidenceWeight ?? 15,
+        };
+
+        // Recency sub-signals
+        recencyPrefs = {
+          halfLifeHours: parsed.data.halfLifeHours ?? dbPrefs?.halfLifeHours ?? 12,
+          decayFunction: parsed.data.decayFunction ?? (dbPrefs?.decayFunction as 'exponential' | 'linear' | 'step') ?? 'exponential',
+          timeDecay: parsed.data.timeDecay ?? dbPrefs?.timeDecay ?? 60,
+          velocity: parsed.data.velocity ?? dbPrefs?.velocity ?? 25,
+          freshness: parsed.data.freshness ?? dbPrefs?.freshness ?? 15,
+        };
+
+        // Engagement sub-signals
+        engagementPrefs = {
+          intensity: parsed.data.intensity ?? dbPrefs?.intensity ?? 40,
+          discussionDepth: parsed.data.discussionDepth ?? dbPrefs?.discussionDepth ?? 30,
+          shareWeight: parsed.data.shareWeight ?? dbPrefs?.shareWeight ?? 20,
+          expertCommentBonus: parsed.data.expertCommentBonus ?? dbPrefs?.expertCommentBonus ?? 10,
+        };
+
+        // Personalization sub-signals
+        personalizationPrefs = {
+          followingWeight: parsed.data.followingWeight ?? dbPrefs?.followingWeight ?? 50,
+          alignment: parsed.data.alignment ?? dbPrefs?.alignment ?? 20,
+          affinity: parsed.data.affinity ?? dbPrefs?.affinity ?? 15,
+          trustNetwork: parsed.data.trustNetwork ?? dbPrefs?.trustNetwork ?? 15,
+        };
+
+        // Vector multipliers (can be passed as JSON string in query param)
+        const defaultVectorMultipliers: VectorMultipliers = { insightful: 100, joy: 100, fire: 100, support: 100, shock: 100, questionable: 100 };
+        vectorMultipliers = parsed.data.vectorMultipliers ?? (dbPrefs?.vectorMultipliers as unknown as VectorMultipliers) ?? defaultVectorMultipliers;
+
+        // Anti-alignment penalty
+        antiAlignmentPenalty = parsed.data.antiAlignmentPenalty ?? dbPrefs?.antiAlignmentPenalty ?? 20;
+
+        // Diversity controls (Expert mode)
+        diversityPrefs = {
+          maxPostsPerAuthor: parsed.data.maxPostsPerAuthor ?? dbPrefs?.maxPostsPerAuthor ?? 3,
+          topicClusteringPenalty: parsed.data.topicClusteringPenalty ?? dbPrefs?.topicClusteringPenalty ?? 20,
+          textRatio: parsed.data.textRatio ?? dbPrefs?.textRatio ?? 40,
+          imageRatio: parsed.data.imageRatio ?? dbPrefs?.imageRatio ?? 25,
+          videoRatio: parsed.data.videoRatio ?? dbPrefs?.videoRatio ?? 20,
+          linkRatio: parsed.data.linkRatio ?? dbPrefs?.linkRatio ?? 15,
+        };
+
+        // Mood toggle (Expert mode)
+        moodToggle = parsed.data.moodToggle ?? (dbPrefs?.moodToggle as MoodType) ?? 'normal';
       } catch (error) {
-        // If userFeedPreference table doesn't exist or Prisma not ready, use defaults
-        fastify.log.warn({ err: error }, 'Failed to load feed preferences, using defaults');
-        preferences = getDefaultPreferences();
+        // If userFeedPreference table doesn't exist or Prisma not ready, use query params > defaults
+        fastify.log.warn({ err: error }, 'Failed to load feed preferences, using query params and defaults');
+        const defaults = getDefaultPreferences();
+        const fallbackPresetWeights = preset ? PRESET_WEIGHTS[preset] : null;
+
+        preferences = {
+          qualityWeight: fallbackPresetWeights?.qualityWeight ?? parsed.data.qualityWeight ?? defaults.qualityWeight,
+          recencyWeight: fallbackPresetWeights?.recencyWeight ?? parsed.data.recencyWeight ?? defaults.recencyWeight,
+          engagementWeight: fallbackPresetWeights?.engagementWeight ?? parsed.data.engagementWeight ?? defaults.engagementWeight,
+          personalizationWeight: fallbackPresetWeights?.personalizationWeight ?? parsed.data.personalizationWeight ?? defaults.personalizationWeight,
+          recencyHalfLife: defaults.recencyHalfLife,
+          followingOnly: followingOnly ?? defaults.followingOnly,
+        };
+
+        qualityPrefs = {
+          authorCredWeight: parsed.data.authorCredWeight ?? 50,
+          vectorQualityWeight: parsed.data.vectorQualityWeight ?? 35,
+          confidenceWeight: parsed.data.confidenceWeight ?? 15,
+        };
+        recencyPrefs = {
+          halfLifeHours: parsed.data.halfLifeHours ?? 12,
+          decayFunction: parsed.data.decayFunction ?? 'exponential',
+          timeDecay: parsed.data.timeDecay ?? 60,
+          velocity: parsed.data.velocity ?? 25,
+          freshness: parsed.data.freshness ?? 15,
+        };
+        engagementPrefs = {
+          intensity: parsed.data.intensity ?? 40,
+          discussionDepth: parsed.data.discussionDepth ?? 30,
+          shareWeight: parsed.data.shareWeight ?? 20,
+          expertCommentBonus: parsed.data.expertCommentBonus ?? 10,
+        };
+        personalizationPrefs = {
+          followingWeight: parsed.data.followingWeight ?? 50,
+          alignment: parsed.data.alignment ?? 20,
+          affinity: parsed.data.affinity ?? 15,
+          trustNetwork: parsed.data.trustNetwork ?? 15,
+        };
+        vectorMultipliers = parsed.data.vectorMultipliers ?? { insightful: 100, joy: 100, fire: 100, support: 100, shock: 100, questionable: 100 };
+        antiAlignmentPenalty = parsed.data.antiAlignmentPenalty ?? 20;
+        diversityPrefs = {
+          maxPostsPerAuthor: parsed.data.maxPostsPerAuthor ?? 3,
+          topicClusteringPenalty: parsed.data.topicClusteringPenalty ?? 20,
+          textRatio: parsed.data.textRatio ?? 40,
+          imageRatio: parsed.data.imageRatio ?? 25,
+          videoRatio: parsed.data.videoRatio ?? 20,
+          linkRatio: parsed.data.linkRatio ?? 15,
+        };
+        moodToggle = parsed.data.moodToggle ?? 'normal';
+      }
+
+      // Apply mood preset if not 'normal' - overrides weights temporarily
+      if (moodToggle !== 'normal') {
+        preferences = applyMoodPreset(preferences as unknown as Record<string, unknown>, moodToggle) as unknown as FeedPreferences;
       }
 
       // Phase 4: Expert Config Override & Rules
@@ -352,6 +576,15 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where.comments = { some: {} };
       }
 
+      // Content Intelligence Filters (Tier 2)
+      const { textDensity, mediaType } = parsed.data;
+      if (textDensity) {
+        where.textDensity = textDensity;
+      }
+      if (mediaType) {
+        where.mediaType = mediaType;
+      }
+
       // Following-Only Feed Filter (requires authentication)
       if (preferences.followingOnly && userId) {
         const following = await fastify.prisma.userFollow.findMany({
@@ -364,8 +597,14 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where.authorId = { in: followingIds };
       }
 
+      // Extract Tier 3 params
+      const showSeenPosts = parsed.data.showSeenPosts ?? true; // Default: show seen posts
+      const hideMutedWords = parsed.data.hideMutedWords ?? true; // Default: hide muted words
+      const discoveryRate = parsed.data.discoveryRate; // Optional discovery mixing
+
       // Block/Mute Enforcement - Hide posts from blocked/muted users (only for logged-in users)
-      const [blocks, mutes, mutedNodes, savedPosts] = userId
+      // Tier 3: Also load seen posts and muted words for filtering
+      const [blocks, mutes, mutedNodes, savedPosts, seenPosts, mutedWords] = userId
         ? await Promise.all([
             fastify.prisma.userBlock.findMany({
               where: { blockerId: userId },
@@ -385,8 +624,24 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               where: { userId },
               select: { postId: true },
             }),
+            // Tier 3: Get seen posts (recent 500 to avoid massive queries)
+            !showSeenPosts
+              ? fastify.prisma.userPostView.findMany({
+                  where: { userId },
+                  select: { postId: true },
+                  orderBy: { viewedAt: 'desc' },
+                  take: 500,
+                })
+              : Promise.resolve([]),
+            // Tier 3: Get muted words
+            hideMutedWords
+              ? fastify.prisma.userMutedWord.findMany({
+                  where: { userId },
+                  select: { word: true, isRegex: true },
+                })
+              : Promise.resolve([]),
           ])
-        : [[], [], [], []]; // Anonymous users: no blocks/mutes/saved
+        : [[], [], [], [], [], []]; // Anonymous users: no blocks/mutes/saved/seen/mutedWords
 
       const savedPostIds = new Set(savedPosts.map(s => s.postId));
 
@@ -416,6 +671,12 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       if (mutedNodeIds.length > 0 && !nodeId) {
         // Only filter muted nodes when viewing the global feed, not when viewing a specific node
         where.nodeId = { notIn: mutedNodeIds };
+      }
+
+      // Tier 3: Seen Posts Filter - Exclude already-seen posts
+      const seenPostIds = seenPosts.map((s) => s.postId);
+      if (!showSeenPosts && seenPostIds.length > 0) {
+        where.id = { notIn: seenPostIds };
       }
 
       // Fetch posts with metrics for scoring
@@ -506,6 +767,48 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         queryArgs
       )) as PostWithCounts[];
 
+      // Tier 3: Muted Words Filter - Filter out posts containing muted words
+      if (hideMutedWords && mutedWords.length > 0) {
+        // Build regex patterns and plain words for efficient matching
+        const regexPatterns: RegExp[] = [];
+        const plainWords: string[] = [];
+
+        for (const mw of mutedWords) {
+          if (mw.isRegex) {
+            try {
+              regexPatterns.push(new RegExp(mw.word, 'i'));
+            } catch {
+              // Invalid regex, skip
+            }
+          } else {
+            plainWords.push(mw.word.toLowerCase());
+          }
+        }
+
+        posts = posts.filter((post) => {
+          // Check content and title for muted words
+          const contentLower = (post.content || '').toLowerCase();
+          const titleLower = (post.title || '').toLowerCase();
+          const combinedText = `${contentLower} ${titleLower}`;
+
+          // Check plain words (case-insensitive substring match)
+          for (const word of plainWords) {
+            if (combinedText.includes(word)) {
+              return false; // Filter out this post
+            }
+          }
+
+          // Check regex patterns
+          for (const pattern of regexPatterns) {
+            if (pattern.test(combinedText)) {
+              return false; // Filter out this post
+            }
+          }
+
+          return true; // Keep this post
+        });
+      }
+
       // Phase 4: Apply Expert Rules (Suppression & Boost)
       if (expertRules.length > 0) {
         posts = ExpertService.applyRules(posts, expertRules);
@@ -546,57 +849,91 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         vouchNetwork: userId ? buildTrustNetwork(vouches, userId, 3) : new Map(),
       };
 
-      // Calculate feed scores and sort
+      // Calculate feed scores using LIVE sub-signal calculations (Tier 1 wiring)
       const postsWithScores = posts.map((post) => {
-        const metrics = post.metrics;
+        // Cast Prisma vibeAggregate to our interface (compatible structure)
+        const vibeAgg = post.vibeAggregate as unknown as import('../lib/feedScoring.js').PostVibeAggregate | null;
 
-        // Calculate real personalization score based on user context
+        // LIVE quality score using sub-signals (not pre-computed metrics)
+        const qualityScore = calculateQualityScore(
+          { vibeAggregate: vibeAgg },
+          { cred: post.author?.cred ?? 0 },
+          qualityPrefs
+        );
+
+        // LIVE recency score using sub-signals
+        const recencyScore = calculateRecencyScore(
+          vibeAgg
+            ? { createdAt: post.createdAt, vibeAggregate: vibeAgg }
+            : { createdAt: post.createdAt },
+          recencyPrefs
+        );
+
+        // LIVE engagement score using sub-signals
+        // Cast comments to access author.cred (included in query but TypeScript doesn't infer it)
+        const commentsWithCred = (post.comments as Array<{ author?: { cred?: number } }>) ?? [];
+        const engagementScore = calculateEngagementScore(
+          {
+            commentCount: post._count?.comments ?? 0,
+            vibeAggregate: vibeAgg,
+            comments: commentsWithCred.map(c => ({ author: { cred: c.author?.cred ?? 0 } })),
+          },
+          engagementPrefs
+        );
+
+        // LIVE personalization score with vector multipliers (ADVANCED signature)
         const personalizationScore = calculatePersonalizationScore(
           {
             authorId: post.authorId,
             nodeId: post.nodeId,
-            vibeAggregate: post.vibeAggregate,
+            vibeAggregate: vibeAgg,
           },
-          personalizationContext
+          personalizationContext,
+          vectorMultipliers,
+          antiAlignmentPenalty,
+          personalizationPrefs
         );
 
-        const score = calculateFeedScore(
-          {
-            id: post.id,
-            createdAt: post.createdAt,
-            engagementScore: metrics?.engagementScore ?? 0,
-            qualityScore: metrics?.qualityScore ?? 50.0,
-            personalizationScore,
-          },
-          preferences,
-          (post as any).boostMultiplier || 1.0 // Apply boost from rules
-        );
+        // Combine scores using main weights
+        const boostMultiplier = (post as any).boostMultiplier || 1.0;
+        const score = (
+          (qualityScore * preferences.qualityWeight / 100) +
+          (recencyScore * preferences.recencyWeight / 100) +
+          (engagementScore * preferences.engagementWeight / 100) +
+          (personalizationScore * preferences.personalizationWeight / 100)
+        ) * boostMultiplier;
+
         return { post, score };
       });
 
       // Sort by score (descending)
       postsWithScores.sort((a, b) => b.score - a.score);
 
-      // Phase 4: Apply Diversity Controls (Author Cooldown)
-      // We re-order the top posts to ensure diversity
-      // Only apply if expert config is present (or we could apply default diversity)
-      if (nodeId) {
-        const nodeConfig = await fastify.prisma.nodeVectorConfig.findUnique({ where: { nodeId } });
-        if (nodeConfig) {
-          const expertConfig = (nodeConfig as any).expertConfig;
-          if (expertConfig) {
-            // Re-order postsWithScores
-            const reordered = ExpertService.applyDiversity(
-              postsWithScores,
-              expertConfig,
-              (item) => item.post.authorId || item.post.author?.id
-            );
-            // Replace postsWithScores with reordered version
-            // Note: applyDiversity returns a new array
-            postsWithScores.splice(0, postsWithScores.length, ...reordered);
-          }
-        }
-      }
+      // Apply Diversity Controls using user's settings (Tier 1 wiring)
+      // Convert postsWithScores to ScoredPost format for applyDiversityControls
+      const scoredPosts: ScoredPost[] = postsWithScores.map(({ post, score }) => ({
+        id: post.id,
+        authorId: post.authorId,
+        score,
+        postType: post.postType ?? undefined,
+        vibeAggregate: (post.vibeAggregate as unknown as import('../lib/feedScoring.js').PostVibeAggregate) ?? undefined,
+      }));
+
+      // Apply diversity controls (max posts per author, topic clustering penalty)
+      const diversifiedPosts = applyDiversityControls(
+        scoredPosts,
+        diversityPrefs,
+        limit * 2 // Get more than we need, then paginate
+      );
+
+      // Map back to postsWithScores format
+      const diversifiedIds = new Set(diversifiedPosts.map(p => p.id));
+      const reorderedPosts = diversifiedPosts
+        .map(dp => postsWithScores.find(pws => pws.post.id === dp.id))
+        .filter((p): p is { post: typeof posts[0]; score: number } => p !== undefined);
+
+      // Replace postsWithScores with reordered version
+      postsWithScores.splice(0, postsWithScores.length, ...reorderedPosts);
 
       // Apply pagination after sorting
       const paginatedPosts = postsWithScores.slice(0, limit);

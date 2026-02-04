@@ -220,6 +220,15 @@ model Post {
   visibility String    @default("public")
   expertGateCred Int?  // Minimum cred required to comment (null = open to all)
 
+  // Rich text content (TipTap)
+  contentJson   Json?    // TipTap/ProseMirror JSON format for rich text
+  contentFormat String   @default("markdown") // "markdown" | "tiptap"
+
+  // Content Intelligence (Tier 2)
+  mediaType   String?   // "photo" | "video" | "gif" | null
+  textDensity String?   // "micro" | "short" | "medium" | "long" | null
+  textLength  Int?      // Character count of content
+
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   node      Node?    @relation(fields: [nodeId], references: [id])
   linkMeta  LinkMetadata? @relation(fields: [linkMetaId], references: [id])
@@ -1392,4 +1401,35 @@ model ExplorationSlot {
   @@index([userId, shownAt(sort: Desc)])
   @@index([postId])
   @@map("exploration_slots")
+}
+
+// ============================================
+// USER FEED TRACKING
+// ============================================
+
+// Track posts the user has viewed (for "hide seen posts" feature)
+model UserPostView {
+  id          String   @id @default(uuid())
+  userId      String
+  postId      String
+  viewedAt    DateTime @default(now())
+  dwellTimeMs Int?     // How long user spent viewing
+  scrollDepth Float?   // 0-1, how far they scrolled
+
+  @@unique([userId, postId])
+  @@index([userId, viewedAt(sort: Desc)])
+  @@map("user_post_views")
+}
+
+// User muted words for feed filtering
+model UserMutedWord {
+  id        String   @id @default(uuid())
+  userId    String
+  word      String
+  isRegex   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@map("user_muted_words")
 }

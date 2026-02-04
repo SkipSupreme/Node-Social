@@ -1,14 +1,16 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2 } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost } from '../../lib/api';
+import { ExternalPostCard } from './ExternalPostCard';
 import { showToast } from '../../lib/alert';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { useSocket } from '../../context/SocketContext';
 import { useAuthPrompt } from '../../context/AuthPromptContext';
+import { TipTapContent } from './TipTapContent';
 // Only import YouTube player on native platforms
 const YoutubePlayer = Platform.OS !== 'web' ? require('react-native-youtube-iframe').default : null;
 // Import expo-av for video playback (native only)
@@ -650,6 +652,8 @@ export interface UIPost {
     author: UIAuthor;
     title: string;
     content?: string | null; // Optional for poll-only or link-only posts
+    contentJson?: { type: 'doc'; content: any[] } | null; // TipTap JSON content
+    contentFormat?: 'markdown' | 'tiptap'; // Content format type
     createdAt: string | Date;
     commentCount: number;
     expertGated?: boolean;
@@ -813,7 +817,7 @@ interface PostCardProps {
     globalNodeId?: string;
 }
 
-export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, onSaveToggle, globalNodeId }: PostCardProps) => {
+const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, onSaveToggle, globalNodeId }: PostCardProps) => {
     const { requireAuth } = useAuthPrompt();
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -1223,10 +1227,15 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                         </Text>
                     </TouchableOpacity>
 
-                    {post.content && (
-                        <View style={{ maxHeight: isExpanded ? undefined : (post.content.length > 6000 ? 400 : undefined), overflow: 'hidden' }}>
-                            <FormattedContent content={post.content} />
-                            {!isExpanded && post.content.length > 6000 && (
+                    {/* Render content based on format */}
+                    {(post.content || post.contentJson) && (
+                        <View style={{ maxHeight: isExpanded ? undefined : ((post.content?.length || 0) > 6000 ? 400 : undefined), overflow: 'hidden' }}>
+                            {post.contentFormat === 'tiptap' && post.contentJson ? (
+                                <TipTapContent content={post.contentJson} />
+                            ) : post.content ? (
+                                <FormattedContent content={post.content} />
+                            ) : null}
+                            {!isExpanded && (post.content?.length || 0) > 6000 && (
                                 <View
                                     style={{
                                         position: 'absolute',
@@ -1239,7 +1248,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                             )}
                         </View>
                     )}
-                    {post.content && !isExpanded && post.content.length > 6000 && (
+                    {(post.content || post.contentJson) && !isExpanded && (post.content?.length || 0) > 6000 && (
                         <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
                             <Text style={{ color: COLORS.node.accent, fontSize: 12, fontWeight: '700' }}>Continue Reading</Text>
                             <ChevronDown size={12} color={COLORS.node.accent} />
@@ -1354,7 +1363,7 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
                 </View>
 
                 <View style={styles.cardActions}>
-                    {/* Comments button first - most common action */}
+                    {/* Comments button - shows full comments section */}
                     <TouchableOpacity
                         style={[styles.pillBtn, showComments && { borderColor: COLORS.node.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
                         onPress={() => setShowComments(!showComments)}
@@ -1571,8 +1580,21 @@ export const PostCard = ({ post: initialPost, currentUser, onPostAction, onVibeC
     );
 };
 
+// Memoize PostCard to prevent unnecessary re-renders during scroll
+export const PostCard = memo(PostCardInner, (prevProps, nextProps) => {
+    // Only re-render if the post data or key callbacks change
+    return (
+        prevProps.post.id === nextProps.post.id &&
+        prevProps.post.isSaved === nextProps.post.isSaved &&
+        prevProps.post.commentCount === nextProps.post.commentCount &&
+        prevProps.post.myReaction === nextProps.post.myReaction &&
+        prevProps.currentUser?.id === nextProps.currentUser?.id
+    );
+});
+
 interface FeedProps {
     posts: UIPost[];
+    externalPosts?: ExternalPost[];
     currentUser?: any;
     onPostAction?: (postId: string, action: 'mute' | 'block' | 'delete') => void;
     onVibeCheck?: (post: UIPost) => void;
@@ -1590,76 +1612,161 @@ interface FeedProps {
     onUserClick?: (userId: string) => void;
 }
 
-export const Feed = ({ posts, currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick }: FeedProps) => {
-    const handleScroll = (e: any) => {
+// Type for unified feed items
+type FeedItem = { type: 'node'; data: UIPost } | { type: 'external'; data: ExternalPost };
+
+export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick }: FeedProps) => {
+    const prefetchedRef = useRef<Set<string>>(new Set());
+
+    // Memoized combined and sorted feed data
+    const feedData = useMemo((): FeedItem[] => {
+        if (externalPosts.length > 0) {
+            const allPosts: FeedItem[] = [
+                ...posts.map(p => ({ type: 'node' as const, data: p })),
+                ...externalPosts.map(p => ({ type: 'external' as const, data: p })),
+            ];
+            // Sort by createdAt descending (newest first)
+            allPosts.sort((a, b) => {
+                const dateA = new Date(a.data.createdAt).getTime();
+                const dateB = new Date(b.data.createdAt).getTime();
+                return dateB - dateA;
+            });
+            return allPosts;
+        }
+        return posts.map(p => ({ type: 'node' as const, data: p }));
+    }, [posts, externalPosts]);
+
+    // Prefetch images for smoother scrolling
+    useEffect(() => {
+        if (posts.length === 0) return;
+
+        const imagesToPrefetch: string[] = [];
+
+        posts.forEach(post => {
+            if (prefetchedRef.current.has(post.id)) return;
+            prefetchedRef.current.add(post.id);
+
+            if (post.mediaUrl) imagesToPrefetch.push(post.mediaUrl);
+            if (post.linkMeta?.image) imagesToPrefetch.push(post.linkMeta.image);
+            if (post.author?.avatar) imagesToPrefetch.push(post.author.avatar);
+        });
+
+        imagesToPrefetch.forEach(url => {
+            Image.prefetch(url).catch(() => {});
+        });
+    }, [posts]);
+
+    const handleScroll = useCallback((e: any) => {
         onScroll?.(e.nativeEvent.contentOffset.y);
+    }, [onScroll]);
 
-        // Infinite scroll: load more when near bottom
-        const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
-        const paddingToBottom = 200;
-        const isCloseToBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - paddingToBottom;
-
-        if (isCloseToBottom && hasMore && !loadingMore && onLoadMore) {
+    const handleEndReached = useCallback(() => {
+        if (hasMore && !loadingMore && onLoadMore) {
             onLoadMore();
         }
-    };
+    }, [hasMore, loadingMore, onLoadMore]);
 
-    return (
-        <ScrollView
-            style={{ flex: 1, backgroundColor: COLORS.node.bg }}
-            contentContainerStyle={{ paddingBottom: 80, padding: 8, paddingTop: headerOffset + 8 }}
-            scrollEventThrottle={16}
-            onScroll={handleScroll}
-        >
-            {/* User search results */}
-            {searchUserResults.length > 0 && (
-                <View style={feedStyles.userResultsSection}>
-                    <Text style={feedStyles.userResultsTitle}>Users</Text>
-                    {searchUserResults.map(user => (
-                        <TouchableOpacity
-                            key={user.id}
-                            style={feedStyles.userResultItem}
-                            onPress={() => onUserClick?.(user.id)}
-                        >
-                            {user.avatar ? (
-                                <Image source={{ uri: user.avatar }} style={feedStyles.userResultAvatar} />
-                            ) : (
-                                <View style={feedStyles.userResultAvatarPlaceholder}>
-                                    <Text style={feedStyles.userResultAvatarText}>
-                                        {user.username?.[0]?.toUpperCase() || '?'}
-                                    </Text>
-                                </View>
-                            )}
-                            <View style={feedStyles.userResultInfo}>
-                                <Text style={feedStyles.userResultUsername}>@{user.username}</Text>
-                                {(user.firstName || user.lastName) && (
-                                    <Text style={feedStyles.userResultName}>
-                                        {[user.firstName, user.lastName].filter(Boolean).join(' ')}
-                                    </Text>
-                                )}
+    const renderItem = useCallback(({ item }: { item: FeedItem }) => {
+        if (item.type === 'node') {
+            return (
+                <PostCard
+                    post={item.data}
+                    currentUser={currentUser}
+                    onPostAction={onPostAction}
+                    onVibeCheck={onVibeCheck}
+                    onPress={onPostClick}
+                    onEdit={onEdit}
+                    onAuthorClick={onAuthorClick}
+                    onSaveToggle={onSaveToggle}
+                    globalNodeId={globalNodeId}
+                />
+            );
+        }
+        return <ExternalPostCard post={item.data} />;
+    }, [currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId]);
+
+    const keyExtractor = useCallback((item: FeedItem) => item.data.id, []);
+
+    const ListHeader = useMemo(() => {
+        if (searchUserResults.length === 0) return null;
+        return (
+            <View style={feedStyles.userResultsSection}>
+                <Text style={feedStyles.userResultsTitle}>Users</Text>
+                {searchUserResults.map(user => (
+                    <TouchableOpacity
+                        key={user.id}
+                        style={feedStyles.userResultItem}
+                        onPress={() => onUserClick?.(user.id)}
+                    >
+                        {user.avatar ? (
+                            <Image source={{ uri: user.avatar }} style={feedStyles.userResultAvatar} />
+                        ) : (
+                            <View style={feedStyles.userResultAvatarPlaceholder}>
+                                <Text style={feedStyles.userResultAvatarText}>
+                                    {user.username?.[0]?.toUpperCase() || '?'}
+                                </Text>
                             </View>
-                            {user.isBot && (
-                                <View style={feedStyles.botBadge}>
-                                    <Text style={feedStyles.botBadgeText}>BOT</Text>
-                                </View>
+                        )}
+                        <View style={feedStyles.userResultInfo}>
+                            <Text style={feedStyles.userResultUsername}>@{user.username}</Text>
+                            {(user.firstName || user.lastName) && (
+                                <Text style={feedStyles.userResultName}>
+                                    {[user.firstName, user.lastName].filter(Boolean).join(' ')}
+                                </Text>
                             )}
-                        </TouchableOpacity>
-                    ))}
-                </View>
-            )}
-            {posts.map(p => <PostCard key={p.id} post={p} currentUser={currentUser} onPostAction={onPostAction} onVibeCheck={onVibeCheck} onPress={onPostClick} onEdit={onEdit} onAuthorClick={onAuthorClick} onSaveToggle={onSaveToggle} globalNodeId={globalNodeId} />)}
-            {loadingMore && (
+                        </View>
+                        {user.isBot && (
+                            <View style={feedStyles.botBadge}>
+                                <Text style={feedStyles.botBadgeText}>BOT</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                ))}
+            </View>
+        );
+    }, [searchUserResults, onUserClick]);
+
+    const ListFooter = useMemo(() => {
+        if (loadingMore) {
+            return (
                 <View style={{ padding: 20, alignItems: 'center' }}>
                     <ActivityIndicator size="small" color={COLORS.node.accent} />
                     <Text style={{ color: COLORS.node.muted, marginTop: 8, fontSize: 12 }}>Loading more...</Text>
                 </View>
-            )}
-            {!hasMore && posts.length > 0 && (
+            );
+        }
+        if (!hasMore && posts.length > 0) {
+            return (
                 <View style={{ padding: 20, alignItems: 'center' }}>
                     <Text style={{ color: COLORS.node.muted, fontSize: 12 }}>You've reached the end</Text>
                 </View>
-            )}
-        </ScrollView>
+            );
+        }
+        return null;
+    }, [loadingMore, hasMore, posts.length]);
+
+    return (
+        <FlatList
+            data={feedData}
+            renderItem={renderItem}
+            keyExtractor={keyExtractor}
+            style={{ flex: 1, backgroundColor: COLORS.node.bg }}
+            contentContainerStyle={{ paddingBottom: 80, padding: 8, paddingTop: headerOffset + 8 }}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+            onEndReached={handleEndReached}
+            onEndReachedThreshold={0.5}
+            ListHeaderComponent={ListHeader}
+            ListFooterComponent={ListFooter}
+            showsVerticalScrollIndicator={false}
+            // Virtualization optimizations
+            windowSize={5}
+            maxToRenderPerBatch={10}
+            initialNumToRender={8}
+            removeClippedSubviews={Platform.OS !== 'web'}
+            // Avoid layout shifts
+            getItemLayout={undefined}
+        />
     );
 };
 
@@ -2057,5 +2164,23 @@ const feedStyles = StyleSheet.create({
         fontSize: 10,
         fontWeight: 'bold',
         color: '#fff',
+    },
+    // External posts divider
+    externalDivider: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 16,
+        paddingHorizontal: 8,
+    },
+    externalDividerLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: COLORS.node.border,
+    },
+    externalDividerText: {
+        color: COLORS.node.muted,
+        fontSize: 12,
+        fontWeight: '500',
+        paddingHorizontal: 12,
     },
 });

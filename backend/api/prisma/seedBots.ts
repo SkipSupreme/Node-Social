@@ -177,8 +177,8 @@ async function main() {
         email: `${botData.username.toLowerCase()}@node.bot`,
         password: botPassword,
         username: botData.username,
-        firstName: botData.displayName.split(' ')[0],
-        lastName: botData.displayName.split(' ').slice(1).join(' ') || undefined,
+        firstName: botData.displayName.split(' ')[0] || null,
+        lastName: botData.displayName.split(' ').slice(1).join(' ') || null,
         bio: botData.bio,
         emailVerified: true, // Bots don't need verification
         isBot: true,

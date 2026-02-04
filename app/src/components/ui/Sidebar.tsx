@@ -2,7 +2,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
 import { COLORS, ERAS } from '../../constants/theme';
 
 interface SidebarProps {
@@ -13,17 +13,23 @@ interface SidebarProps {
     onProfileClick?: () => void;
     selectedNodeId?: string | null;
     onNodeSelect?: (nodeId: string | null) => void;
+    onNodeInfo?: (nodeId: string) => void;
     feedMode?: 'global' | 'discovery' | 'following';
     onFeedModeSelect?: (mode: 'global' | 'discovery' | 'following') => void;
     onThemesClick?: () => void;
     onSavedClick?: () => void;
-    onBetaClick?: () => void;
     onNewPostClick?: () => void;
     onModerationClick?: () => void;
     onAppealsClick?: () => void;
     onCouncilClick?: () => void;
     onVouchesClick?: () => void;
     onBlockedMutedClick?: () => void;
+    onNotificationsClick?: () => void;
+    onMessagesClick?: () => void;
+    onAddColumnClick?: () => void;
+    unreadNotifications?: number;
+    unreadMessages?: number;
+    isMultiColumnEnabled?: boolean;
     currentView?: string;
     collapsed?: boolean;
     onToggleCollapse?: () => void;
@@ -113,26 +119,30 @@ export const Sidebar = ({
     onProfileClick,
     selectedNodeId,
     onNodeSelect,
+    onNodeInfo,
     feedMode = 'global',
     onFeedModeSelect,
     onThemesClick,
     onSavedClick,
-    onBetaClick,
     onNewPostClick,
     onModerationClick,
     onAppealsClick,
     onCouncilClick,
     onVouchesClick,
     onBlockedMutedClick,
+    onNotificationsClick,
+    onMessagesClick,
+    onAddColumnClick,
+    unreadNotifications = 0,
+    unreadMessages = 0,
+    isMultiColumnEnabled = false,
     currentView,
     collapsed = false,
     onToggleCollapse
 }: SidebarProps) => {
 
     const handleNodeClick = (nodeId: string | null) => {
-        console.log('[Sidebar] handleNodeClick called with nodeId:', nodeId);
         if (onNodeSelect) {
-            console.log('[Sidebar] Calling onNodeSelect');
             onNodeSelect(nodeId);
         }
         if (onClose && !isDesktop) {
@@ -141,7 +151,6 @@ export const Sidebar = ({
     };
 
     const handleModeClick = (mode: 'global' | 'discovery' | 'following') => {
-        console.log('[Sidebar] handleModeClick called with mode:', mode);
         if (onFeedModeSelect) {
             onFeedModeSelect(mode);
         }
@@ -162,7 +171,7 @@ export const Sidebar = ({
                     onPress={onToggleCollapse}
                     activeOpacity={0.7}
                 >
-                    <Text style={styles.collapseIcon}>☰</Text>
+                    <Hexagon size={24} color={COLORS.node.muted} />
                 </TouchableOpacity>
 
                 {/* Icon-only nav items */}
@@ -216,11 +225,6 @@ export const Sidebar = ({
                         icon={Handshake}
                         active={currentView === 'vouches'}
                         onPress={onVouchesClick}
-                    />
-                    <CollapsedNavItem
-                        icon={Zap}
-                        active={currentView === 'beta'}
-                        onPress={onBetaClick}
                     />
                     {/* Node avatars - right after nav items */}
                     {nodes.length > 0 && (
@@ -307,16 +311,27 @@ export const Sidebar = ({
                     {/* New Post Button (Desktop) */}
                     {isDesktop && (
                         <TouchableOpacity
-                            style={[styles.navItem, { backgroundColor: COLORS.node.accent, marginBottom: 16, justifyContent: 'center' }]}
+                            style={[styles.navItem, { backgroundColor: COLORS.node.accent, marginBottom: 8, justifyContent: 'center' }]}
                             onPress={onNewPostClick}
                         >
                             <Text style={[styles.navText, { color: '#fff', fontWeight: 'bold' }]}>+ New Post</Text>
                         </TouchableOpacity>
                     )}
 
+                    {/* Add Column Button (Desktop, Multi-Column mode only) */}
+                    {isDesktop && isMultiColumnEnabled && (
+                        <TouchableOpacity
+                            style={[styles.navItem, styles.addColumnButton, { marginBottom: 16, justifyContent: 'center' }]}
+                            onPress={onAddColumnClick}
+                        >
+                            <Plus size={16} color={COLORS.node.accent} />
+                            <Text style={[styles.navText, { color: COLORS.node.accent }]}>Add Column</Text>
+                        </TouchableOpacity>
+                    )}
+
                     <NavItem
                         icon={Flame}
-                        label="Your Flow"
+                        label="Your Feed"
                         active={feedMode === 'global' && selectedNodeId === null}
                         onPress={() => handleModeClick('global')}
                     />
@@ -389,15 +404,6 @@ export const Sidebar = ({
                             if (onVouchesClick) onVouchesClick();
                         }}
                     />
-                    <NavItem
-                        icon={Zap}
-                        label="Beta Features"
-                        active={currentView === 'beta'}
-                        onPress={() => {
-                            if (onClose && !isDesktop) onClose();
-                            if (onBetaClick) onBetaClick();
-                        }}
-                    />
                 </View>
 
                 <View style={styles.sectionTitleRow}>
@@ -426,7 +432,20 @@ export const Sidebar = ({
                                     <Text style={styles.nodeSubscribers}>{node.subscriberCount} {node.subscriberCount === 1 ? 'member' : 'members'}</Text>
                                 )}
                             </View>
-                            {node.isSubscribed && <Users size={12} color={COLORS.node.accent} />}
+                            {/* Info button */}
+                            {onNodeInfo && (
+                                <TouchableOpacity
+                                    style={styles.nodeInfoButton}
+                                    onPress={(e) => {
+                                        e.stopPropagation();
+                                        onNodeInfo(node.id);
+                                    }}
+                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                >
+                                    <HelpCircle size={16} color={COLORS.node.muted} />
+                                </TouchableOpacity>
+                            )}
+                            {node.isSubscribed && !onNodeInfo && <Users size={12} color={COLORS.node.accent} />}
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -437,26 +456,52 @@ export const Sidebar = ({
                 const userEra = user?.era || 'Lurker Era';
                 const eraStyle = ERAS[userEra] || ERAS['Default'];
                 return (
-                    <TouchableOpacity style={styles.footer} onPress={onProfileClick}>
-                        <View style={[styles.avatar, { borderColor: COLORS.node.accent, borderWidth: 2 }]}>
-                            {user?.avatar ? (
-                                <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.avatarImage} />
-                            ) : (
-                                <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                                    {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
-                                </Text>
-                            )}
-                        </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
-                            <View style={[styles.footerEraBadge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border }]}>
-                                <Hexagon size={10} color={eraStyle.text} />
-                                <Text style={[styles.footerEraText, { color: eraStyle.text }]}>
-                                    {userEra.replace(' Era', '')}
-                                </Text>
+                    <View style={styles.footer}>
+                        {/* User Profile */}
+                        <TouchableOpacity style={styles.footerProfile} onPress={onProfileClick}>
+                            <View style={[styles.avatar, { borderColor: COLORS.node.accent, borderWidth: 2 }]}>
+                                {user?.avatar ? (
+                                    <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.avatarImage} />
+                                ) : (
+                                    <Text style={{ color: '#fff', fontWeight: 'bold' }}>
+                                        {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
+                                    </Text>
+                                )}
                             </View>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.footerUser}>@{user?.username || 'user'}</Text>
+                                <View style={[styles.footerEraBadge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border }]}>
+                                    <Hexagon size={10} color={eraStyle.text} />
+                                    <Text style={[styles.footerEraText, { color: eraStyle.text }]}>
+                                        {userEra.replace(' Era', '')}
+                                    </Text>
+                                </View>
+                            </View>
+                        </TouchableOpacity>
+                        {/* Notification & Message Icons - Right side */}
+                        <View style={styles.footerIcons}>
+                            <TouchableOpacity style={styles.footerIconButton} onPress={onNotificationsClick}>
+                                <Bell size={18} color={COLORS.node.muted} />
+                                {unreadNotifications > 0 && (
+                                    <View style={styles.footerBadge}>
+                                        <Text style={styles.footerBadgeText}>
+                                            {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.footerIconButton} onPress={onMessagesClick}>
+                                <MessageSquare size={18} color={COLORS.node.muted} />
+                                {unreadMessages > 0 && (
+                                    <View style={styles.footerBadge}>
+                                        <Text style={styles.footerBadgeText}>
+                                            {unreadMessages > 99 ? '99+' : unreadMessages}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
                         </View>
-                    </TouchableOpacity>
+                    </View>
                 );
             })()}
         </SafeAreaView>
@@ -530,6 +575,7 @@ const styles = StyleSheet.create({
     nodeList: { paddingHorizontal: 8 },
     nodeItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
     nodeItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
+    nodeInfoButton: { padding: 4, marginLeft: 4 },
     nodeDot: { width: 8, height: 8, borderRadius: 4 },
     nodeAvatar: {
         width: 28,
@@ -557,6 +603,52 @@ const styles = StyleSheet.create({
     footerUser: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
     footerEraBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, marginTop: 3, alignSelf: 'flex-start' },
     footerEraText: { fontSize: 10, fontWeight: '600' },
+    // Add Column button style
+    addColumnButton: {
+        borderWidth: 1,
+        borderColor: COLORS.node.accent,
+        borderStyle: 'dashed',
+        backgroundColor: 'transparent',
+    },
+    // Footer notification/message icons
+    footerIcons: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginRight: 8,
+    },
+    footerIconButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 8,
+        backgroundColor: COLORS.node.bg,
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    footerBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#ef4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+    },
+    footerBadgeText: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: '#fff',
+    },
+    footerProfile: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
     // Collapsed sidebar styles
     collapsedContainer: {
         width: 56,

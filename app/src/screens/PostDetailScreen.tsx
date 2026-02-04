@@ -22,6 +22,7 @@ import { getPost, getComments, createComment, Post, Comment, savePost } from "..
 import { COLORS } from "../constants/theme";
 import { VibeBar, VibeAggregateData } from "../components/VibeBar";
 import { VibeRadialWheel } from "../components/VibeRadialWheel";
+import { TipTapContent } from "../components/ui/TipTapContent";
 // Only import YouTube player on native platforms
 const YoutubePlayer = Platform.OS !== 'web' ? require('react-native-youtube-iframe').default : null;
 
@@ -540,7 +541,13 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
 
           {/* Post content */}
           {post.title && <Text style={styles.postTitle}>{post.title}</Text>}
-          {post.content && <Text style={styles.postContent}>{post.content}</Text>}
+          {(post.content || post.contentJson) && (
+            post.contentFormat === 'tiptap' && post.contentJson ? (
+              <TipTapContent content={post.contentJson} />
+            ) : post.content ? (
+              <Text style={styles.postContent}>{post.content}</Text>
+            ) : null
+          )}
 
           {/* Image/Video/Link Preview */}
           {post.linkUrl && (

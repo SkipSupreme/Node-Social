@@ -68,8 +68,7 @@ export async function postAsBot(
   nodeSlug: string,
   title: string,
   content: string,
-  linkUrl: string,
-  sourceAttribution: string
+  linkUrl: string
 ): Promise<string | null> {
   const bots = await getBots();
   const bot = bots[nodeSlug];
@@ -79,7 +78,6 @@ export async function postAsBot(
     return null;
   }
 
-  // Don't add source attribution - clean posts only
   const post = await prisma.post.create({
     data: {
       title,
@@ -164,9 +162,9 @@ async function main() {
       console.log(JSON.stringify(await getQueueStats(), null, 2));
       break;
     case 'post': {
-      // Usage: npx tsx src/jobs/curatorHelpers.ts post <nodeSlug> <title> <content> <linkUrl> <sourceAttribution>
-      const [, , , nodeSlug, title, content, linkUrl, sourceAttribution] = process.argv;
-      const postId = await postAsBot(nodeSlug, title, content, linkUrl, sourceAttribution);
+      // Usage: npx tsx src/jobs/curatorHelpers.ts post <nodeSlug> <title> <content> <linkUrl>
+      const [, , , nodeSlug, title, content, linkUrl] = process.argv;
+      const postId = await postAsBot(nodeSlug, title, content, linkUrl);
       console.log(JSON.stringify({ postId }));
       break;
     }
