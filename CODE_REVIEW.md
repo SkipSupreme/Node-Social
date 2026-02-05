@@ -10,10 +10,10 @@
 
 Node-Social is a well-structured full-stack social platform with solid architectural decisions: Fastify + Prisma backend, React Native/Expo frontend, proper token rotation, Argon2id hashing, and CSRF protection. However, there are several security vulnerabilities, bugs, and best-practice gaps that should be addressed before production deployment.
 
-**Critical issues:** 5
-**High issues:** 8
-**Medium issues:** 10
-**Low/Info issues:** 9
+**Critical issues:** 9
+**High issues:** 14
+**Medium issues:** 17
+**Low/Info issues:** 12
 
 ---
 
@@ -399,6 +399,337 @@ After password reset, Redis refresh keys are deleted but the database `RefreshTo
 
 ---
 
+---
+
+# DEEP DIVE: Additional Findings (Pass 2)
+
+---
+
+## CRITICAL Issues (Continued)
+
+### 33. `/check-username` Endpoint: No Auth, No Rate Limit
+**File:** `backend/api/src/routes/auth.ts:126-132`
+
+```typescript
+fastify.get('/check-username', async (request, reply) => {
+  const { username } = request.query as { username: string };
+  if (!username || username.length < 3) return reply.send({ available: false });
+  const user = await fastify.prisma.user.findUnique({ where: { username } });
+  return reply.send({ available: !user });
+});
+```
+
+This endpoint is **completely public** (no authentication) with **no rate limiting**. An attacker can:
+- Enumerate every valid username on the platform at machine speed
+- DoS the database with rapid sequential lookups
+- Build a complete user directory for targeted attacks
+
+**Fix:** Add rate limiting (1-2 req/sec per IP) and consider returning a generic response after auth.
+
+---
+
+### 34. Password Validation Is Dangerously Weak
+**File:** `backend/api/src/routes/auth.ts:96, 105, 971`
+
+```typescript
+password: z.string().min(8),  // Only constraint: 8 characters minimum
+```
+
+The password policy is the same across register, login, and reset: just `min(8)`. No uppercase, lowercase, number, or special character requirements. An 8-character lowercase password has only ~2x10^11 possibilities.
+
+Per NIST SP 800-63B, you should at minimum check passwords against known breach databases (e.g., HaveIBeenPwned k-anonymity API) and enforce a minimum of 12+ characters.
+
+---
+
+### 35. `/refresh` Endpoint Has No Rate Limiting
+**File:** `backend/api/src/routes/auth.ts:770`
+
+The token refresh endpoint has **no rate limit**. If an attacker obtains a valid refresh token, they can generate unlimited access tokens as fast as the server can respond. While token rotation provides some protection, the window between obtaining a token and its revocation is exploitable.
+
+**Fix:** Add rate limiting (e.g., max 10 per minute per user/IP).
+
+---
+
+### 36. Empty `onSuccessLogin` Callback in App.tsx
+**File:** `app/App.tsx:380`
+
+```typescript
+<LoginScreen
+  onSuccessLogin={() => { }}  // Empty callback - login does nothing!
+  goToRegister={() => setCurrentScreen('register')}
+/>
+```
+
+The login success handler is an empty function. After successful authentication via LoginScreen, nothing happens - the screen transition to the authenticated state appears to rely solely on the Zustand auth store state change, but this empty callback suggests the component's contract expects explicit navigation. This could cause the user to appear stuck on the login screen.
+
+---
+
+### 37. Password Reset Doesn't Revoke Database Refresh Tokens (Expanded)
+**File:** `backend/api/src/routes/auth.ts:1015-1019`
+
+This was noted as issue #32, but the deep dive confirms it's **more critical than initially assessed**. The refresh flow at line 786-799 checks the **database** (not Redis) for token validity:
+
+```typescript
+// In /refresh handler:
+const storedToken = await fastify.prisma.refreshToken.findFirst({
+  where: { tokenHash, revoked: false, expiresAt: { gt: new Date() } },
+});
+```
+
+Since password reset only clears Redis keys but NOT database records, a stolen refresh token **remains fully valid** after password reset. Compare with the logout handler (line 895-897) which correctly does both:
+
+```typescript
+// In /logout - correct:
+await fastify.prisma.refreshToken.updateMany({
+  where: { userId },
+  data: { revoked: true },
+});
+```
+
+The password reset handler is missing this exact line.
+
+---
+
+## HIGH Issues (Continued)
+
+### 38. No Error Boundary in Frontend
+**File:** `app/App.tsx`
+
+The entire application has **no React Error Boundary**. If any component throws during rendering, the entire app crashes with an unrecoverable white screen. This is especially dangerous for a social app where user-generated content could trigger unexpected rendering errors.
+
+**Fix:** Wrap the root component tree in an ErrorBoundary with a fallback UI.
+
+---
+
+### 39. Timing Attack on Email Enumeration
+**File:** `backend/api/src/routes/auth.ts:931`
+
+While `forgot-password` returns a generic message ("If that email exists..."), the database lookup timing differs based on whether the email exists. An attacker can measure response times to determine valid emails. The Argon2 hash comparison only happens after the user is found, creating an even larger timing gap.
+
+**Fix:** Always perform a constant-time operation (e.g., a dummy Argon2 hash) even when the user doesn't exist.
+
+---
+
+### 40. Cookie `sameSite` Should Be `strict` Not `lax`
+**File:** `backend/api/src/routes/auth.ts:54,63,72`
+
+```typescript
+sameSite: 'lax' as const,  // For access, refresh, AND CSRF tokens
+```
+
+All three cookies use `sameSite: 'lax'`, which allows cookies to be sent on top-level GET navigations from external sites. For auth tokens, `'strict'` provides better CSRF protection. The CSRF cookie in particular should be `'strict'` since the double-submit pattern is already in place.
+
+---
+
+### 41. CSRF Token Has 7-Day Lifetime
+**File:** `backend/api/src/routes/auth.ts:76`
+
+```typescript
+maxAge: 7 * 24 * 60 * 60,  // CSRF token valid for 7 days
+```
+
+CSRF tokens are typically short-lived (minutes to hours). A 7-day CSRF token significantly expands the attack window. If a CSRF token is leaked, an attacker has a full week to exploit it.
+
+---
+
+### 42. Redis and Database Token State Can Diverge
+**File:** `backend/api/src/routes/auth.ts:162,178`
+
+Refresh tokens are stored in BOTH Redis (7-day TTL) and PostgreSQL (database expiration). There's no synchronization mechanism:
+- Redis TTL can expire before the database record
+- Database revocation doesn't clear Redis entries (except on explicit logout)
+- The refresh handler checks the database, making Redis entries informational-only but still consuming memory
+
+---
+
+### 43. Sensitive Tokens Stored in React Component State
+**File:** `app/App.tsx:334-335`
+
+```typescript
+const [resetToken, setResetToken] = useState<string | null>(null);
+const [verifyToken, setVerifyToken] = useState<string | null>(null);
+```
+
+Password reset and email verification tokens from deep links are stored in React state, making them:
+- Visible in React DevTools
+- Persistent in memory for the component's lifetime
+- Accessible to any XSS attack that can read React fiber internals
+- Never explicitly cleared after use
+
+---
+
+### 44. Deep Link Tokens Not Validated Before Use
+**File:** `app/App.tsx:343-348`
+
+```typescript
+if (path === 'reset-password' && queryParams?.token) {
+  setResetToken(queryParams.token as string);  // No format validation
+  setCurrentScreen('reset-password');
+}
+```
+
+Tokens from deep link URLs are accepted without any format validation (length, character set, etc.). Malformed tokens are passed directly to child screens, potentially causing errors or unexpected behavior.
+
+---
+
+### 45. `algoSettings` State Never Connected to Feed API
+**File:** `app/App.tsx:38-41`
+
+```typescript
+const [algoSettings, setAlgoSettings] = useState({
+  preset: 'balanced',
+  weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 }
+});
+```
+
+The VibeValidator settings panel lets users adjust weights, but these settings are **never sent to the API**. The `getFeed()` call at line 70 doesn't use `algoSettings`. Users will think they're customizing their feed, but nothing actually changes.
+
+---
+
+### 46. Migration Data Loss: Columns Dropped and Re-Added
+**File:** `backend/api/prisma/migrations/20251123203126_.../migration.sql`
+
+```sql
+-- WARNING: data loss
+ALTER TABLE "posts" DROP COLUMN "postType",
+DROP COLUMN "title",
+DROP COLUMN "visibility",
+```
+
+Followed immediately by another migration that re-adds them with defaults:
+
+```sql
+ALTER TABLE "posts" ADD COLUMN "postType" TEXT NOT NULL DEFAULT 'text',
+ADD COLUMN "title" TEXT,
+ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'public';
+```
+
+If these migrations ran against a populated database, all post titles, types, and visibility settings were permanently lost and replaced with defaults.
+
+---
+
+## MEDIUM Issues (Continued)
+
+### 47. `/verify-email` Has No Rate Limiting
+**File:** `backend/api/src/routes/auth.ts:1026`
+
+The email verification endpoint has no rate limit. While the 32-byte token has sufficient entropy to resist brute force, the lack of rate limiting allows an attacker to spray verification attempts rapidly, consuming database resources.
+
+---
+
+### 48. `/logout` Has No Rate Limiting
+**File:** `backend/api/src/routes/auth.ts:869`
+
+An authenticated user (or attacker with a stolen access token) can spam the logout endpoint, causing excessive database writes and Redis deletions.
+
+---
+
+### 49. `useEffect` Missing Dependencies
+**File:** `app/App.tsx:161-164`
+
+```typescript
+useEffect(() => {
+  fetchNodes();
+  fetchFeed();
+}, []);  // Missing fetchNodes and fetchFeed in dependency array
+```
+
+This causes stale closure warnings and means the functions capture initial values of state variables, not current ones. While it "works" for the initial load pattern, it's a footgun if these functions are ever called conditionally.
+
+---
+
+### 50. Missing `useCallback` on All Handler Functions
+**File:** `app/App.tsx:49-159`
+
+Functions like `fetchNodes`, `fetchFeed`, `handleNodeSelect`, `handleSearch` are redefined on every render without `useCallback`. Since they're passed as props to child components (Sidebar, Feed, VibeValidator), every parent re-render forces child re-renders, even when props haven't meaningfully changed.
+
+---
+
+### 51. Soft Delete Not Enforced at Schema Level
+**File:** `backend/api/prisma/schema.prisma:66`
+
+The `deletedAt` field enables soft deletion, but enforcement is entirely at the application level. Every query that fetches posts or comments must remember to add `deletedAt: null` to the WHERE clause. A single missed filter exposes "deleted" content.
+
+Consider adding a Prisma middleware that automatically filters soft-deleted records.
+
+---
+
+### 52. VibeReaction Uniqueness Not Enforced at Database Level
+**File:** `backend/api/prisma/schema.prisma:308-309`
+
+```
+// Note: Unique constraint handled at application level since Prisma
+// doesn't support conditional uniques
+```
+
+This is related to issue #6 (race condition). The database itself has no constraint preventing duplicate reactions. A partial unique index could be created at the SQL level even if Prisma doesn't natively support it.
+
+---
+
+### 53. No Test Suite
+**File:** `backend/api/package.json:9`
+
+```json
+"test": "echo \"Error: no test specified\" && exit 1"
+```
+
+There are zero tests. For a security-critical application handling authentication, payments of "ConnoisseurCred", and moderation actions, this is a significant gap.
+
+---
+
+### 54. Deep Link Race Condition With Auth Loading
+**File:** `app/App.tsx:339-362`
+
+The deep link handler (lines 339-358) and `loadFromStorage()` (lines 360-362) are in separate `useEffect` hooks with empty dependency arrays. They execute concurrently with no synchronization. If a deep link arrives while auth is still loading, the screen may transition to a reset/verify screen before auth state is established, potentially showing the wrong UI.
+
+---
+
+### 55. Required `username` Column Added With cuid() Default
+**File:** `backend/api/prisma/schema.prisma:23`
+
+```
+username String @unique @default(cuid())
+```
+
+The comment says "Default for migration, should be set by user." Any users created before the migration get auto-generated usernames like `clz1a2b3c4d5e6f7`. There's no mechanism to prompt them to choose a real username.
+
+---
+
+## LOW / INFO Issues (Continued)
+
+### 56. `any[]` Types in Frontend State
+**File:** `app/App.tsx:34,47`
+
+```typescript
+useState<any[]>([])  // Nodes and search results
+```
+
+Loses all type safety. Should use the `Node[]` and `Post[]` types already defined in `api.ts`.
+
+---
+
+### 57. `console.log` Left in Auth Store
+**File:** `app/src/store/auth.ts:77`
+
+```typescript
+console.log('getMe() returned:', { emailVerified: me.user.emailVerified });
+```
+
+Debug logging left in production code. This leaks user verification status to the browser/device console.
+
+---
+
+### 58. No Response Size Limit on Metadata Fetch
+**File:** `backend/api/src/routes/metadata.ts:44`
+
+```typescript
+const html = await response.text();
+```
+
+The entire HTML response is loaded into memory with no size limit. A malicious URL could return gigabytes of data, causing an out-of-memory crash. Add a response size check and streaming limit.
+
+---
+
 ## Security Summary
 
 | Area | Rating | Notes |
@@ -416,13 +747,28 @@ After password reset, Redis refresh keys are deleted but the database `RefreshTo
 
 ## Top Recommendations (Priority Order)
 
-1. **Fix the SSRF vulnerability** in the metadata endpoint immediately
-2. **Fail-fast on missing secrets** in production (JWT_SECRET, COOKIE_SECRET)
-3. **Hash reset/verification tokens** before database storage
-4. **Add authorization to moderation endpoints** (role-based access)
-5. **Fix the password reset token revocation** to include database records
-6. **Replace `KEYS` with `SCAN`** or a per-user token set in Redis
-7. **Stop exposing emails** in post/comment responses; use usernames
-8. **Add pagination to reactions queries**
+### Tier 1: Fix Before Any Production Deployment
+1. **Fix the SSRF vulnerability** in the metadata endpoint - block private IPs, add timeout/size limits
+2. **Fail-fast on missing secrets** in production (JWT_SECRET, COOKIE_SECRET) - crash on startup
+3. **Fix password reset token revocation** to include database records (not just Redis)
+4. **Add authorization to moderation endpoints** - role-based access control
+5. **Rate-limit `/check-username`** and `/refresh` - both are currently wide open
+6. **Hash reset/verification tokens** before database storage (match refresh token pattern)
+7. **Add `return` to authenticate decorator** after 401 response
+
+### Tier 2: Fix Before Public Beta
+8. **Strengthen password policy** - minimum 12 chars, check against breach databases
 9. **Validate Apple nonce** properly for replay protection
-10. **Add graceful shutdown** handlers for production readiness
+10. **Stop exposing emails** in post/comment responses; use usernames
+11. **Fix cookie `sameSite` to `strict`** for auth tokens
+12. **Add Error Boundary** to frontend - currently any render error crashes the entire app
+13. **Replace Redis `KEYS` with `SCAN`** or per-user token sets
+14. **Connect VibeValidator settings to feed API** - users think they're changing settings but nothing happens
+15. **Add pagination to reactions queries**
+
+### Tier 3: Before Scaling
+16. **Write tests** - zero test coverage on a security-critical app
+17. **Add graceful shutdown** handlers (SIGTERM/SIGINT)
+18. **Implement Prisma middleware** for soft-delete filtering
+19. **Add database-level unique constraints** on VibeReaction
+20. **Move email queue** to event-driven (Redis pub/sub or PG LISTEN/NOTIFY)
