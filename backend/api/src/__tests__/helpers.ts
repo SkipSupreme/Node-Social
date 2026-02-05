@@ -14,6 +14,7 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import jwt from '@fastify/jwt';
 import cookie from '@fastify/cookie';
 import { randomUUID, createHash } from 'crypto';
+import { vi } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -91,8 +92,6 @@ export function createMockRedis() {
 // ---------------------------------------------------------------------------
 
 export function createMockPrisma(): MockPrismaClient {
-  const { vi } = await import('vitest');
-
   const makeMethods = () => ({
     findUnique: vi.fn(),
     findFirst: vi.fn(),
@@ -129,7 +128,6 @@ export function createMockPrisma(): MockPrismaClient {
 // ---------------------------------------------------------------------------
 
 export function createMockMeiliSearch() {
-  const { vi } = await import('vitest');
   return {
     index: vi.fn().mockReturnValue({
       search: vi.fn().mockResolvedValue({ hits: [], estimatedTotalHits: 0 }),
@@ -149,11 +147,11 @@ export async function buildTestApp(): Promise<{
   app: FastifyInstance;
   prisma: MockPrismaClient;
   redis: ReturnType<typeof createMockRedis>;
-  meili: Awaited<ReturnType<typeof createMockMeiliSearch>>;
+  meili: ReturnType<typeof createMockMeiliSearch>;
 }> {
-  const prisma = await createMockPrisma();
+  const prisma = createMockPrisma();
   const redis = createMockRedis();
-  const meili = await createMockMeiliSearch();
+  const meili = createMockMeiliSearch();
 
   const app = Fastify({ logger: false });
 
