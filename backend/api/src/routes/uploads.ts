@@ -89,11 +89,8 @@ const uploadsRoutes: FastifyPluginAsync = async (fastify) => {
             // Save new file
             await fs.writeFile(filepath, processedImage);
 
-            // Build URL using the request's origin so it works with tunnels/proxies
-            const protocol = request.headers['x-forwarded-proto'] || 'http';
-            const host = request.headers['x-forwarded-host'] || request.headers.host || `localhost:${process.env.PORT || 3000}`;
-            const baseUrl = process.env.API_URL || `${protocol}://${host}`;
-            const avatarUrl = `${baseUrl}/uploads/${filename}`;
+            // Store relative path - frontend resolves full URL from API base
+            const avatarUrl = `/uploads/${filename}`;
 
             // Update user avatar in database
             const updatedUser = await fastify.prisma.user.update({
@@ -199,10 +196,8 @@ const uploadsRoutes: FastifyPluginAsync = async (fastify) => {
 
             await fs.writeFile(filepath, processedImage);
 
-            const protocol = request.headers['x-forwarded-proto'] || 'http';
-            const host = request.headers['x-forwarded-host'] || request.headers.host || `localhost:${process.env.PORT || 3000}`;
-            const baseUrl = process.env.API_URL || `${protocol}://${host}`;
-            const bannerUrl = `${baseUrl}/uploads/${filename}`;
+            // Store relative path - frontend resolves full URL from API base
+            const bannerUrl = `/uploads/${filename}`;
 
             const updatedUser = await fastify.prisma.user.update({
                 where: { id: userId },

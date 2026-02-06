@@ -563,3 +563,76 @@ curl http://localhost:3000/health  # Returns { "ok": true }
 - `/nodes/*` - Community/topic management
 - `/api/v1/reactions/*` - Vibe vector reactions
 - `/search/posts` - MeiliSearch full-text search
+
+---
+
+## React Native Deprecations — DO NOT REVERT
+
+**IMPORTANT:** The following patterns are deprecated in React Native. Do NOT reintroduce them.
+
+### 1. Shadow Props (Deprecated) → Use `boxShadow`
+
+```typescript
+// ❌ DEPRECATED - Do not use
+{
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.25,
+  shadowRadius: 3.84,
+  elevation: 5, // Android-only, also deprecated
+}
+
+// ✅ CORRECT - Use boxShadow (works on iOS, Android, and Web)
+{
+  boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.25)',
+}
+```
+
+The `boxShadow` property follows CSS syntax: `offsetX offsetY blurRadius color`
+
+### 2. TouchableWithoutFeedback (Deprecated) → Use `Pressable`
+
+```typescript
+// ❌ DEPRECATED
+import { TouchableWithoutFeedback } from 'react-native';
+<TouchableWithoutFeedback onPress={handlePress}>
+  <View>...</View>
+</TouchableWithoutFeedback>
+
+// ✅ CORRECT
+import { Pressable } from 'react-native';
+<Pressable onPress={handlePress}>
+  <View>...</View>
+</Pressable>
+```
+
+### 3. pointerEvents Prop (Deprecated) → Use `style.pointerEvents`
+
+```typescript
+// ❌ DEPRECATED
+<View pointerEvents="none">
+
+// ✅ CORRECT
+<View style={{ pointerEvents: 'none' }}>
+```
+
+### 4. useNativeDriver on Web
+
+The warning about `useNativeDriver` not being supported on web is **expected behavior**, not an error. The native animation module doesn't exist in browsers. No action needed — it falls back to JS animations automatically.
+
+---
+
+## React Best Practices (Updated Feb 2025)
+
+### Memoization
+- Wrap list item components in `React.memo()` to prevent unnecessary re-renders
+- Use `useCallback` for event handlers passed to child components
+- Use `useMemo` for expensive computations and style objects
+- Move `StyleSheet.create()` outside components (module level)
+
+### FlatList Optimization
+- Always provide `keyExtractor`
+- Use `windowSize`, `maxToRenderPerBatch`, `initialNumToRender` props
+- Wrap `renderItem` in `useCallback`
+- Consider `getItemLayout` if items have predictable heights
+- Use `removeClippedSubviews={true}` on native (not web)

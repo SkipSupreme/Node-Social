@@ -56,3 +56,22 @@ export const isGoogleSignInEnabled = Boolean(
     googleOAuthConfig.iosClientId ||
     googleOAuthConfig.webClientId
 );
+
+/**
+ * Resolves a potentially relative URL to an absolute URL.
+ * Handles both old absolute URLs and new relative paths.
+ *
+ * @param url - The URL to resolve (e.g., "/uploads/avatar.jpg" or "https://...")
+ * @returns The resolved absolute URL, or undefined if input is falsy
+ */
+export const resolveMediaUrl = (url: string | null | undefined): string | undefined => {
+  if (!url) return undefined;
+
+  // Already absolute URL - return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // Relative URL - prepend API_URL
+  return `${API_URL}${url}`;
+};

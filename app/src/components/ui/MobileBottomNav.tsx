@@ -128,10 +128,6 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.node.accent,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: COLORS.node.accent,
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    elevation: 6,
+    boxShadow: '0px 3px 6px rgba(99, 102, 241, 0.3)',
   },
 });

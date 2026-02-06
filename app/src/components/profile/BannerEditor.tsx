@@ -133,17 +133,12 @@ const styles = StyleSheet.create({
         borderWidth: 2,
         borderColor: COLORS.node.accent,
         borderRadius: RADIUS.lg,
+        boxShadow: '0px 12px 40px rgba(0, 0, 0, 0.6), 0px 0px 20px rgba(99, 102, 241, 0.3)',
         ...Platform.select({
             web: {
                 backdropFilter: 'blur(20px)',
-                boxShadow: '0 12px 40px rgba(0,0,0,0.6), 0 0 20px rgba(99, 102, 241, 0.3)',
             },
         }),
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 12 },
-        shadowOpacity: 0.5,
-        shadowRadius: 24,
-        elevation: 20,
     },
     content: {
         padding: SPACING.md,

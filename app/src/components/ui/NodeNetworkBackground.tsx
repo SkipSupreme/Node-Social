@@ -595,7 +595,7 @@ export const NodeNetworkBackground: React.FC = () => {
   }, [twinkleTime, width, height]);
 
   return (
-    <View style={[StyleSheet.absoluteFill, styles.container]} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, styles.container, { pointerEvents: 'none' }]}>
       <Svg width={width} height={height} style={StyleSheet.absoluteFill}>
         <Defs>
           {/* Glow gradient for brighter stars */}

@@ -354,7 +354,7 @@ export const VibeRadialWheel = ({
                     // Web: Use fixed positioning
                     <View style={styles.webOverlay}>
                         <Pressable style={styles.backdrop} onPress={() => setIsActive(false)} />
-                        <View style={styles.overlay} pointerEvents="box-none">
+                        <View style={[styles.overlay, { pointerEvents: 'box-none' }]}>
                             <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
                                 {/* Connection Line */}
                                 <Line

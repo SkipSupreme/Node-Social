@@ -1,8 +1,41 @@
 // src/lib/api.ts
 import { Platform } from "react-native";
-import { API_URL } from "../config";
+import { API_URL, resolveMediaUrl } from "../config";
 import { storage } from "./storage";
 import { getCookie } from "./cookies";
+
+// Fields that contain media URLs and need to be resolved
+const MEDIA_URL_FIELDS = ['avatar', 'banner', 'bannerImage', 'mediaUrl', 'image', 'linkImage'];
+
+/**
+ * Recursively transforms media URLs in API responses from relative to absolute.
+ * Handles nested objects and arrays.
+ */
+function transformMediaUrls<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+
+  if (Array.isArray(data)) {
+    return data.map(item => transformMediaUrls(item)) as T;
+  }
+
+  if (typeof data === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(data as Record<string, unknown>)) {
+      if (MEDIA_URL_FIELDS.includes(key) && typeof value === 'string') {
+        result[key] = resolveMediaUrl(value);
+      } else if (typeof value === 'object') {
+        result[key] = transformMediaUrls(value);
+      } else {
+        result[key] = value;
+      }
+    }
+    return result as T;
+  }
+
+  return data;
+}
 
 export type AuthResponse = {
   user: {
@@ -375,7 +408,9 @@ async function request<T>(
     throw new Error(message);
   }
 
-  return res.json() as Promise<T>;
+  // Transform media URLs from relative to absolute
+  const data = await res.json();
+  return transformMediaUrls(data) as T;
 }
 
 // --- Auth Endpoints ---
@@ -2052,6 +2087,18 @@ export function sendMessage(conversationId: string, content: string) {
 
 // ========== External Platform Feeds (Tier 5) ==========
 
+// Default language filter for external feeds (set to 'en' for English-only)
+// Set to undefined to show all languages
+let externalFeedLanguage: string | undefined = 'en';
+
+export function setExternalFeedLanguage(lang: string | undefined) {
+  externalFeedLanguage = lang;
+}
+
+export function getExternalFeedLanguage(): string | undefined {
+  return externalFeedLanguage;
+}
+
 export interface ExternalPost {
   id: string;
   platform: 'bluesky' | 'mastodon';
@@ -2076,71 +2123,86 @@ export interface ExternalPost {
     username: string;
     displayName: string;
   };
+  language?: string | null; // Detected language code
+  cached?: boolean; // Whether result was from cache
 }
 
 export interface ExternalFeedResult {
   posts: ExternalPost[];
   nextCursor?: string;
   platform: 'bluesky' | 'mastodon';
+  cached?: boolean;
 }
 
 // Bluesky feeds
-export function getBlueskyDiscover(limit = 20, cursor?: string) {
+export function getBlueskyDiscover(limit = 20, cursor?: string, language?: string) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (cursor) params.append('cursor', cursor);
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<ExternalFeedResult>(`/external/bluesky/discover?${params}`, {
     method: "GET",
   });
 }
 
-export function getBlueskyFeed(feedUri?: string, limit = 20, cursor?: string) {
+export function getBlueskyFeed(feedUri?: string, limit = 20, cursor?: string, language?: string) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (feedUri) params.append('feed', feedUri);
   if (cursor) params.append('cursor', cursor);
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<ExternalFeedResult>(`/external/bluesky/feed?${params}`, {
     method: "GET",
   });
 }
 
-export function getBlueskyUserPosts(handle: string, limit = 20, cursor?: string) {
+export function getBlueskyUserPosts(handle: string, limit = 20, cursor?: string, language?: string) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (cursor) params.append('cursor', cursor);
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<ExternalFeedResult>(`/external/bluesky/user/${encodeURIComponent(handle)}?${params}`, {
     method: "GET",
   });
 }
 
 // Mastodon feeds
-export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'public' | 'local' = 'public', limit = 20, cursor?: string) {
+export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'public' | 'local' = 'public', limit = 20, cursor?: string, language?: string) {
   const params = new URLSearchParams({
     instance,
     timeline,
     limit: limit.toString(),
   });
   if (cursor) params.append('cursor', cursor);
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<ExternalFeedResult>(`/external/mastodon/timeline?${params}`, {
     method: "GET",
   });
 }
 
-export function getMastodonTrending(instance = 'mastodon.social', limit = 20, offset = 0) {
+export function getMastodonTrending(instance = 'mastodon.social', limit = 20, offset = 0, language?: string) {
   const params = new URLSearchParams({
     instance,
     limit: limit.toString(),
     offset: offset.toString(),
   });
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<ExternalFeedResult>(`/external/mastodon/trending?${params}`, {
     method: "GET",
   });
 }
 
 // Combined external feed
-export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'mastodon'], limit = 20, mastodonInstance?: string) {
+export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'mastodon'], limit = 20, mastodonInstance?: string, language?: string) {
   const params = new URLSearchParams({
     limit: limit.toString(),
     platforms: platforms.join(','),
   });
   if (mastodonInstance) params.append('mastodonInstance', mastodonInstance);
+  const lang = language ?? externalFeedLanguage;
+  if (lang) params.append('language', lang);
   return request<{ posts: ExternalPost[]; platforms: string[] }>(`/external/combined?${params}`, {
     method: "GET",
   });

@@ -33,7 +33,7 @@ export const ToastContainer: React.FC = () => {
   if (toasts.length === 0) return null;
 
   return (
-    <View style={styles.container} pointerEvents="none">
+    <View style={styles.container}>
       {toasts.map(toast => (
         <ToastItem key={toast.id} message={toast.message} type={toast.type} />
       ))}
@@ -90,6 +90,7 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: 'center',
     zIndex: 9999,
+    pointerEvents: 'none',
   },
   toast: {
     flexDirection: 'row',
@@ -103,18 +104,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     gap: 10,
     maxWidth: 400,
-    ...Platform.select({
-      web: {
-        boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
-      },
-      default: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 8,
-      },
-    }),
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
   },
   toastText: {
     color: COLORS.node.text,

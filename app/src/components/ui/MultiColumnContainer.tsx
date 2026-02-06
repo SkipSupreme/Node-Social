@@ -5,6 +5,7 @@ import { COLORS, COLUMNS } from '../../constants/theme';
 import { useColumnsStore, FeedColumn as FeedColumnType } from '../../store/columns';
 import { FeedColumn } from './FeedColumn';
 import { AddColumnModal } from './AddColumnModal';
+import { ExternalPost } from '../../lib/api';
 
 interface MultiColumnContainerProps {
   currentUser: any;
@@ -18,6 +19,8 @@ interface MultiColumnContainerProps {
   onNodeClick?: (nodeId: string) => void;
   showAddModal: boolean;
   onCloseAddModal: () => void;
+  onQuoteExternalPost?: (post: ExternalPost) => void;
+  onSaveExternalPost?: (post: ExternalPost) => void;
 }
 
 export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
@@ -32,6 +35,8 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
   onNodeClick,
   showAddModal,
   onCloseAddModal,
+  onQuoteExternalPost,
+  onSaveExternalPost,
 }) => {
   const { width } = useWindowDimensions();
   const { columns, addColumn, removeColumn, reorderColumns, updateColumn } = useColumnsStore();
@@ -91,6 +96,8 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
               onMoveLeft={index > 0 ? () => handleMoveLeft(index) : undefined}
               onMoveRight={index < columns.length - 1 ? () => handleMoveRight(index) : undefined}
               onUpdateColumn={(updates) => updateColumn(column.id, updates)}
+              onQuoteExternalPost={onQuoteExternalPost}
+              onSaveExternalPost={onSaveExternalPost}
             />
           </View>
         ))}

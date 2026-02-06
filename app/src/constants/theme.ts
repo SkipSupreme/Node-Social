@@ -90,35 +90,20 @@ export const RADIUS = {
     full: 9999,
 };
 
-// Shadows with era-aware glow
+// Shadows using boxShadow (modern React Native)
+// Format: 'offsetX offsetY blurRadius spreadRadius color'
 export const SHADOWS = {
     sm: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 4,
-        elevation: 2,
+        boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
     },
     md: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
+        boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
     },
     lg: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.25,
-        shadowRadius: 16,
-        elevation: 8,
+        boxShadow: '0px 8px 16px rgba(0, 0, 0, 0.25)',
     },
     glow: (color: string) => ({
-        shadowColor: color,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 10,
+        boxShadow: `0px 0px 20px ${color}`,
     }),
 };
 

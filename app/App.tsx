@@ -111,6 +111,7 @@ const MainApp = () => {
   const [nextCursor, setNextCursor] = useState<string | undefined>(undefined);
   const [hasMore, setHasMore] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
+  const [quotedExternalPost, setQuotedExternalPost] = useState<ExternalPost | null>(null);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [nodeInfoVisible, setNodeInfoVisible] = useState(false);
   const [nodeInfoNodeId, setNodeInfoNodeId] = useState<string | null>(null);
@@ -631,6 +632,20 @@ const MainApp = () => {
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchFeed(selectedNodeId, feedMode);
+  };
+
+  // Handler for quoting an external post to Node
+  const handleQuoteExternalPost = (post: ExternalPost) => {
+    setQuotedExternalPost(post);
+    setIsCreatePostOpen(true);
+  };
+
+  // Handler for saving an external post locally
+  // TODO: Implement proper external post saving to backend
+  const handleSaveExternalPost = (post: ExternalPost) => {
+    // For now, just show a toast - full implementation requires backend support
+    console.log('Saving external post:', post.id);
+    // Could save to local storage or add an API endpoint for saving external post references
   };
 
   const loadMorePosts = async () => {
@@ -1160,6 +1175,8 @@ const MainApp = () => {
                     onNodeClick={handleNodeSelect}
                     showAddModal={showAddColumnModal}
                     onCloseAddModal={() => setShowAddColumnModal(false)}
+                    onQuoteExternalPost={handleQuoteExternalPost}
+                    onSaveExternalPost={handleSaveExternalPost}
                   />
                 ) : (
                   /* Mobile/Tablet Single Feed */
@@ -1194,6 +1211,8 @@ const MainApp = () => {
                       onUserClick={(userId) => navigateTo('profile', { userId })}
                       onRefresh={handleRefresh}
                       refreshing={refreshing}
+                      onQuoteExternalPost={handleQuoteExternalPost}
+                      onSaveExternalPost={handleSaveExternalPost}
                     />
                   )
                 )}
@@ -1430,14 +1449,19 @@ const MainApp = () => {
       {/* Create Post Modal */}
       <CreatePostModal
         visible={isCreatePostOpen}
-        onClose={() => setIsCreatePostOpen(false)}
+        onClose={() => {
+          setIsCreatePostOpen(false);
+          setQuotedExternalPost(null);
+        }}
         onSuccess={() => {
           setIsCreatePostOpen(false);
+          setQuotedExternalPost(null);
           queryClient.invalidateQueries({ queryKey: ['posts'] });
           fetchFeed(selectedNodeId, feedMode); // Refresh feed after posting
         }}
         nodes={nodes}
         initialNodeId={selectedNodeId}
+        quotedExternalPost={quotedExternalPost}
       />
 
       {/* Mobile Vibe Validator - 90% height bottom sheet with X button */}

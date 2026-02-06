@@ -259,11 +259,7 @@ const styles = StyleSheet.create({
     borderColor: COLORS.node.border,
     zIndex: 99,
     maxHeight: 300,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
+    boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)',
   },
   dropdownScroll: {
     padding: 6,

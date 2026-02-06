@@ -1,11 +1,11 @@
 // Individual feed column with independent state and scrolling
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Platform } from 'react-native';
 import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
 import { COLORS, COLUMNS } from '../../constants/theme';
 import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
 import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost } from '../../lib/api';
-import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell } from 'lucide-react-native';
+import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell, RefreshCw } from 'lucide-react-native';
 import { Feed } from './Feed';
 import { WhatsVibing } from './WhatsVibing';
 import { NodeLandingPage } from './NodeLandingPage';
@@ -29,6 +29,8 @@ interface FeedColumnProps {
   onMoveLeft?: () => void;
   onMoveRight?: () => void;
   onUpdateColumn?: (updates: Partial<Omit<FeedColumnType, 'id'>>) => void;
+  onQuoteExternalPost?: (post: ExternalPost) => void;
+  onSaveExternalPost?: (post: ExternalPost) => void;
 }
 
 // Column types that support VibeValidator (feed-based columns)
@@ -100,6 +102,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   onMoveLeft,
   onMoveRight,
   onUpdateColumn,
+  onQuoteExternalPost,
+  onSaveExternalPost,
 }) => {
   // Independent state for this column
   const [posts, setPosts] = useState<any[]>([]);
@@ -113,6 +117,13 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 
   // VibeValidator modal state
   const [showVibeModal, setShowVibeModal] = useState(false);
+
+  // Web pull-to-refresh state
+  const [webPullDistance, setWebPullDistance] = useState(0);
+  const [isWebPulling, setIsWebPulling] = useState(false);
+  const webStartY = React.useRef(0);
+  const webScrollTop = React.useRef(0);
+  const PULL_THRESHOLD = 80;
 
   // Check if this column type supports vibe settings
   const supportsVibeSettings = VIBE_SUPPORTED_TYPES.includes(column.type);
@@ -451,6 +462,49 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
     fetchData(nextCursor);
   }, [fetchData, loadingMore, hasMore, nextCursor]);
 
+  // Web pull-to-refresh handlers (for ScrollViews that use RefreshControl on native)
+  const handleWebTouchStart = useCallback((e: any) => {
+    if (Platform.OS !== 'web' || refreshing) return;
+    webStartY.current = e.touches?.[0]?.clientY || e.clientY || 0;
+  }, [refreshing]);
+
+  const handleWebTouchMove = useCallback((e: any) => {
+    if (Platform.OS !== 'web' || refreshing) return;
+    if (webScrollTop.current > 0) return;
+
+    const currentY = e.touches?.[0]?.clientY || e.clientY || 0;
+    const diff = currentY - webStartY.current;
+
+    if (diff > 0) {
+      e.preventDefault?.();
+      setIsWebPulling(true);
+      setWebPullDistance(Math.min(diff * 0.4, 100));
+    }
+  }, [refreshing]);
+
+  const handleWebTouchEnd = useCallback(() => {
+    if (Platform.OS !== 'web' || refreshing) return;
+
+    if (webPullDistance >= PULL_THRESHOLD) {
+      handleRefresh();
+    }
+
+    setWebPullDistance(0);
+    setIsWebPulling(false);
+  }, [refreshing, webPullDistance, handleRefresh]);
+
+  const handleWebScroll = useCallback((e: any) => {
+    const scrollY = e.nativeEvent?.contentOffset?.y || 0;
+    webScrollTop.current = scrollY;
+  }, []);
+
+  // Web pull-to-refresh touch props
+  const webTouchProps = Platform.OS === 'web' ? {
+    onTouchStart: handleWebTouchStart,
+    onTouchMove: handleWebTouchMove,
+    onTouchEnd: handleWebTouchEnd,
+  } : {};
+
   // Handle post click - Feed expects (post) => void, we have (postId) => void
   const handlePostClick = useCallback((post: any) => {
     onPostClick(post.id);
@@ -499,52 +553,88 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         return <Text style={styles.emptyText}>No notifications yet</Text>;
       }
       return (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 8 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.node.accent}
-              colors={[COLORS.node.accent]}
-            />
-          }
-        >
-          {notifications.map((item) => {
-            const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[styles.notificationItem, isModNotification && styles.modNotification]}
-                onPress={() => {
-                  if (item.postId) onPostClick(item.postId);
-                  else if (item.actor?.id) onUserClick(item.actor.id);
-                }}
-              >
-                <View style={styles.notificationIcon}>
-                  {getNotificationIcon(item.type)}
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.notificationText} numberOfLines={2}>
-                    {isModNotification ? (
-                      item.content
-                    ) : (
-                      <>
-                        <Text style={{ fontWeight: '600' }}>@{item.actor?.username}</Text> {item.content}
-                      </>
-                    )}
-                  </Text>
-                  <Text style={styles.notificationTime}>
-                    {new Date(item.createdAt).toLocaleDateString()}
-                  </Text>
-                </View>
-                {!item.read && <View style={styles.unreadDot} />}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <View style={{ flex: 1, overflow: 'hidden' }} {...webTouchProps}>
+          {/* Web pull indicator */}
+          {Platform.OS === 'web' && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 50,
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 10,
+                transform: [{ translateY: webPullDistance - 50 }],
+                opacity: refreshing ? 1 : Math.min(webPullDistance / PULL_THRESHOLD, 1),
+              }}
+            >
+              <View style={{ transform: [{ rotate: refreshing ? '0deg' : `${(webPullDistance / PULL_THRESHOLD) * 180}deg` }] }}>
+                <RefreshCw size={24} color={COLORS.node.accent} />
+              </View>
+            </View>
+          )}
+          <View
+            style={{
+              flex: 1,
+              transform: Platform.OS === 'web' && (isWebPulling || refreshing)
+                ? [{ translateY: refreshing ? 40 : webPullDistance }]
+                : undefined,
+            }}
+          >
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 8 }}
+              showsVerticalScrollIndicator={false}
+              onScroll={handleWebScroll}
+              scrollEventThrottle={16}
+              refreshControl={
+                Platform.OS !== 'web' ? (
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={COLORS.node.accent}
+                    colors={[COLORS.node.accent]}
+                  />
+                ) : undefined
+              }
+            >
+              {notifications.map((item) => {
+                const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
+                    style={[styles.notificationItem, isModNotification && styles.modNotification]}
+                    onPress={() => {
+                      if (item.postId) onPostClick(item.postId);
+                      else if (item.actor?.id) onUserClick(item.actor.id);
+                    }}
+                  >
+                    <View style={styles.notificationIcon}>
+                      {getNotificationIcon(item.type)}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.notificationText} numberOfLines={2}>
+                        {isModNotification ? (
+                          item.content
+                        ) : (
+                          <>
+                            <Text style={{ fontWeight: '600' }}>@{item.actor?.username}</Text> {item.content}
+                          </>
+                        )}
+                      </Text>
+                      <Text style={styles.notificationTime}>
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    {!item.read && <View style={styles.unreadDot} />}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        </View>
       );
     }
 
@@ -561,36 +651,80 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         return <Text style={styles.emptyText}>No posts found</Text>;
       }
       return (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ padding: 8 }}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor={COLORS.node.accent}
-              colors={[COLORS.node.accent]}
-            />
-          }
-          onScroll={({ nativeEvent }) => {
-            const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
-            const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 500;
-            if (isNearBottom && hasMore && !loadingMore) {
-              handleLoadMore();
-            }
-          }}
-          scrollEventThrottle={400}
-        >
-          {externalPosts.map((post) => (
-            <ExternalPostCard key={post.id} post={post} />
-          ))}
-          {loadingMore && (
-            <View style={{ padding: 20, alignItems: 'center' }}>
-              <ActivityIndicator size="small" color={COLORS.node.accent} />
+        <View style={{ flex: 1, overflow: 'hidden' }} {...webTouchProps}>
+          {/* Web pull indicator */}
+          {Platform.OS === 'web' && (
+            <View
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                height: 50,
+                justifyContent: 'center',
+                alignItems: 'center',
+                zIndex: 10,
+                transform: [{ translateY: webPullDistance - 50 }],
+                opacity: refreshing ? 1 : Math.min(webPullDistance / PULL_THRESHOLD, 1),
+              }}
+            >
+              <View style={{ transform: [{ rotate: refreshing ? '0deg' : `${(webPullDistance / PULL_THRESHOLD) * 180}deg` }] }}>
+                <RefreshCw size={24} color={COLORS.node.accent} />
+              </View>
             </View>
           )}
-        </ScrollView>
+          <View
+            style={{
+              flex: 1,
+              transform: Platform.OS === 'web' && (isWebPulling || refreshing)
+                ? [{ translateY: refreshing ? 40 : webPullDistance }]
+                : undefined,
+            }}
+          >
+            <ScrollView
+              style={{ flex: 1 }}
+              contentContainerStyle={{ padding: 8 }}
+              showsVerticalScrollIndicator={false}
+              refreshControl={
+                Platform.OS !== 'web' ? (
+                  <RefreshControl
+                    refreshing={refreshing}
+                    onRefresh={handleRefresh}
+                    tintColor={COLORS.node.accent}
+                    colors={[COLORS.node.accent]}
+                  />
+                ) : undefined
+              }
+              onScroll={({ nativeEvent }) => {
+                // Track scroll position for web pull-to-refresh
+                if (Platform.OS === 'web') {
+                  webScrollTop.current = nativeEvent.contentOffset.y;
+                }
+                // Load more when near bottom
+                const { layoutMeasurement, contentOffset, contentSize } = nativeEvent;
+                const isNearBottom = layoutMeasurement.height + contentOffset.y >= contentSize.height - 500;
+                if (isNearBottom && hasMore && !loadingMore) {
+                  handleLoadMore();
+                }
+              }}
+              scrollEventThrottle={16}
+            >
+              {externalPosts.map((post) => (
+                <ExternalPostCard
+                  key={post.id}
+                  post={post}
+                  onRepostToNode={onQuoteExternalPost}
+                  onSaveToNode={onSaveExternalPost}
+                />
+              ))}
+              {loadingMore && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <ActivityIndicator size="small" color={COLORS.node.accent} />
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
       );
     }
 
@@ -618,6 +752,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         onUserClick={onUserClick}
         onRefresh={handleRefresh}
         refreshing={refreshing}
+        onQuoteExternalPost={onQuoteExternalPost}
+        onSaveExternalPost={onSaveExternalPost}
       />
     );
   };

@@ -210,7 +210,7 @@ export const BetaTestScreen = ({ onBack }: BetaTestScreenProps) => {
 
             {/* OVERLAY */}
             {isActive && (
-                <View style={styles.overlay} pointerEvents="none">
+                <View style={[styles.overlay, { pointerEvents: 'none' }]}>
                     <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
                         {/* Background Dimmer */}
                         <Circle cx={center.x} cy={center.y} r={MAX_RADIUS + 40} fill="black" fillOpacity={0.5} />

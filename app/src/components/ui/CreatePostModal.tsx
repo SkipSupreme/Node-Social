@@ -12,9 +12,9 @@ import {
     Platform,
     useWindowDimensions
 } from 'react-native';
-import { X, Image as ImageIcon, BarChart2, Trash2, ChevronDown, Check, Search, Hash } from 'lucide-react-native';
+import { X, Image as ImageIcon, BarChart2, Trash2, ChevronDown, Check, Search, Hash, ExternalLink } from 'lucide-react-native';
 import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
-import { createPost, Node, getLinkPreview, TipTapDoc } from '../../lib/api';
+import { createPost, Node, getLinkPreview, TipTapDoc, ExternalPost } from '../../lib/api';
 import { LinkPreviewCard } from '../LinkPreviewCard';
 import { RichTextEditor, RichTextEditorRef, SelectionState } from './RichTextEditor';
 import { EditorToolbar } from './EditorToolbar';
@@ -25,6 +25,7 @@ interface CreatePostModalProps {
     onSuccess: () => void;
     nodes: Node[];
     initialNodeId?: string | null;
+    quotedExternalPost?: ExternalPost | null;
 }
 
 // Default empty selection state
@@ -47,7 +48,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     onClose,
     onSuccess,
     nodes,
-    initialNodeId
+    initialNodeId,
+    quotedExternalPost
 }) => {
     const { width } = useWindowDimensions();
     const isDesktop = width >= 768;
@@ -224,7 +226,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 content: !hasRichContent && hasText ? plainText.trim() : undefined,
                 title: finalTitle,
                 nodeId: selectedNodeId || undefined,
-                linkUrl: linkUrl || imageUrl || undefined,
+                // If quoting an external post, use its URL; otherwise use linkUrl/imageUrl
+                linkUrl: quotedExternalPost?.externalUrl || linkUrl || imageUrl || undefined,
                 poll: pollData
             });
             onSuccess();
@@ -394,6 +397,37 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         {linkPreview && (
                             <View style={styles.previewContainer}>
                                 <LinkPreviewCard metadata={linkPreview} />
+                            </View>
+                        )}
+
+                        {/* Quoted External Post Preview */}
+                        {quotedExternalPost && (
+                            <View style={styles.quotedPostContainer}>
+                                <View style={styles.quotedPostHeader}>
+                                    <Text style={styles.quotedPostLabel}>
+                                        Quoting from {quotedExternalPost.platform === 'bluesky' ? '🦋 Bluesky' : '🦣 Mastodon'}
+                                    </Text>
+                                </View>
+                                <View style={styles.quotedPostCard}>
+                                    <View style={styles.quotedPostAuthor}>
+                                        <Text style={styles.quotedPostDisplayName}>
+                                            {quotedExternalPost.author.displayName}
+                                        </Text>
+                                        <Text style={styles.quotedPostUsername}>
+                                            @{quotedExternalPost.author.username}
+                                        </Text>
+                                    </View>
+                                    <Text style={styles.quotedPostContent} numberOfLines={3}>
+                                        {quotedExternalPost.content}
+                                    </Text>
+                                    <TouchableOpacity
+                                        style={styles.quotedPostLink}
+                                        onPress={() => {/* Could open in browser */}}
+                                    >
+                                        <ExternalLink size={12} color={COLORS.node.accent} />
+                                        <Text style={styles.quotedPostLinkText}>View original</Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         )}
                     </ScrollView>
@@ -794,5 +828,56 @@ const styles = StyleSheet.create({
     noResultsText: {
         color: COLORS.node.muted,
         fontSize: 14,
+    },
+    // Quoted External Post styles
+    quotedPostContainer: {
+        marginTop: 16,
+    },
+    quotedPostHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    quotedPostLabel: {
+        fontSize: 12,
+        color: COLORS.node.muted,
+        fontWeight: '600',
+    },
+    quotedPostCard: {
+        backgroundColor: COLORS.node.bg,
+        borderRadius: RADIUS.lg,
+        padding: 12,
+        borderWidth: 1,
+        borderColor: COLORS.node.border,
+    },
+    quotedPostAuthor: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 8,
+    },
+    quotedPostDisplayName: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: COLORS.node.text,
+    },
+    quotedPostUsername: {
+        fontSize: 13,
+        color: COLORS.node.muted,
+    },
+    quotedPostContent: {
+        fontSize: 14,
+        color: COLORS.node.textSecondary,
+        lineHeight: 20,
+    },
+    quotedPostLink: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
+        marginTop: 8,
+    },
+    quotedPostLinkText: {
+        fontSize: 12,
+        color: COLORS.node.accent,
     },
 });

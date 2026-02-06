@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
-import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2 } from './Icons';
+import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2, RefreshCw } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
 import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost } from '../../lib/api';
@@ -18,21 +18,17 @@ const Video = Platform.OS !== 'web' ? require('expo-av').Video : null;
 const ResizeMode = Platform.OS !== 'web' ? require('expo-av').ResizeMode : null;
 
 // Auto-sizing image component that maintains aspect ratio
-const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
+const AutoSizeImage = memo(({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
     const [aspectRatio, setAspectRatio] = useState(16 / 9); // Default aspect ratio
-    const [loading, setLoading] = useState(true);
-    const screenWidth = Dimensions.get('window').width;
 
     useEffect(() => {
         Image.getSize(
             uri,
             (width, height) => {
                 setAspectRatio(width / height);
-                setLoading(false);
             },
             (error) => {
                 console.log('Failed to get image size:', error);
-                setLoading(false);
             }
         );
     }, [uri]);
@@ -51,14 +47,16 @@ const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: numb
             resizeMode="contain"
         />
     );
-};
+});
 
 // Zoomable image component - wraps image in TouchableOpacity to open modal
-const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: number }) => {
+const ZoomableImage = memo(({ uri, maxHeight = 500 }: { uri: string; maxHeight?: number }) => {
     const [modalVisible, setModalVisible] = useState(false);
     const [aspectRatio, setAspectRatio] = useState(16 / 9);
-    const screenWidth = Dimensions.get('window').width;
-    const screenHeight = Dimensions.get('window').height;
+    const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+    const openModal = useCallback(() => setModalVisible(true), []);
+    const closeModal = useCallback(() => setModalVisible(false), []);
 
     useEffect(() => {
         Image.getSize(
@@ -72,9 +70,15 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
         );
     }, [uri]);
 
+    const modalImageStyle = useMemo(() => ({
+        width: screenWidth,
+        height: screenWidth / aspectRatio,
+        maxHeight: screenHeight * 0.85,
+    }), [screenWidth, screenHeight, aspectRatio]);
+
     return (
         <>
-            <TouchableOpacity onPress={() => setModalVisible(true)} activeOpacity={0.9}>
+            <TouchableOpacity onPress={openModal} activeOpacity={0.9}>
                 <Image
                     source={{ uri }}
                     style={[
@@ -93,29 +97,25 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
                 visible={modalVisible}
                 transparent={true}
                 animationType="fade"
-                onRequestClose={() => setModalVisible(false)}
+                onRequestClose={closeModal}
                 statusBarTranslucent
             >
                 <StatusBar backgroundColor="rgba(0,0,0,0.95)" barStyle="light-content" />
                 <View style={styles.imageZoomModal}>
                     <TouchableOpacity
                         style={styles.imageZoomClose}
-                        onPress={() => setModalVisible(false)}
+                        onPress={closeModal}
                     >
                         <X size={28} color="#fff" />
                     </TouchableOpacity>
                     <TouchableOpacity
                         activeOpacity={1}
                         style={styles.imageZoomContainer}
-                        onPress={() => setModalVisible(false)}
+                        onPress={closeModal}
                     >
                         <Image
                             source={{ uri }}
-                            style={{
-                                width: screenWidth,
-                                height: screenWidth / aspectRatio,
-                                maxHeight: screenHeight * 0.85,
-                            }}
+                            style={modalImageStyle}
                             resizeMode="contain"
                         />
                     </TouchableOpacity>
@@ -123,13 +123,21 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
             </Modal>
         </>
     );
-};
+});
 
 // Image Gallery component - displays multiple images in a horizontal scrollable carousel
-const ImageGallery = ({ urls, maxHeight = 400 }: { urls: string[]; maxHeight?: number }) => {
+const ImageGallery = memo(({ urls, maxHeight = 400 }: { urls: string[]; maxHeight?: number }) => {
     const [activeIndex, setActiveIndex] = useState(0);
     const screenWidth = Dimensions.get('window').width;
-    const imageWidth = Math.min(screenWidth - 32, 600);
+    const imageWidth = useMemo(() => Math.min(screenWidth - 32, 600), [screenWidth]);
+
+    const handleScrollEnd = useCallback((e: any) => {
+        const index = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
+        setActiveIndex(index);
+    }, [imageWidth]);
+
+    const scrollViewStyle = useMemo(() => ({ width: imageWidth }), [imageWidth]);
+    const imageContainerStyle = useMemo(() => ({ width: imageWidth }), [imageWidth]);
 
     if (urls.length === 0) return null;
 
@@ -144,39 +152,55 @@ const ImageGallery = ({ urls, maxHeight = 400 }: { urls: string[]; maxHeight?: n
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
-                onMomentumScrollEnd={(e) => {
-                    const index = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
-                    setActiveIndex(index);
-                }}
-                style={{ width: imageWidth }}
+                onMomentumScrollEnd={handleScrollEnd}
+                style={scrollViewStyle}
             >
                 {urls.map((url, index) => (
-                    <View key={index} style={{ width: imageWidth }}>
+                    <View key={url} style={imageContainerStyle}>
                         <ZoomableImage uri={url} maxHeight={maxHeight} />
                     </View>
                 ))}
             </ScrollView>
             {/* Page indicator dots */}
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 6 }}>
-                {urls.map((_, index) => (
+            <View style={galleryStyles.dotsContainer}>
+                {urls.map((url, index) => (
                     <View
-                        key={index}
-                        style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: 4,
-                            backgroundColor: index === activeIndex ? COLORS.node.accent : 'rgba(255,255,255,0.3)',
-                        }}
+                        key={url}
+                        style={[
+                            galleryStyles.dot,
+                            { backgroundColor: index === activeIndex ? COLORS.node.accent : 'rgba(255,255,255,0.3)' }
+                        ]}
                     />
                 ))}
             </View>
             {/* Image counter */}
-            <Text style={{ textAlign: 'center', color: COLORS.node.muted, fontSize: 12, marginTop: 4 }}>
+            <Text style={galleryStyles.counter}>
                 {activeIndex + 1} / {urls.length}
             </Text>
         </View>
     );
-};
+});
+
+// Styles for ImageGallery (outside component to avoid recreation)
+const galleryStyles = StyleSheet.create({
+    dotsContainer: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        marginTop: 8,
+        gap: 6,
+    },
+    dot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    counter: {
+        textAlign: 'center',
+        color: COLORS.node.muted,
+        fontSize: 12,
+        marginTop: 4,
+    },
+});
 
 // Reddit Video Player component - handles v.redd.it URLs
 const RedditVideoPlayer = ({ url }: { url: string }) => {
@@ -1612,13 +1636,61 @@ interface FeedProps {
     onUserClick?: (userId: string) => void;
     onRefresh?: () => void;
     refreshing?: boolean;
+    onQuoteExternalPost?: (post: ExternalPost) => void;
+    onSaveExternalPost?: (post: ExternalPost) => void;
 }
 
 // Type for unified feed items
 type FeedItem = { type: 'node'; data: UIPost } | { type: 'external'; data: ExternalPost };
 
-export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick, onRefresh, refreshing = false }: FeedProps) => {
+export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick, onRefresh, refreshing = false, onQuoteExternalPost, onSaveExternalPost }: FeedProps) => {
     const prefetchedRef = useRef<Set<string>>(new Set());
+    const flatListRef = useRef<any>(null);
+
+    // Web pull-to-refresh state
+    const [webPullDistance, setWebPullDistance] = useState(0);
+    const [isWebPulling, setIsWebPulling] = useState(false);
+    const webStartY = useRef(0);
+    const webScrollTop = useRef(0);
+    const PULL_THRESHOLD = 80;
+
+    // Web pull-to-refresh handlers
+    const handleWebTouchStart = useCallback((e: any) => {
+        if (Platform.OS !== 'web' || refreshing) return;
+        webStartY.current = e.touches?.[0]?.clientY || e.clientY || 0;
+    }, [refreshing]);
+
+    const handleWebTouchMove = useCallback((e: any) => {
+        if (Platform.OS !== 'web' || refreshing) return;
+        if (webScrollTop.current > 0) return; // Not at top
+
+        const currentY = e.touches?.[0]?.clientY || e.clientY || 0;
+        const diff = currentY - webStartY.current;
+
+        if (diff > 0) {
+            e.preventDefault?.();
+            setIsWebPulling(true);
+            setWebPullDistance(Math.min(diff * 0.4, 100));
+        }
+    }, [refreshing]);
+
+    const handleWebTouchEnd = useCallback(() => {
+        if (Platform.OS !== 'web' || refreshing) return;
+
+        if (webPullDistance >= PULL_THRESHOLD && onRefresh) {
+            onRefresh();
+        }
+
+        setWebPullDistance(0);
+        setIsWebPulling(false);
+    }, [refreshing, webPullDistance, onRefresh]);
+
+    // Track scroll position for web pull-to-refresh
+    const handleScrollWithTracking = useCallback((e: any) => {
+        const scrollY = e.nativeEvent.contentOffset.y;
+        webScrollTop.current = scrollY;
+        onScroll?.(scrollY);
+    }, [onScroll]);
 
     // Memoized combined and sorted feed data
     const feedData = useMemo((): FeedItem[] => {
@@ -1658,10 +1730,6 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         });
     }, [posts]);
 
-    const handleScroll = useCallback((e: any) => {
-        onScroll?.(e.nativeEvent.contentOffset.y);
-    }, [onScroll]);
-
     const handleEndReached = useCallback(() => {
         if (hasMore && !loadingMore && onLoadMore) {
             onLoadMore();
@@ -1684,17 +1752,28 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                 />
             );
         }
-        return <ExternalPostCard post={item.data} />;
-    }, [currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId]);
+        return (
+            <ExternalPostCard
+                post={item.data}
+                onRepostToNode={onQuoteExternalPost}
+                onSaveToNode={onSaveExternalPost}
+            />
+        );
+    }, [currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onQuoteExternalPost, onSaveExternalPost]);
 
     const keyExtractor = useCallback((item: FeedItem) => item.data.id, []);
 
     const ListHeader = useMemo(() => {
-        if (searchUserResults.length === 0) return null;
+        const hasUserResults = searchUserResults.length > 0;
+
+        if (!hasUserResults) return null;
+
         return (
-            <View style={feedStyles.userResultsSection}>
-                <Text style={feedStyles.userResultsTitle}>Users</Text>
-                {searchUserResults.map(user => (
+            <View>
+                {hasUserResults && (
+                    <View style={feedStyles.userResultsSection}>
+                        <Text style={feedStyles.userResultsTitle}>Users</Text>
+                        {searchUserResults.map(user => (
                     <TouchableOpacity
                         key={user.id}
                         style={feedStyles.userResultItem}
@@ -1723,7 +1802,9 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                             </View>
                         )}
                     </TouchableOpacity>
-                ))}
+                        ))}
+                    </View>
+                )}
             </View>
         );
     }, [searchUserResults, onUserClick]);
@@ -1731,55 +1812,118 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
     const ListFooter = useMemo(() => {
         if (loadingMore) {
             return (
-                <View style={{ padding: 20, alignItems: 'center' }}>
+                <View style={feedStyles.listFooter}>
                     <ActivityIndicator size="small" color={COLORS.node.accent} />
-                    <Text style={{ color: COLORS.node.muted, marginTop: 8, fontSize: 12 }}>Loading more...</Text>
+                    <Text style={feedStyles.listFooterText}>Loading more...</Text>
                 </View>
             );
         }
         if (!hasMore && posts.length > 0) {
             return (
-                <View style={{ padding: 20, alignItems: 'center' }}>
-                    <Text style={{ color: COLORS.node.muted, fontSize: 12 }}>You've reached the end</Text>
+                <View style={feedStyles.listFooter}>
+                    <Text style={feedStyles.endText}>You've reached the end</Text>
                 </View>
             );
         }
         return null;
     }, [loadingMore, hasMore, posts.length]);
 
-    return (
-        <FlatList
-            data={feedData}
-            renderItem={renderItem}
-            keyExtractor={keyExtractor}
-            style={{ flex: 1, backgroundColor: COLORS.node.bg }}
-            contentContainerStyle={{ paddingBottom: 80, padding: 8, paddingTop: headerOffset + 8 }}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
-            onEndReached={handleEndReached}
-            onEndReachedThreshold={0.5}
-            ListHeaderComponent={ListHeader}
-            ListFooterComponent={ListFooter}
-            showsVerticalScrollIndicator={false}
-            refreshControl={
-                onRefresh ? (
-                    <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={onRefresh}
-                        tintColor={COLORS.node.accent}
-                        colors={[COLORS.node.accent]}
-                        progressViewOffset={headerOffset}
+    // Web pull-to-refresh indicator (memoized)
+    const WebPullIndicator = useMemo(() => {
+        if (Platform.OS !== 'web' || !onRefresh) return null;
+
+        return (
+            <View
+                style={[
+                    feedStyles.webPullIndicator,
+                    {
+                        top: headerOffset,
+                        transform: [{ translateY: webPullDistance - 50 }],
+                        opacity: refreshing ? 1 : Math.min(webPullDistance / PULL_THRESHOLD, 1),
+                    }
+                ]}
+            >
+                <View
+                    style={{
+                        transform: [{ rotate: refreshing ? '0deg' : `${(webPullDistance / PULL_THRESHOLD) * 180}deg` }],
+                    }}
+                >
+                    <RefreshCw
+                        size={24}
+                        color={COLORS.node.accent}
+                        style={refreshing ? feedStyles.refreshingIcon : undefined}
                     />
-                ) : undefined
-            }
-            // Virtualization optimizations
-            windowSize={5}
-            maxToRenderPerBatch={10}
-            initialNumToRender={8}
-            removeClippedSubviews={Platform.OS !== 'web'}
-            // Avoid layout shifts
-            getItemLayout={undefined}
-        />
+                </View>
+                {refreshing && (
+                    <Text style={feedStyles.refreshingText}>Refreshing...</Text>
+                )}
+            </View>
+        );
+    }, [headerOffset, webPullDistance, refreshing, onRefresh]);
+
+    // Memoized touch props for web pull-to-refresh
+    const webTouchProps = useMemo(() => {
+        if (Platform.OS !== 'web' || !onRefresh) return {};
+        return {
+            onTouchStart: handleWebTouchStart,
+            onTouchMove: handleWebTouchMove,
+            onTouchEnd: handleWebTouchEnd,
+        };
+    }, [onRefresh, handleWebTouchStart, handleWebTouchMove, handleWebTouchEnd]);
+
+    // Memoized content container style (depends on headerOffset)
+    const contentContainerStyle = useMemo(() => ({
+        paddingBottom: 80,
+        padding: 8,
+        paddingTop: headerOffset + 8,
+    }), [headerOffset]);
+
+    // Memoized transform style for web pull animation
+    const pullTransformStyle = useMemo(() => {
+        if (Platform.OS !== 'web' || (!isWebPulling && !refreshing)) return feedStyles.flexOne;
+        return {
+            flex: 1,
+            transform: [{ translateY: refreshing ? 40 : webPullDistance }],
+        };
+    }, [isWebPulling, refreshing, webPullDistance]);
+
+    return (
+        <View style={feedStyles.feedContainer} {...webTouchProps}>
+            {WebPullIndicator}
+            <View style={pullTransformStyle}>
+                <FlatList
+                    ref={flatListRef}
+                    data={feedData}
+                    renderItem={renderItem}
+                    keyExtractor={keyExtractor}
+                    style={feedStyles.flatList}
+                    contentContainerStyle={contentContainerStyle}
+                    onScroll={handleScrollWithTracking}
+                    scrollEventThrottle={16}
+                    onEndReached={handleEndReached}
+                    onEndReachedThreshold={0.5}
+                    ListHeaderComponent={ListHeader}
+                    ListFooterComponent={ListFooter}
+                    showsVerticalScrollIndicator={false}
+                    refreshControl={
+                        Platform.OS !== 'web' && onRefresh ? (
+                            <RefreshControl
+                                refreshing={refreshing}
+                                onRefresh={onRefresh}
+                                tintColor={COLORS.node.accent}
+                                colors={[COLORS.node.accent]}
+                                progressViewOffset={headerOffset}
+                            />
+                        ) : undefined
+                    }
+                    // Virtualization optimizations
+                    windowSize={5}
+                    maxToRenderPerBatch={10}
+                    initialNumToRender={8}
+                    removeClippedSubviews={Platform.OS !== 'web'}
+                />
+            </View>
+        </View>
     );
 };
 
@@ -2195,5 +2339,49 @@ const feedStyles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '500',
         paddingHorizontal: 12,
+    },
+    // Feed container styles
+    feedContainer: {
+        flex: 1,
+        overflow: 'hidden',
+    },
+    flatList: {
+        flex: 1,
+        backgroundColor: COLORS.node.bg,
+    },
+    flexOne: {
+        flex: 1,
+    },
+    // Web pull-to-refresh styles
+    webPullIndicator: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        height: 50,
+        justifyContent: 'center',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    refreshingIcon: {
+        opacity: 0.7,
+    },
+    refreshingText: {
+        color: COLORS.node.muted,
+        fontSize: 12,
+        marginTop: 4,
+    },
+    // List footer styles
+    listFooter: {
+        padding: 20,
+        alignItems: 'center',
+    },
+    listFooterText: {
+        color: COLORS.node.muted,
+        marginTop: 8,
+        fontSize: 12,
+    },
+    endText: {
+        color: COLORS.node.muted,
+        fontSize: 12,
     },
 });

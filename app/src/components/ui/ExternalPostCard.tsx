@@ -21,6 +21,9 @@ import { getBlueskyThread, getMastodonThread } from '../../lib/api';
 interface ExternalPostCardProps {
   post: ExternalPost;
   onPress?: () => void;
+  onRepostToNode?: (post: ExternalPost) => void;
+  onSaveToNode?: (post: ExternalPost) => void;
+  isSaved?: boolean;
 }
 
 // Auto-sizing image component that respects aspect ratio
@@ -314,9 +317,10 @@ const formatCount = (count: number): string => {
   return count.toString();
 };
 
-const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({ post, onPress }) => {
+const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({ post, onPress, onRepostToNode, onSaveToNode, isSaved = false }) => {
   const [showComments, setShowComments] = useState(false);
   const [comments, setComments] = useState<ExternalComment[]>([]);
+  const [localSaved, setLocalSaved] = useState(isSaved);
   const [loadingComments, setLoadingComments] = useState(false);
   const [commentsError, setCommentsError] = useState(false);
 
@@ -454,14 +458,27 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({ post, onPress 
               {formatCount(post.replyCount)}
             </Text>
           </TouchableOpacity>
-          <View style={styles.stat}>
-            <Repeat size={16} color={COLORS.node.muted} />
+          <TouchableOpacity
+            style={styles.stat}
+            onPress={() => onRepostToNode?.(post)}
+          >
+            <Repeat size={16} color={COLORS.node.accent} />
             <Text style={styles.statText}>{formatCount(post.repostCount)}</Text>
-          </View>
-          <View style={styles.stat}>
-            <Heart size={16} color={COLORS.node.muted} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.stat}
+            onPress={() => {
+              setLocalSaved(!localSaved);
+              onSaveToNode?.(post);
+            }}
+          >
+            <Heart
+              size={16}
+              color={localSaved ? '#ef4444' : COLORS.node.muted}
+              fill={localSaved ? '#ef4444' : 'none'}
+            />
             <Text style={styles.statText}>{formatCount(post.likeCount)}</Text>
-          </View>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.stat} onPress={handleOpenExternal}>
             <ExternalLink size={16} color={COLORS.node.muted} />
           </TouchableOpacity>
@@ -531,7 +548,7 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({ post, onPress 
 
 // Memoize to prevent unnecessary re-renders during scroll
 export const ExternalPostCard = memo(ExternalPostCardInner, (prevProps, nextProps) => {
-  return prevProps.post.id === nextProps.post.id;
+  return prevProps.post.id === nextProps.post.id && prevProps.isSaved === nextProps.isSaved;
 });
 
 const styles = StyleSheet.create({

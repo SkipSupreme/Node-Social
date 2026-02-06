@@ -6,7 +6,7 @@ import {
   TouchableOpacity,
   Text,
   StyleSheet,
-  TouchableWithoutFeedback,
+  Pressable,
 } from 'react-native';
 import { COLORS } from '../../constants/theme';
 import { VibeValidator, VibeValidatorSettings } from './VibeValidator';
@@ -36,7 +36,7 @@ const toColumnVibeSettings = (settings: VibeValidatorSettings): ColumnVibeSettin
   weights: settings.weights,
   mode: settings.mode,
   intermediate: settings.intermediate,
-  advanced: settings.advanced,
+  advanced: settings.advanced as Record<string, unknown> | undefined,
   expert: settings.expert as any,
 });
 
@@ -65,7 +65,8 @@ export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({
       <View
         testID="vibe-validator-modal"
         style={styles.container}
-        accessibilityRole="dialog"
+        accessibilityRole="none"
+        accessibilityLabel="Vibe settings dialog"
       >
         {/* Backdrop */}
         <TouchableOpacity
@@ -76,7 +77,7 @@ export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({
         />
 
         {/* Modal Content */}
-        <TouchableWithoutFeedback>
+        <Pressable>
           <View testID="modal-content" style={styles.content}>
             {/* Column title header */}
             {columnTitle && (
@@ -100,7 +101,7 @@ export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({
               onUpdate={handleUpdate}
             />
           </View>
-        </TouchableWithoutFeedback>
+        </Pressable>
       </View>
     </Modal>
   );

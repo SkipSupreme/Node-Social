@@ -238,11 +238,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: RADIUS.xl,
         // Shadow for depth
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.2,
-        shadowRadius: 8,
-        elevation: 4,
+        boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
         ...Platform.select({
             web: {
                 backdropFilter: 'blur(12px)',

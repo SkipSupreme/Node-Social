@@ -576,11 +576,7 @@ const styles = StyleSheet.create({
     logoIcon: { width: 32, height: 32, backgroundColor: COLORS.node.accent, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
     logoGlow: {
         position: 'absolute',
-        shadowColor: COLORS.node.accent,
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 1,
-        shadowRadius: 8,
-        elevation: 10,
+        boxShadow: `0px 0px 8px ${COLORS.node.accent}`,
     },
     logoIconInner: {
         position: 'absolute',

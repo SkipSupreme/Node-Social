@@ -1,5 +1,6 @@
 // Tier 5: External Platform Integration Routes
 // API endpoints for fetching Bluesky and Mastodon feeds
+// Supports Redis caching (5min TTL) and language filtering
 
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
@@ -14,6 +15,13 @@ import {
   fetchCombinedFeed,
 } from '../services/externalFeedService.js';
 
+// Common query parameters for all endpoints
+const commonQuerySchema = {
+  limit: z.coerce.number().min(1).max(50).default(20),
+  cursor: z.string().optional(),
+  language: z.string().length(2).optional(), // ISO 639-1 code (en, es, ja, etc.)
+};
+
 const externalRoutes: FastifyPluginAsync = async (fastify) => {
   // ============================================
   // BLUESKY ENDPOINTS
@@ -26,18 +34,20 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
       // Public endpoint - no auth required
     },
     async (request, reply) => {
-      const schema = z.object({
-        limit: z.coerce.number().min(1).max(50).default(20),
-        cursor: z.string().optional(),
-      });
+      const schema = z.object(commonQuerySchema);
 
       const parsed = schema.safeParse(request.query);
       if (!parsed.success) {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { limit, cursor } = parsed.data;
-      const result = await fetchBlueskyDiscover(limit, cursor);
+      const { limit, cursor, language } = parsed.data;
+      const result = await fetchBlueskyDiscover({
+        limit,
+        cursor,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send(result);
     }
@@ -49,8 +59,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const schema = z.object({
         feed: z.string().optional(), // AT URI of feed generator
-        limit: z.coerce.number().min(1).max(50).default(20),
-        cursor: z.string().optional(),
+        ...commonQuerySchema,
       });
 
       const parsed = schema.safeParse(request.query);
@@ -58,8 +67,13 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { feed, limit, cursor } = parsed.data;
-      const result = await fetchBlueskyFeed(feed, limit, cursor);
+      const { feed, limit, cursor, language } = parsed.data;
+      const result = await fetchBlueskyFeed(feed, {
+        limit,
+        cursor,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send(result);
     }
@@ -72,10 +86,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
       const paramsSchema = z.object({
         handle: z.string().min(1),
       });
-      const querySchema = z.object({
-        limit: z.coerce.number().min(1).max(50).default(20),
-        cursor: z.string().optional(),
-      });
+      const querySchema = z.object(commonQuerySchema);
 
       const paramsResult = paramsSchema.safeParse(request.params);
       const queryResult = querySchema.safeParse(request.query);
@@ -85,8 +96,13 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { handle } = paramsResult.data;
-      const { limit, cursor } = queryResult.data;
-      const result = await fetchBlueskyUserPosts(handle, limit, cursor);
+      const { limit, cursor, language } = queryResult.data;
+      const result = await fetchBlueskyUserPosts(handle, {
+        limit,
+        cursor,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send(result);
     }
@@ -123,8 +139,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
       const schema = z.object({
         instance: z.string().default('mastodon.social'),
         timeline: z.enum(['public', 'local']).default('public'),
-        limit: z.coerce.number().min(1).max(50).default(20),
-        cursor: z.string().optional(), // max_id for pagination
+        ...commonQuerySchema,
       });
 
       const parsed = schema.safeParse(request.query);
@@ -132,8 +147,13 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { instance, timeline, limit, cursor } = parsed.data;
-      const result = await fetchMastodonFeed(instance, timeline, limit, cursor);
+      const { instance, timeline, limit, cursor, language } = parsed.data;
+      const result = await fetchMastodonFeed(instance, timeline, {
+        limit,
+        cursor,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send(result);
     }
@@ -147,6 +167,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         instance: z.string().default('mastodon.social'),
         limit: z.coerce.number().min(1).max(50).default(20),
         offset: z.coerce.number().min(0).default(0),
+        language: z.string().length(2).optional(),
       });
 
       const parsed = schema.safeParse(request.query);
@@ -154,8 +175,13 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { instance, limit, offset } = parsed.data;
-      const result = await fetchMastodonTrending(instance, limit, offset);
+      const { instance, limit, offset, language } = parsed.data;
+      const result = await fetchMastodonTrending(instance, {
+        limit,
+        offset,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send(result);
     }
@@ -194,6 +220,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         limit: z.coerce.number().min(1).max(50).default(20),
         platforms: z.string().optional(), // comma-separated: "bluesky,mastodon"
         mastodonInstance: z.string().optional(),
+        language: z.string().length(2).optional(),
       });
 
       const parsed = schema.safeParse(request.query);
@@ -201,7 +228,7 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { limit, platforms, mastodonInstance } = parsed.data;
+      const { limit, platforms, mastodonInstance, language } = parsed.data;
 
       // Parse platforms
       const platformList = platforms
@@ -224,7 +251,11 @@ const externalRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'At least one platform must be specified' });
       }
 
-      const posts = await fetchCombinedFeed(sources, limit);
+      const posts = await fetchCombinedFeed(sources, {
+        limit,
+        language,
+        redis: fastify.redis,
+      });
 
       return reply.send({
         posts,

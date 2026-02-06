@@ -200,10 +200,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.node.border,
     gap: 16,
-    shadowColor: "#000",
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
   },
   cardTitle: {
     fontSize: 20,

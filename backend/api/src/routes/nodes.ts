@@ -454,10 +454,8 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
 
       await fs.writeFile(filepath, processedImage);
 
-      const protocol = request.headers['x-forwarded-proto'] || 'http';
-      const host = request.headers['x-forwarded-host'] || request.headers.host || `localhost:${process.env.PORT || 3000}`;
-      const baseUrl = process.env.API_URL || `${protocol}://${host}`;
-      const avatarUrl = `${baseUrl}/uploads/${filename}`;
+      // Store relative path - frontend resolves full URL from API base
+      const avatarUrl = `/uploads/${filename}`;
 
       const updated = await fastify.prisma.node.update({
         where: { id },
@@ -526,10 +524,8 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
 
       await fs.writeFile(filepath, processedImage);
 
-      const protocol = request.headers['x-forwarded-proto'] || 'http';
-      const host = request.headers['x-forwarded-host'] || request.headers.host || `localhost:${process.env.PORT || 3000}`;
-      const baseUrl = process.env.API_URL || `${protocol}://${host}`;
-      const bannerUrl = `${baseUrl}/uploads/${filename}`;
+      // Store relative path - frontend resolves full URL from API base
+      const bannerUrl = `/uploads/${filename}`;
 
       const updated = await fastify.prisma.node.update({
         where: { id },

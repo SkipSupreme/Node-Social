@@ -164,6 +164,7 @@ export function useFeedQuery(options: UseFeedQueryOptions) {
           return result;
         },
         initialPageParam: nextCursor,
+        getNextPageParam: (lastPage: any) => lastPage?.nextCursor ?? undefined,
         pages: 1,
       });
     }
@@ -199,26 +200,12 @@ export function useFeedQuery(options: UseFeedQueryOptions) {
 export function usePostViewTracker() {
   const viewedPostsRef = useRef<Set<string>>(new Set());
   const pendingViewsRef = useRef<string[]>([]);
-  const flushTimeoutRef = useRef<NodeJS.Timeout>();
-
-  const trackView = useCallback((postId: string) => {
-    if (viewedPostsRef.current.has(postId)) return;
-
-    viewedPostsRef.current.add(postId);
-    pendingViewsRef.current.push(postId);
-
-    // Batch views and send every 5 seconds or when we have 10+ views
-    if (pendingViewsRef.current.length >= 10) {
-      flushViews();
-    } else if (!flushTimeoutRef.current) {
-      flushTimeoutRef.current = setTimeout(flushViews, 5000);
-    }
-  }, []);
+  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const flushViews = useCallback(async () => {
     if (flushTimeoutRef.current) {
       clearTimeout(flushTimeoutRef.current);
-      flushTimeoutRef.current = undefined;
+      flushTimeoutRef.current = null;
     }
 
     const views = pendingViewsRef.current;
@@ -234,6 +221,20 @@ export function usePostViewTracker() {
       console.debug('Failed to track post views:', err);
     }
   }, []);
+
+  const trackView = useCallback((postId: string) => {
+    if (viewedPostsRef.current.has(postId)) return;
+
+    viewedPostsRef.current.add(postId);
+    pendingViewsRef.current.push(postId);
+
+    // Batch views and send every 5 seconds or when we have 10+ views
+    if (pendingViewsRef.current.length >= 10) {
+      flushViews();
+    } else if (!flushTimeoutRef.current) {
+      flushTimeoutRef.current = setTimeout(flushViews, 5000);
+    }
+  }, [flushViews]);
 
   // Flush on unmount
   useEffect(() => {
