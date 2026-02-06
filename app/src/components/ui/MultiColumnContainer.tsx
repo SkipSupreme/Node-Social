@@ -23,6 +23,7 @@ interface MultiColumnContainerProps {
   onCloseAddModal: () => void;
   onQuoteExternalPost?: (post: ExternalPost) => void;
   onSaveExternalPost?: (post: ExternalPost) => void;
+  onEdit?: (post: import('./Feed').UIPost) => void;
 }
 
 export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
@@ -39,6 +40,7 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
   onCloseAddModal,
   onQuoteExternalPost,
   onSaveExternalPost,
+  onEdit,
 }) => {
   const { width } = useWindowDimensions();
   const { columns, addColumn, removeColumn, reorderColumns, updateColumn } = useColumnsStore();
@@ -100,6 +102,7 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
               onUpdateColumn={(updates) => updateColumn(column.id, updates)}
               onQuoteExternalPost={onQuoteExternalPost}
               onSaveExternalPost={onSaveExternalPost}
+              onEdit={onEdit}
             />
           </View>
         ))}

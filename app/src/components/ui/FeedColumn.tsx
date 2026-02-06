@@ -33,6 +33,7 @@ interface FeedColumnProps {
   onUpdateColumn?: (updates: Partial<Omit<FeedColumnType, 'id'>>) => void;
   onQuoteExternalPost?: (post: ExternalPost) => void;
   onSaveExternalPost?: (post: ExternalPost) => void;
+  onEdit?: (post: UIPost) => void;
 }
 
 // Column types that support VibeValidator (feed-based columns)
@@ -132,6 +133,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   onUpdateColumn,
   onQuoteExternalPost,
   onSaveExternalPost,
+  onEdit,
 }) => {
   // Independent state for this column
   const [posts, setPosts] = useState<ReturnType<typeof mapPosts>>([]);
@@ -772,6 +774,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
         currentUser={currentUser}
         onPostAction={onPostAction}
         onPostClick={handlePostClick}
+        onEdit={onEdit}
         onAuthorClick={onAuthorClick}
         onSaveToggle={onSaveToggle}
         globalNodeId={globalNodeId}

@@ -24,6 +24,8 @@ import { VibeValidator, VibeValidatorSettings } from './src/components/ui/VibeVa
 import { getFeed, getNodes, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences, getCombinedExternalFeed, getBlueskyDiscover, getMastodonTrending, ExternalPost, Node, Post, TipTapDoc } from './src/lib/api';
 import { VibeAggregateData } from './src/components/VibeBar';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
+import { EditPostModal } from './src/components/ui/EditPostModal';
+import { UIPost } from './src/components/ui/Feed';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SavedPostsScreen } from './src/screens/SavedPostsScreen';
 import { ThemesScreen } from './src/screens/ThemesScreen';
@@ -197,12 +199,19 @@ const MainApp = () => {
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
+  // Refs to track latest navigation state (avoids stale closures in memoized callbacks)
+  const currentViewRef = useRef(currentView);
+  const viewParamsRef = useRef(viewParams);
+  useEffect(() => { currentViewRef.current = currentView; }, [currentView]);
+  useEffect(() => { viewParamsRef.current = viewParams; }, [viewParams]);
+
   // Navigate to a new view, pushing current view to history stack
-  const navigateTo = (view: typeof currentView, params?: any) => {
-    setNavigationHistory(prev => [...prev, { view: currentView, params: viewParams }]);
+  // Stable callback — reads current view/params from refs, safe to use in memoized callbacks
+  const navigateTo = useCallback((view: typeof currentView, params?: any) => {
+    setNavigationHistory(prev => [...prev, { view: currentViewRef.current, params: viewParamsRef.current }]);
     setViewParams(params || null);
     setCurrentView(view);
-  };
+  }, []);
 
   // Go back to previous view in history
   const goBack = () => {
@@ -227,6 +236,8 @@ const MainApp = () => {
   const [hasMore, setHasMore] = useState(true);
   const [isCreatePostOpen, setIsCreatePostOpen] = useState(false);
   const [quotedExternalPost, setQuotedExternalPost] = useState<ExternalPost | null>(null);
+  const [isEditPostOpen, setIsEditPostOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<UIPost | null>(null);
   const [showAddColumnModal, setShowAddColumnModal] = useState(false);
   const [nodeInfoVisible, setNodeInfoVisible] = useState(false);
   const [nodeInfoNodeId, setNodeInfoNodeId] = useState<string | null>(null);
@@ -267,7 +278,7 @@ const MainApp = () => {
       return;
     }
     navigateTo('post-detail', { postId });
-  }, []);
+  }, [navigateTo]);
 
   // Handle scroll to hide/show header on mobile
   const handleScroll = useCallback((scrollY: number) => {
@@ -1292,6 +1303,10 @@ const MainApp = () => {
                     onCloseAddModal={() => setShowAddColumnModal(false)}
                     onQuoteExternalPost={handleQuoteExternalPost}
                     onSaveExternalPost={handleSaveExternalPost}
+                    onEdit={(post) => {
+                      setEditingPost(post);
+                      setIsEditPostOpen(true);
+                    }}
                   />
                 ) : (
                   /* Mobile/Tablet Single Feed */
@@ -1307,6 +1322,10 @@ const MainApp = () => {
                         setPosts(prev => prev.filter(p => p.id !== postId));
                       }}
                       onPostClick={handlePostClick}
+                      onEdit={(post) => {
+                        setEditingPost(post);
+                        setIsEditPostOpen(true);
+                      }}
                       onAuthorClick={(authorId) => {
                         navigateTo('profile', { userId: authorId });
                       }}
@@ -1577,6 +1596,22 @@ const MainApp = () => {
         nodes={nodes}
         initialNodeId={selectedNodeId}
         quotedExternalPost={quotedExternalPost}
+      />
+
+      {/* Edit Post Modal */}
+      <EditPostModal
+        visible={isEditPostOpen}
+        post={editingPost}
+        onClose={() => {
+          setIsEditPostOpen(false);
+          setEditingPost(null);
+        }}
+        onSuccess={(updatedPostId) => {
+          setIsEditPostOpen(false);
+          setEditingPost(null);
+          queryClient.invalidateQueries({ queryKey: ['posts'] });
+          fetchFeed(selectedNodeId, feedMode); // Refresh feed after editing
+        }}
       />
 
       {/* Mobile Vibe Validator - 90% height bottom sheet with X button */}

@@ -1561,7 +1561,7 @@ export function deletePost(postId: string) {
   });
 }
 
-export function editPost(postId: string, data: { content?: string; title?: string }) {
+export function editPost(postId: string, data: { content?: string; contentJson?: TipTapDoc; title?: string }) {
   return request<Post>(`/posts/${postId}`, {
     method: "PATCH",
     body: JSON.stringify(data),
