@@ -9,6 +9,12 @@ const SOCKET_URL = Platform.select({
     default: 'http://localhost:3000',
 });
 
+/** Data payload for post update events from the socket */
+interface PostUpdateData {
+    postId: string;
+    [key: string]: unknown;
+}
+
 class SocketManager {
     private socket: Socket | null = null;
     private listeners: Map<string, Function[]> = new Map();
@@ -29,7 +35,7 @@ class SocketManager {
             console.log('Socket disconnected');
         });
 
-        this.socket.on('post:update', (data: any) => {
+        this.socket.on('post:update', (data: PostUpdateData) => {
             this.notifyListeners(`post:${data.postId}`, data);
         });
     }
@@ -49,7 +55,7 @@ class SocketManager {
         this.socket?.emit('leave:post', postId);
     }
 
-    subscribeToPost(postId: string, callback: (data: any) => void) {
+    subscribeToPost(postId: string, callback: (data: PostUpdateData) => void) {
         const key = `post:${postId}`;
         if (!this.listeners.has(key)) {
             this.listeners.set(key, []);
@@ -73,7 +79,7 @@ class SocketManager {
         };
     }
 
-    private notifyListeners(key: string, data: any) {
+    private notifyListeners(key: string, data: PostUpdateData) {
         const callbacks = this.listeners.get(key);
         if (callbacks) {
             callbacks.forEach(cb => cb(data));

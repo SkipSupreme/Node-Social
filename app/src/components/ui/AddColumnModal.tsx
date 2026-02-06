@@ -1,15 +1,16 @@
 // Modal for adding new columns
-import React, { useState } from 'react';
+import React, { ComponentType, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Image } from 'react-native';
 import { X, Globe, Compass, Users, User, Bell, Search, TrendingUp, Hash, ChevronRight, ExternalLink } from './Icons';
 import { COLORS } from '../../constants/theme';
 import { FeedColumn, ExternalFeedConfig } from '../../store/columns';
+import type { Node } from '../../lib/api';
 
 interface AddColumnModalProps {
   visible: boolean;
   onClose: () => void;
   onAdd: (column: Omit<FeedColumn, 'id'>) => void;
-  nodes: any[];
+  nodes: Node[];
   existingColumns: FeedColumn[];
 }
 
@@ -19,7 +20,7 @@ interface ColumnTypeOption {
   type: FeedColumn['type'];
   title: string;
   description: string;
-  icon: any;
+  icon: ComponentType<{ size?: number; color?: string }>;
   requiresSelection?: boolean;
 }
 
@@ -91,7 +92,7 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
     }
   };
 
-  const handleSelectNode = (node: any) => {
+  const handleSelectNode = (node: Node) => {
     onAdd({
       type: 'node',
       title: node.name,

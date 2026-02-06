@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } fr
 import { AlertTriangle, X } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 import { revokeVouch } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
 
 interface RevokeVouchModalProps {
   visible: boolean;
@@ -35,8 +36,8 @@ export const RevokeVouchModal: React.FC<RevokeVouchModalProps> = ({
       const result = await revokeVouch(userId);
       onSuccess(result.penaltyPaid);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to revoke vouch');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to revoke vouch'));
     } finally {
       setLoading(false);
     }

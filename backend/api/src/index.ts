@@ -1,10 +1,9 @@
 // src/index.ts
 import 'dotenv/config'; // loads .env
-import Fastify, { type FastifyInstance } from 'fastify';
+import Fastify, { type FastifyInstance, type FastifyRequest, type FastifyReply } from 'fastify';
 import cors, { type OriginFunction } from '@fastify/cors';
 import helmet from '@fastify/helmet';
 import cookie from '@fastify/cookie';
-import '@fastify/cookie';
 import jwt from '@fastify/jwt';
 import rateLimit from '@fastify/rate-limit';
 import multipart from '@fastify/multipart';
@@ -41,11 +40,19 @@ import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
 
+// Tell @fastify/jwt what shape our JWT payload has
+declare module '@fastify/jwt' {
+  interface FastifyJWT {
+    payload: { sub: string; email: string };
+    user: { sub: string; email: string };
+  }
+}
+
 // Add authenticate decorator for protected routes
 declare module 'fastify' {
   interface FastifyInstance {
-    authenticate: (request: any, reply: any) => Promise<void>;
-    optionalAuthenticate: (request: any, reply: any) => Promise<void>;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    optionalAuthenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -57,6 +64,16 @@ export async function build(): Promise<FastifyInstance> {
   const isTest = process.env.NODE_ENV === 'test';
   const app = Fastify({ logger: !isTest }); // Disable logging in tests
   const isProd = process.env.NODE_ENV === 'production';
+
+  // Fail-fast: require real secrets in production
+  if (isProd) {
+    if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'dev-secret-change-me') {
+      throw new Error('JWT_SECRET must be set in production');
+    }
+    if (!process.env.COOKIE_SECRET || process.env.COOKIE_SECRET === 'dev-cookie-secret') {
+      throw new Error('COOKIE_SECRET must be set in production');
+    }
+  }
 
   // plugins
   // CORS: Allow all origins in dev, or specific domains in production
@@ -126,7 +143,7 @@ export async function build(): Promise<FastifyInstance> {
     decorateReply: false,
   });
 
-  app.decorate('authenticate', async function (request: any, reply: any) {
+  app.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
     try {
       await request.jwtVerify();
     } catch (err) {
@@ -140,13 +157,13 @@ export async function build(): Promise<FastifyInstance> {
           app.log.debug({ cookieErr }, 'Cookie JWT verification failed');
         }
       }
-      reply.status(401).send({ error: 'Unauthorized' });
+      return reply.status(401).send({ error: 'Unauthorized' });
     }
   });
 
   // Optional authentication - sets request.user if token valid, but doesn't fail if not
   // Used for public endpoints that have enhanced features for logged-in users
-  app.decorate('optionalAuthenticate', async function (request: any, _reply: any) {
+  app.decorate('optionalAuthenticate', async function (request: FastifyRequest, _reply: FastifyReply) {
     try {
       await request.jwtVerify();
     } catch (err) {
@@ -166,8 +183,8 @@ export async function build(): Promise<FastifyInstance> {
 
   // Activity tracking - update lastActiveAt for authenticated users
   app.addHook('onRequest', async (request) => {
-    if ((request as any).user?.id || (request as any).user?.sub) {
-      const userId = (request as any).user?.id || (request as any).user?.sub;
+    if (request.user?.sub) {
+      const userId = request.user.sub;
       if (userId) {
         trackUserActivity(app, userId);
       }
@@ -254,6 +271,16 @@ if (isMainModule) {
 
   build()
     .then((app) => {
+      // Graceful shutdown handlers
+      const shutdown = async (signal: string) => {
+        app.log.info(`Received ${signal}, shutting down gracefully...`);
+        await app.close();
+        process.exit(0);
+      };
+
+      process.on('SIGTERM', () => shutdown('SIGTERM'));
+      process.on('SIGINT', () => shutdown('SIGINT'));
+
       app.listen({ port, host: '0.0.0.0' })
         .then(() => {
           app.log.info(`API running on http://localhost:${port}`);

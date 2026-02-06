@@ -1,10 +1,10 @@
 // Skeleton loading placeholder for posts
 import React, { useEffect, useRef } from 'react';
-import { View, StyleSheet, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Animated, Easing, StyleProp, ViewStyle, DimensionValue } from 'react-native';
 import { COLORS } from '../../constants/theme';
 
 // Shimmer animation component
-const ShimmerBlock = ({ width, height, style }: { width: number | string; height: number; style?: any }) => {
+const ShimmerBlock = ({ width, height, style }: { width: DimensionValue; height: number; style?: StyleProp<ViewStyle> }) => {
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {

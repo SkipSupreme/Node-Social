@@ -1,5 +1,5 @@
 import React, { useRef, useState, useCallback, useImperativeHandle, forwardRef } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
 import { COLORS } from '../../constants/theme';
 
 // Import the DOM component
@@ -13,9 +13,9 @@ export interface TipTapDoc {
 
 export interface TipTapNode {
   type: string;
-  attrs?: Record<string, any>;
+  attrs?: Record<string, unknown>;
   content?: TipTapNode[];
-  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
   text?: string;
 }
 
@@ -61,7 +61,7 @@ interface RichTextEditorProps {
   onFocusChange?: (focused: boolean) => void;
   onReady?: () => void;
   minHeight?: number;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorProps>(({

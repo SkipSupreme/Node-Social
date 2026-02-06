@@ -164,7 +164,7 @@ export function useFeedQuery(options: UseFeedQueryOptions) {
           return result;
         },
         initialPageParam: nextCursor,
-        getNextPageParam: (lastPage: any) => lastPage?.nextCursor ?? undefined,
+        getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
         pages: 1,
       });
     }

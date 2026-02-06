@@ -1,5 +1,6 @@
 // src/routes/auth.ts
-import type { FastifyPluginAsync } from 'fastify';
+import type { FastifyPluginAsync, FastifyReply } from 'fastify';
+import type { FastifyRedis } from '@fastify/redis';
 import argon2 from 'argon2';
 import { z } from 'zod';
 import { randomBytes, createHash } from 'crypto';
@@ -7,6 +8,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Prisma } from '@prisma/client';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
+import { getErrorMessage, hasFastifyStatusCode, isPrismaError } from '../lib/errors.js';
 import '@fastify/cookie';
 
 const googleAudience = [
@@ -53,14 +55,15 @@ const baseUserSelect = {
   customCss: true,
 } as const;
 const isProd = process.env.NODE_ENV === 'production';
-const cookieDomain = isProd ? process.env.COOKIE_DOMAIN || undefined : undefined;
+const cookieDomain = isProd ? process.env.COOKIE_DOMAIN : undefined;
+const domainOption = cookieDomain ? { domain: cookieDomain } : {};
 
 const refreshCookieOptions = {
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: isProd,
   path: '/',
-  domain: cookieDomain,
+  ...domainOption,
   maxAge: 7 * 24 * 60 * 60, // 7 days
 };
 
@@ -69,7 +72,7 @@ const accessCookieOptions = {
   sameSite: 'lax' as const,
   secure: isProd,
   path: '/',
-  domain: cookieDomain,
+  ...domainOption,
   // Cookie lifetime should exceed JWT expiry to allow refresh flow to work
   // The JWT itself has 15-min expiry that backend validates; cookie is just transport
   // Setting to 24 hours so cookie survives browser idle periods
@@ -81,28 +84,43 @@ const csrfCookieOptions = {
   sameSite: 'lax' as const,
   secure: isProd,
   path: '/',
-  domain: cookieDomain,
-  maxAge: 7 * 24 * 60 * 60, // align with refresh token lifetime
+  ...domainOption,
+  maxAge: 24 * 60 * 60, // 24 hours
 };
 
-const issueSessionCookies = (reply: any, accessToken: string, refreshToken: string) => {
+const issueSessionCookies = (reply: FastifyReply, accessToken: string, refreshToken: string) => {
   const csrfToken = randomBytes(24).toString('hex');
   reply.setCookie('accessToken', accessToken, accessCookieOptions);
   reply.setCookie('refreshToken', refreshToken, refreshCookieOptions);
   reply.setCookie('csrfToken', csrfToken, csrfCookieOptions);
 };
 
-const clearSessionCookies = (reply: any) => {
-  const base = { path: '/', domain: cookieDomain, sameSite: 'lax' as const, secure: isProd };
+const clearSessionCookies = (reply: FastifyReply) => {
+  const base = { path: '/', ...domainOption, sameSite: 'lax' as const, secure: isProd };
   reply.clearCookie('accessToken', base);
   reply.clearCookie('refreshToken', base);
   reply.clearCookie('csrfToken', base);
 };
 
+// Helper to replace redis.keys() with SCAN for production safety
+async function scanRedisKeys(redis: FastifyRedis, pattern: string): Promise<string[]> {
+  const keys: string[] = [];
+  let cursor = '0';
+  do {
+    const [nextCursor, batch] = await redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+    cursor = nextCursor;
+    keys.push(...batch);
+  } while (cursor !== '0');
+  return keys;
+}
+
 const authRoutes: FastifyPluginAsync = async (fastify) => {
   const registerSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(8),
+    password: z.string().min(8).max(128).regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+      'Password must contain uppercase, lowercase, and number'
+    ),
     username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username must be alphanumeric'),
     firstName: z.string().min(1),
     lastName: z.string().min(1),
@@ -132,13 +150,24 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   };
 
   // Check Username Availability Endpoint
-  fastify.get('/check-username', async (request, reply) => {
-    const { username } = request.query as { username: string };
-    if (!username || username.length < 3) return reply.send({ available: false });
+  fastify.get(
+    '/check-username',
+    {
+      config: {
+        rateLimit: {
+          max: 20,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const { username } = request.query as { username: string };
+      if (!username || username.length < 3) return reply.send({ available: false });
 
-    const user = await fastify.prisma.user.findUnique({ where: { username } });
-    return reply.send({ available: !user });
-  });
+      const user = await fastify.prisma.user.findUnique({ where: { username } });
+      return reply.send({ available: !user });
+    }
+  );
 
   // Helper to hash refresh token for storage (security best practice)
   const hashToken = (token: string): string => {
@@ -235,6 +264,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
         // Generate email verification token
         const verificationToken = randomBytes(32).toString('hex');
+        const verificationTokenHash = hashToken(verificationToken);
         const verificationExpires = new Date();
         verificationExpires.setHours(verificationExpires.getHours() + 24); // 24 hour expiry
 
@@ -250,7 +280,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
             lastName,
             dateOfBirth: dobDate,
             era,
-            emailVerificationToken: verificationToken,
+            emailVerificationToken: verificationTokenHash,
             emailVerificationExpires: verificationExpires,
           },
           select: baseUserSelect,
@@ -273,8 +303,8 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           refreshToken,
           message: 'Registration successful. Please check your email to verify your account.',
         });
-      } catch (error: any) {
-        fastify.log.error({ error, stack: error.stack }, 'Registration failed');
+      } catch (error: unknown) {
+        fastify.log.error({ error, stack: error instanceof Error ? error.stack : undefined }, 'Registration failed');
         return reply.status(500).send({ error: 'Internal Server Error' });
       }
     }
@@ -476,9 +506,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                   providerEmail: email,
                 },
               });
-            } catch (linkError: any) {
+            } catch (linkError: unknown) {
               // Handle potential unique constraint violations
-              if (linkError?.code === 'P2002') {
+              if (isPrismaError(linkError) && linkError.code === 'P2002') {
                 fastify.log.error({ error: linkError, googleId, userId: user.id }, 'Failed to link Google account - unique constraint violation');
                 return reply.status(409).send({
                   error: 'This Google account is already linked to another account. Please sign in with your original method.',
@@ -511,17 +541,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           token: accessToken,
           refreshToken,
         });
-      } catch (error: any) {
-        // If it's already a 409 conflict response, pass it through
-        if (error?.statusCode === 409) {
+      } catch (error: unknown) {
+        // If it's already a Fastify error with statusCode (e.g. 409 conflict), pass it through
+        if (hasFastifyStatusCode(error)) {
           throw error;
         }
 
         // Log the full error for debugging
-        fastify.log.error({ error, errorCode: error?.code, errorMessage: error?.message }, 'Google sign-in failed');
+        fastify.log.error({ error, errorMessage: getErrorMessage(error) }, 'Google sign-in failed');
 
         // Provide more specific error messages when possible
-        if (error?.code === 'P2002') {
+        if (isPrismaError(error) && error.code === 'P2002') {
           // Prisma unique constraint violation
           return reply.status(409).send({
             error: 'This Google account is already linked to another account. Please sign in with your original method.'
@@ -579,11 +609,11 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         });
 
         // Validate nonce if provided (replay protection)
-        if (clientNonce && payload.nonce) {
-          // Client sends hashed nonce, token contains original nonce
-          // We need to verify the nonce matches (implementation depends on how Apple handles it)
-          // For now, we accept if nonce is present in token
-          fastify.log.debug({ clientNonce, tokenNonce: payload.nonce }, 'Nonce validation');
+        if (clientNonce) {
+          const expectedNonce = createHash('sha256').update(clientNonce).digest('hex');
+          if (payload.nonce !== expectedNonce) {
+            return reply.status(401).send({ error: 'Invalid nonce' });
+          }
         }
 
         const appleId = payload.sub;
@@ -705,9 +735,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                   providerEmail: email || null,
                 },
               });
-            } catch (linkError: any) {
+            } catch (linkError: unknown) {
               // Handle potential unique constraint violations
-              if (linkError?.code === 'P2002') {
+              if (isPrismaError(linkError) && linkError.code === 'P2002') {
                 fastify.log.error({ error: linkError, appleId, userId: user.id }, 'Failed to link Apple account - unique constraint violation');
                 return reply.status(409).send({
                   error: 'This Apple account is already linked to another account. Please sign in with your original method.',
@@ -740,17 +770,17 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           token: accessToken,
           refreshToken,
         });
-      } catch (error: any) {
-        // If it's already a 409 conflict response, pass it through
-        if (error?.statusCode === 409) {
+      } catch (error: unknown) {
+        // If it's already a Fastify error with statusCode (e.g. 409 conflict), pass it through
+        if (hasFastifyStatusCode(error)) {
           throw error;
         }
 
         // Log the full error for debugging
-        fastify.log.error({ error, errorCode: error?.code, errorMessage: error?.message }, 'Apple sign-in failed');
+        fastify.log.error({ error, errorMessage: getErrorMessage(error) }, 'Apple sign-in failed');
 
         // Provide more specific error messages when possible
-        if (error?.code === 'P2002') {
+        if (isPrismaError(error) && error.code === 'P2002') {
           // Prisma unique constraint violation
           return reply.status(409).send({
             error: 'This Apple account is already linked to another account. Please sign in with your original method.'
@@ -764,111 +794,128 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
   // Refresh token endpoint with Token Family Reuse Detection
   // CRITICAL: Implements document Section 3.2 - "The most critical component"
-  fastify.post('/refresh', async (request, reply) => {
-    const schema = z.object({
-      refreshToken: z.string().optional(),
-    });
-
-    const parsed = schema.safeParse(request.body || {});
-    const bodyRefreshToken = parsed.success ? parsed.data.refreshToken : undefined;
-    const refreshToken = bodyRefreshToken || request.cookies?.refreshToken;
-
-    if (!refreshToken) {
-      return reply.status(400).send({ error: 'Invalid input' });
-    }
-
-    const tokenHash = hashToken(refreshToken);
-
-    // Find the refresh token in database
-    const tokenRecord = await fastify.prisma.refreshToken.findFirst({
-      where: {
-        tokenHash,
-        revoked: false,
-        expiresAt: {
-          gt: new Date(), // Not expired
+  fastify.post(
+    '/refresh',
+    {
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
         },
       },
-      include: {
-        user: {
-          select: { id: true, email: true },
-        },
-      },
-    });
-
-    if (!tokenRecord) {
-      // Token not found or expired - check if it was revoked (potential reuse)
-      const revokedToken = await fastify.prisma.refreshToken.findFirst({
-        where: { tokenHash },
+    },
+    async (request, reply) => {
+      const schema = z.object({
+        refreshToken: z.string().optional(),
       });
 
-      if (revokedToken) {
-        // TOKEN REUSE DETECTED! Revoke entire family
-        fastify.log.warn(
-          {
-            familyId: revokedToken.familyId,
-            userId: revokedToken.userId,
-            tokenId: revokedToken.id,
-          },
-          'Refresh token reuse detected - revoking entire family'
-        );
+      const parsed = schema.safeParse(request.body || {});
+      const bodyRefreshToken = parsed.success ? parsed.data.refreshToken : undefined;
+      const refreshToken = bodyRefreshToken || request.cookies?.refreshToken;
 
-        // Revoke all tokens in the family
-        await fastify.prisma.refreshToken.updateMany({
-          where: { familyId: revokedToken.familyId },
-          data: { revoked: true },
-        });
-
-        return reply.status(401).send({
-          error: 'Security violation detected. Please sign in again.',
-        });
+      if (!refreshToken) {
+        return reply.status(400).send({ error: 'Invalid input' });
       }
 
-      return reply.status(401).send({ error: 'Invalid or expired refresh token' });
-    }
+      const tokenHash = hashToken(refreshToken);
 
-    // Verify user still exists
-    if (!tokenRecord.user) {
+      // Find the refresh token in database
+      const tokenRecord = await fastify.prisma.refreshToken.findFirst({
+        where: {
+          tokenHash,
+          revoked: false,
+          expiresAt: {
+            gt: new Date(), // Not expired
+          },
+        },
+        include: {
+          user: {
+            select: { id: true, email: true },
+          },
+        },
+      });
+
+      if (!tokenRecord) {
+        // Token not found or expired - check if it was revoked (potential reuse)
+        const revokedToken = await fastify.prisma.refreshToken.findFirst({
+          where: { tokenHash },
+        });
+
+        if (revokedToken) {
+          // TOKEN REUSE DETECTED! Revoke entire family
+          fastify.log.warn(
+            {
+              familyId: revokedToken.familyId,
+              userId: revokedToken.userId,
+              tokenId: revokedToken.id,
+            },
+            'Refresh token reuse detected - revoking entire family'
+          );
+
+          // Revoke all tokens in the family
+          await fastify.prisma.refreshToken.updateMany({
+            where: { familyId: revokedToken.familyId },
+            data: { revoked: true },
+          });
+
+          return reply.status(401).send({
+            error: 'Security violation detected. Please sign in again.',
+          });
+        }
+
+        return reply.status(401).send({ error: 'Invalid or expired refresh token' });
+      }
+
+      // Verify user still exists
+      if (!tokenRecord.user) {
+        await fastify.prisma.refreshToken.update({
+          where: { id: tokenRecord.id },
+          data: { revoked: true },
+        });
+        return reply.status(401).send({ error: 'User not found' });
+      }
+
+      // Update last used timestamp (keep token valid, don't rotate)
       await fastify.prisma.refreshToken.update({
         where: { id: tokenRecord.id },
-        data: { revoked: true },
+        data: { lastUsedAt: new Date() },
       });
-      return reply.status(401).send({ error: 'User not found' });
+
+      // Generate new access token only (reuse same refresh token for reliability)
+      // Token rotation was causing issues with web browsers where cookie updates
+      // could be lost, triggering false "reuse detection" and logging users out
+      const accessToken = fastify.jwt.sign(
+        { sub: tokenRecord.user.id, email: tokenRecord.user.email },
+        { expiresIn: '1h' }
+      );
+
+      // Update cookies with new access token (keep same refresh token)
+      reply.setCookie('accessToken', accessToken, {
+        httpOnly: true,
+        sameSite: 'lax' as const,
+        secure: isProd,
+        path: '/',
+        ...domainOption,
+        maxAge: 24 * 60 * 60,
+      });
+
+      return reply.send({
+        token: accessToken,
+        refreshToken: refreshToken, // Return same refresh token
+      });
     }
-
-    // Update last used timestamp (keep token valid, don't rotate)
-    await fastify.prisma.refreshToken.update({
-      where: { id: tokenRecord.id },
-      data: { lastUsedAt: new Date() },
-    });
-
-    // Generate new access token only (reuse same refresh token for reliability)
-    // Token rotation was causing issues with web browsers where cookie updates
-    // could be lost, triggering false "reuse detection" and logging users out
-    const accessToken = fastify.jwt.sign(
-      { sub: tokenRecord.user.id, email: tokenRecord.user.email },
-      { expiresIn: '1h' }
-    );
-
-    // Update cookies with new access token (keep same refresh token)
-    reply.setCookie('accessToken', accessToken, {
-      httpOnly: true,
-      sameSite: 'lax' as const,
-      secure: isProd,
-      path: '/',
-      domain: cookieDomain,
-      maxAge: 24 * 60 * 60,
-    });
-
-    return reply.send({
-      token: accessToken,
-      refreshToken: refreshToken, // Return same refresh token
-    });
-  });
+  );
 
   // Logout endpoint
   fastify.post(
     '/logout',
     {
+      config: {
+        rateLimit: {
+          max: 10,
+          timeWindow: '1 minute',
+        },
+      },
       onRequest: [fastify.authenticate],
     },
     async (request, reply) => {
@@ -889,7 +936,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         });
       } else {
         // Revoke all refresh tokens for this user
-        const keys = await fastify.redis.keys(`refresh:${userId}:*`);
+        const keys = await scanRedisKeys(fastify.redis, `refresh:${userId}:*`);
         if (keys.length > 0) {
           await fastify.redis.del(...keys);
         }
@@ -934,13 +981,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       if (user) {
         // Generate reset token
         const resetToken = randomBytes(32).toString('hex');
+        const resetTokenHash = hashToken(resetToken);
         const resetTokenExpires = new Date();
         resetTokenExpires.setHours(resetTokenExpires.getHours() + 1); // 1 hour expiry
 
-        // Save token to database
+        // Save hashed token to database
         await fastify.prisma.user.update({
           where: { id: user.id },
-          data: { resetToken, resetTokenExpires },
+          data: { resetToken: resetTokenHash, resetTokenExpires },
         });
 
         try {
@@ -948,6 +996,9 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         } catch (err) {
           fastify.log.error({ err, email }, 'Failed to enqueue password reset email');
         }
+      } else {
+        // Timing attack protection: run dummy hash to equalize response time
+        await argon2.hash('timing-attack-dummy');
       }
 
       // Always return success (don't reveal if email exists)
@@ -969,7 +1020,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const schema = z.object({
         token: z.string(),
-        password: z.string().min(8),
+        password: z.string().min(8).max(128).regex(
+          /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/,
+          'Password must contain uppercase, lowercase, and number'
+        ),
       });
 
       const parsed = schema.safeParse(request.body);
@@ -979,10 +1033,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
 
       const { token, password } = parsed.data;
 
+      // Hash incoming token before lookup
+      const tokenHash = hashToken(token);
+
       // Find user with valid reset token
       const user = await fastify.prisma.user.findFirst({
         where: {
-          resetToken: token,
+          resetToken: tokenHash,
           resetTokenExpires: {
             gt: new Date(), // Token not expired
           },
@@ -1013,8 +1070,14 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
       });
 
-      // Revoke all refresh tokens for security
-      const keys = await fastify.redis.keys(`refresh:${user.id}:*`);
+      // Revoke all DB refresh tokens for security
+      await fastify.prisma.refreshToken.updateMany({
+        where: { userId: user.id },
+        data: { revoked: true },
+      });
+
+      // Revoke all Redis refresh tokens for security
+      const keys = await scanRedisKeys(fastify.redis, `refresh:${user.id}:*`);
       if (keys.length > 0) {
         await fastify.redis.del(...keys);
       }
@@ -1024,46 +1087,60 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Verify email endpoint
-  fastify.post('/verify-email', async (request, reply) => {
-    const schema = z.object({
-      token: z.string(),
-    });
-
-    const parsed = schema.safeParse(request.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: 'Invalid token' });
-    }
-
-    const { token } = parsed.data;
-
-    // Find user with valid verification token
-    const user = await fastify.prisma.user.findFirst({
-      where: {
-        emailVerificationToken: token,
-        emailVerificationExpires: {
-          gt: new Date(), // Token not expired
+  fastify.post(
+    '/verify-email',
+    {
+      config: {
+        rateLimit: {
+          max: 5,
+          timeWindow: '15 minutes',
         },
-        emailVerified: false, // Not already verified
       },
-    });
+    },
+    async (request, reply) => {
+      const schema = z.object({
+        token: z.string(),
+      });
 
-    if (!user) {
-      return reply.status(400).send({ error: 'Invalid or expired verification token' });
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid token' });
+      }
+
+      const { token } = parsed.data;
+
+      // Hash incoming token before lookup
+      const tokenHash = hashToken(token);
+
+      // Find user with valid verification token
+      const user = await fastify.prisma.user.findFirst({
+        where: {
+          emailVerificationToken: tokenHash,
+          emailVerificationExpires: {
+            gt: new Date(), // Token not expired
+          },
+          emailVerified: false, // Not already verified
+        },
+      });
+
+      if (!user) {
+        return reply.status(400).send({ error: 'Invalid or expired verification token' });
+      }
+
+      // Mark email as verified and clear token
+      const updatedUser = await fastify.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerified: true,
+          emailVerificationToken: null,
+          emailVerificationExpires: null,
+        },
+        select: baseUserSelect,
+      });
+
+      return reply.send({ message: 'Email verified successfully', user: updatedUser });
     }
-
-    // Mark email as verified and clear token
-    const updatedUser = await fastify.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        emailVerified: true,
-        emailVerificationToken: null,
-        emailVerificationExpires: null,
-      },
-      select: baseUserSelect,
-    });
-
-    return reply.send({ message: 'Email verified successfully', user: updatedUser });
-  });
+  );
 
   // Resend verification email endpoint
   fastify.post(
@@ -1100,19 +1177,21 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       if (user.emailVerified) {
-        return reply.status(400).send({ error: 'Email already verified' });
+        // Don't reveal that the email exists and is verified - return generic message
+        return reply.send({ message: 'If that email exists and is unverified, we sent a verification link' });
       }
 
       // Generate new verification token
       const verificationToken = randomBytes(32).toString('hex');
+      const verificationTokenHash = hashToken(verificationToken);
       const verificationExpires = new Date();
       verificationExpires.setHours(verificationExpires.getHours() + 24); // 24 hour expiry
 
-      // Update user with new token
+      // Update user with new hashed token
       await fastify.prisma.user.update({
         where: { id: user.id },
         data: {
-          emailVerificationToken: verificationToken,
+          emailVerificationToken: verificationTokenHash,
           emailVerificationExpires: verificationExpires,
         },
       });

@@ -12,7 +12,15 @@ import {
 import { showAlert } from '../lib/alert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/auth';
-import { updateProfile, getUserStats, api, uploadBanner, followUser, type UserStats } from '../lib/api';
+import { updateProfile, getUserStats, api, uploadBanner, followUser, type UserStats, type AuthResponse } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
+
+/** User shape from the auth store or API fetch, extended with optional profile fields */
+type User = AuthResponse["user"] & {
+    isFollowing?: boolean;
+    location?: string;
+    website?: string;
+};
 import { ArrowLeft } from 'lucide-react-native';
 import { COLORS, ERAS, TYPOGRAPHY, SPACING, BREAKPOINTS } from '../constants/theme';
 import { EditProfileModal } from '../components/ui/EditProfileModal';
@@ -29,7 +37,7 @@ import {
 
 interface ProfileScreenProps {
     onBack: () => void;
-    user?: any;
+    user?: User;
     userId?: string;
     isEditable?: boolean;
     onCredClick?: () => void;
@@ -54,7 +62,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const mobileHeaderOffset = isDesktop ? 0 : 64;
 
     // State
-    const [fetchedUser, setFetchedUser] = useState<any>(null);
+    const [fetchedUser, setFetchedUser] = useState<User | null>(null);
     const [loadingUser, setLoadingUser] = useState(!!userId);
     const [userStats, setUserStats] = useState<UserStats | null>(null);
     const [editModalVisible, setEditModalVisible] = useState(false);
@@ -70,7 +78,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
             if (userId && userId !== authUser?.id) {
                 setLoadingUser(true);
                 try {
-                    const userData = await api.get<any>(`/users/${userId}`);
+                    const userData = await api.get<User>(`/users/${userId}`);
                     setFetchedUser(userData);
                     setIsFollowing(userData.isFollowing || false);
                 } catch (error) {
@@ -86,7 +94,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     }, [userId, authUser?.id]);
 
     const user = propUser || fetchedUser || ((!userId || userId === authUser?.id) ? authUser : null);
-    const canEdit = isEditable || (authUser && user && authUser.id === user.id);
+    const canEdit = isEditable || !!(authUser && user && authUser.id === user.id);
 
     // Fetch user stats for hero
     useEffect(() => {
@@ -148,9 +156,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     const uploadResult = await uploadBanner(result.assets[0].uri);
                     updateUser(uploadResult.user);
                     setShowBannerEditor(false);
-                } catch (err: any) {
+                } catch (err: unknown) {
                     console.error('Banner upload failed:', err);
-                    showAlert('Upload Failed', err.message || 'Failed to upload banner');
+                    showAlert('Upload Failed', getErrorMessage(err));
                 } finally {
                     setSavingBanner(false);
                 }

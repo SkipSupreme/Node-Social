@@ -141,7 +141,8 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     card: {
-        width: (Platform.OS === 'web' ? 'calc(33.33% - 11px)' : '100%') as any,
+        // Web-only CSS calc value; not expressible in ViewStyle, so we cast through unknown
+        width: (Platform.OS === 'web' ? 'calc(33.33% - 11px)' : '100%') as unknown as number | `${number}%`,
         backgroundColor: COLORS.node.panel,
         borderRadius: 12,
         overflow: 'hidden',

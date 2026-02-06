@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { resendVerificationEmail, verifyEmail } from "../lib/api";
+import { getErrorMessage } from "../lib/errors";
 import { COLORS } from "../constants/theme";
 
 type StatusType = "info" | "error" | "success";
@@ -66,10 +67,10 @@ export const VerifyEmailScreen: React.FC<Props> = ({
         });
         setManualToken("");
         await onVerified();
-      } catch (error: any) {
+      } catch (error: unknown) {
         setStatus({
           type: "error",
-          message: error?.message || "Verification failed. Double-check the token.",
+          message: getErrorMessage(error, "Verification failed. Double-check the token."),
         });
       } finally {
         setVerifying(false);
@@ -88,10 +89,10 @@ export const VerifyEmailScreen: React.FC<Props> = ({
         type: "info",
         message: "If the account is unverified, we've sent a new email.",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       setStatus({
         type: "error",
-        message: error?.message || "Couldn't resend the email. Try again shortly.",
+        message: getErrorMessage(error, "Couldn't resend the email. Try again shortly."),
       });
     } finally {
       setResending(false);

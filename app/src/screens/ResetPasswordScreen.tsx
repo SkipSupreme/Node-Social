@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Lock, X } from "lucide-react-native";
 import { resetPassword } from "../lib/api";
+import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/auth";
 import { COLORS } from "../constants/theme";
 import { AuthLogo } from "../components/ui/AuthLogo";
@@ -52,8 +53,8 @@ export const ResetPasswordScreen: React.FC<{
       await resetPassword(token, password);
       // Password reset successful, redirect to login
       onSuccess();
-    } catch (e: any) {
-      setError(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Something went wrong"));
     } finally {
       setLoading(false);
     }

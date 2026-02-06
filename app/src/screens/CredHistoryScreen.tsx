@@ -5,13 +5,21 @@ import { COLORS } from '../constants/theme';
 import { getCredHistory } from '../lib/api';
 import { useAuthStore } from '../store/auth';
 
+/** A single cred transaction from the API */
+interface CredTransaction {
+    id: string;
+    amount: number;
+    reason: string;
+    createdAt: string;
+}
+
 interface CredHistoryScreenProps {
     onBack: () => void;
 }
 
 export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
     const { user } = useAuthStore();
-    const [transactions, setTransactions] = useState<any[]>([]);
+    const [transactions, setTransactions] = useState<CredTransaction[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -30,7 +38,7 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
         }
     };
 
-    const renderItem = ({ item }: { item: any }) => (
+    const renderItem = ({ item }: { item: CredTransaction }) => (
         <View style={styles.transactionItem}>
             <View style={styles.iconContainer}>
                 <TrendingUp size={20} color={COLORS.node.accent} />

@@ -15,6 +15,7 @@ import {
 import { X, Plus, Trash2, HelpCircle } from './Icons';
 import { COLORS } from '../../constants/theme';
 import { getMutedWords, addMutedWord, removeMutedWord, clearAllMutedWords, MutedWord } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
 
 interface MutedWordsManagerProps {
   visible: boolean;
@@ -73,8 +74,9 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
       setMutedWords(prev => [data.mutedWord, ...prev]);
       setNewWord('');
       setIsRegex(false);
-    } catch (err: any) {
-      if (err.message?.includes('409') || err.message?.includes('already')) {
+    } catch (err: unknown) {
+      const msg = getErrorMessage(err);
+      if (msg.includes('409') || msg.includes('already')) {
         Alert.alert('Already Muted', 'This word is already in your muted list.');
       } else {
         Alert.alert('Error', 'Failed to add muted word. Please try again.');

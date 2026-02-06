@@ -2,6 +2,9 @@ import React, { createContext, useContext, useState, useCallback } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { COLORS } from '../constants/theme';
 import { X } from 'lucide-react-native';
+import type { AuthResponse } from '../lib/api';
+
+type User = AuthResponse["user"];
 
 interface AuthPromptContextType {
   // Show the auth prompt modal with a custom message
@@ -22,7 +25,7 @@ export const useAuthPrompt = () => {
 
 interface AuthPromptProviderProps {
   children: React.ReactNode;
-  user: any; // Current user from auth store
+  user: User | null;
   onLogin: () => void;
   onRegister: () => void;
 }

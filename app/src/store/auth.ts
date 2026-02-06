@@ -126,7 +126,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         try {
           const me = await getMe();
-          console.log('getMe() returned:', { emailVerified: me.user.emailVerified });
           set({ user: me.user });
           await storage.setItem("user", JSON.stringify(me.user));
         } catch (refreshError) {

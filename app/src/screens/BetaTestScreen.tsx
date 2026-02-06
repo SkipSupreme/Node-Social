@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, ComponentType } from 'react';
 import { View, Text, StyleSheet, PanResponder, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Hexagon, Lightbulb, Smile, Skull, Sparkles, Flame, Heart, Zap, HelpCircle, X } from '../components/ui/Icons';
@@ -15,7 +15,7 @@ const ICON_RADIUS = 100;
 
 type VibeType = 'Insightful' | 'Joy' | 'Fire' | 'Support' | 'Shock' | 'Questionable';
 
-const VIBES: { id: VibeType; icon: any; label: string; color: string }[] = [
+const VIBES: { id: VibeType; icon: ComponentType<{ size?: number; color?: string }>; label: string; color: string }[] = [
     { id: 'Insightful', icon: Lightbulb, label: 'Insightful', color: '#3b82f6' }, // Blue (Top)
     { id: 'Joy', icon: Smile, label: 'Joy', color: '#eab308' },                   // Yellow (Top-Right)
     { id: 'Fire', icon: Flame, label: 'Fire', color: '#f97316' },                 // Orange (Bottom-Right)

@@ -79,7 +79,6 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               avatar: true,
               era: true,
@@ -161,7 +160,6 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               avatar: true,
               era: true,
@@ -199,7 +197,6 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               avatar: true,
               era: true,

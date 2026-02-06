@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, TextStyle, StyleProp, ViewStyle, GestureResponderEvent, ViewProps } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2, RefreshCw } from './Icons';
 import { Play } from 'lucide-react-native';
 import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost } from '../../lib/api';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost, AuthResponse, TipTapDoc } from '../../lib/api';
 import { ExternalPostCard } from './ExternalPostCard';
 import { showToast } from '../../lib/alert';
+
+type CurrentUser = AuthResponse['user'];
 import { VibeRadialWheel } from '../VibeRadialWheel';
 import { VibeBar, VibeAggregateData } from '../VibeBar';
 import { useSocket } from '../../context/SocketContext';
@@ -131,7 +133,7 @@ const ImageGallery = memo(({ urls, maxHeight = 400 }: { urls: string[]; maxHeigh
     const screenWidth = Dimensions.get('window').width;
     const imageWidth = useMemo(() => Math.min(screenWidth - 32, 600), [screenWidth]);
 
-    const handleScrollEnd = useCallback((e: any) => {
+    const handleScrollEnd = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const index = Math.round(e.nativeEvent.contentOffset.x / imageWidth);
         setActiveIndex(index);
     }, [imageWidth]);
@@ -295,7 +297,7 @@ const RedditVideoPlayer = ({ url }: { url: string }) => {
                 resizeMode={ResizeMode?.CONTAIN || 'contain'}
                 isLooping
                 shouldPlay={false}
-                onError={(err: any) => {
+                onError={(err: unknown) => {
                     console.error('Video playback error:', err);
                     setError(true);
                 }}
@@ -468,7 +470,7 @@ const isImageUrl = (url: string): boolean => {
 // Formatted content component - handles headers, bold, italic, and cleans up line breaks
 interface FormattedContentProps {
     content: string;
-    style?: any;
+    style?: StyleProp<ViewStyle>;
 }
 
 const FormattedContent = ({ content, style }: FormattedContentProps) => {
@@ -487,7 +489,7 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
     // Split into paragraphs/blocks
     const blocks = cleanContent.split(/\n\n+/);
 
-    const renderTextWithFormatting = (text: string, baseStyle: any) => {
+    const renderTextWithFormatting = (text: string, baseStyle: TextStyle) => {
         // Parse inline formatting: **bold**, *italic*, `code`, [text](url)
         const parts: React.ReactNode[] = [];
         let remaining = text;
@@ -576,7 +578,7 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
                 if (headerMatch) {
                     const level = headerMatch[1].length;
                     const headerText = headerMatch[2];
-                    const headerStyles: { [key: number]: any } = {
+                    const headerStyles: { [key: number]: TextStyle } = {
                         1: { fontSize: 20, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 16 : 0, marginBottom: 8 },
                         2: { fontSize: 18, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 14 : 0, marginBottom: 6 },
                         3: { fontSize: 16, fontWeight: '600', color: COLORS.node.text, marginTop: index > 0 ? 12 : 0, marginBottom: 4 },
@@ -676,12 +678,12 @@ export interface UIPost {
     author: UIAuthor;
     title: string;
     content?: string | null; // Optional for poll-only or link-only posts
-    contentJson?: { type: 'doc'; content: any[] } | null; // TipTap JSON content
+    contentJson?: TipTapDoc | null; // TipTap JSON content
     contentFormat?: 'markdown' | 'tiptap'; // Content format type
     createdAt: string | Date;
     commentCount: number;
     expertGated?: boolean;
-    vibes?: any[];
+    vibes?: string[];
     comments?: UIComment[];
     poll?: {
         id: string;
@@ -831,7 +833,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
 interface PostCardProps {
     post: UIPost;
-    currentUser?: any;
+    currentUser?: CurrentUser | null;
     onPostAction?: (postId: string, action: 'mute' | 'block' | 'delete') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPress?: (post: UIPost) => void;
@@ -875,14 +877,22 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
     const fetchComments = async () => {
         // if (commentsLoaded) return; // Allow reload if sort changes
         try {
-            const res = await api.get<any[]>(`/posts/${post.id}/comments?all=true&limit=100&sortBy=${commentSort}`);
+            interface ApiComment {
+                id: string;
+                author: { id: string; username?: string; avatar?: string; era?: string; cred?: number };
+                content: string;
+                createdAt: string;
+                parentId?: string | null;
+                myReaction?: { [key: string]: number } | null;
+            }
+            const res = await api.get<ApiComment[]>(`/posts/${post.id}/comments?all=true&limit=100&sortBy=${commentSort}`);
 
             // Build Tree
             const commentMap = new Map();
             const roots: UIComment[] = [];
 
             // First pass: create nodes
-            res.forEach((c: any) => {
+            res.forEach((c: ApiComment) => {
                 commentMap.set(c.id, {
                     id: c.id,
                     author: {
@@ -967,7 +977,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                 // Real-time vibe aggregate updates - update live counts
                 setPost(prev => ({
                     ...prev,
-                    vibeAggregate: data.vibeAggregate
+                    vibeAggregate: data.vibeAggregate as VibeAggregateData
                 }));
             }
         });
@@ -1121,7 +1131,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
             setShowReportModal(false);
             setMenuVisible(false);
             showToast('Report submitted. Thank you!', 'success');
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Failed to report post:', error);
             showToast('Failed to submit report', 'error');
         } finally {
@@ -1166,7 +1176,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                 author: {
                     id: currentUser?.id || 'temp',
                     username: currentUser?.username || 'You',
-                    avatar: currentUser?.avatar || undefined,
+                    avatar: currentUser?.avatar || '',
                     era: currentUser?.era || 'Builder Era',
                     cred: currentUser?.cred || 0
                 },
@@ -1619,7 +1629,7 @@ export const PostCard = memo(PostCardInner, (prevProps, nextProps) => {
 interface FeedProps {
     posts: UIPost[];
     externalPosts?: ExternalPost[];
-    currentUser?: any;
+    currentUser?: CurrentUser | null;
     onPostAction?: (postId: string, action: 'mute' | 'block' | 'delete') => void;
     onVibeCheck?: (post: UIPost) => void;
     onPostClick?: (post: UIPost) => void;
@@ -1645,7 +1655,7 @@ type FeedItem = { type: 'node'; data: UIPost } | { type: 'external'; data: Exter
 
 export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick, onRefresh, refreshing = false, onQuoteExternalPost, onSaveExternalPost }: FeedProps) => {
     const prefetchedRef = useRef<Set<string>>(new Set());
-    const flatListRef = useRef<any>(null);
+    const flatListRef = useRef<FlatList<FeedItem>>(null);
 
     // Web pull-to-refresh state
     const [webPullDistance, setWebPullDistance] = useState(0);
@@ -1655,12 +1665,12 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
     const PULL_THRESHOLD = 80;
 
     // Web pull-to-refresh handlers
-    const handleWebTouchStart = useCallback((e: any) => {
+    const handleWebTouchStart = useCallback((e: { touches?: Array<{ clientY: number }>; clientY?: number }) => {
         if (Platform.OS !== 'web' || refreshing) return;
         webStartY.current = e.touches?.[0]?.clientY || e.clientY || 0;
     }, [refreshing]);
 
-    const handleWebTouchMove = useCallback((e: any) => {
+    const handleWebTouchMove = useCallback((e: { touches?: Array<{ clientY: number }>; clientY?: number; preventDefault?: () => void }) => {
         if (Platform.OS !== 'web' || refreshing) return;
         if (webScrollTop.current > 0) return; // Not at top
 
@@ -1686,7 +1696,7 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
     }, [refreshing, webPullDistance, onRefresh]);
 
     // Track scroll position for web pull-to-refresh
-    const handleScrollWithTracking = useCallback((e: any) => {
+    const handleScrollWithTracking = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
         const scrollY = e.nativeEvent.contentOffset.y;
         webScrollTop.current = scrollY;
         onScroll?.(scrollY);
@@ -1862,11 +1872,13 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
     }, [headerOffset, webPullDistance, refreshing, onRefresh]);
 
     // Memoized touch props for web pull-to-refresh
-    const webTouchProps = useMemo(() => {
+    const webTouchProps = useMemo((): Partial<ViewProps> => {
         if (Platform.OS !== 'web' || !onRefresh) return {};
+        // On web, touch events have DOM-compatible shape (touches[].clientY, etc.)
+        // Cast to ViewProps since these are only active on web platform
         return {
-            onTouchStart: handleWebTouchStart,
-            onTouchMove: handleWebTouchMove,
+            onTouchStart: handleWebTouchStart as ViewProps['onTouchStart'],
+            onTouchMove: handleWebTouchMove as ViewProps['onTouchMove'],
             onTouchEnd: handleWebTouchEnd,
         };
     }, [onRefresh, handleWebTouchStart, handleWebTouchMove, handleWebTouchEnd]);

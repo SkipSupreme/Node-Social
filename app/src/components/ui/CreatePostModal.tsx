@@ -70,8 +70,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     const [nodeSearch, setNodeSearch] = useState('');
 
     // Link Preview State
+    interface LinkPreview {
+        url: string;
+        title?: string;
+        description?: string;
+        image?: string;
+        domain?: string;
+    }
     const [linkUrl, setLinkUrl] = useState<string | null>(null);
-    const [linkPreview, setLinkPreview] = useState<any | null>(null);
+    const [linkPreview, setLinkPreview] = useState<LinkPreview | null>(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
 
     // Poll State
@@ -231,8 +238,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 poll: pollData
             });
             onSuccess();
-        } catch (err: any) {
-            setError(err.message || 'Failed to create post');
+        } catch (err: unknown) {
+            setError(err instanceof Error ? err.message : 'Failed to create post');
         } finally {
             setLoading(false);
         }

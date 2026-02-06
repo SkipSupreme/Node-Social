@@ -198,7 +198,6 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               firstName: true,
               lastName: true,
@@ -512,7 +511,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
         if (nodeConfig) {
           // Override preferences if expert config exists
-          const expertConfig = (nodeConfig as any).expertConfig;
+          const expertConfig = nodeConfig.expertConfig as Record<string, unknown>;
           if (expertConfig && Object.keys(expertConfig).length > 0) {
             preferences = {
               ...preferences,
@@ -521,13 +520,13 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           }
 
           // Load rules
-          const suppression = (nodeConfig as any).suppressionRules as any[] || [];
-          const boost = (nodeConfig as any).boostRules as any[] || [];
+          const suppression = (nodeConfig.suppressionRules as Record<string, unknown>[]) || [];
+          const boost = (nodeConfig.boostRules as Record<string, unknown>[]) || [];
           // Validate and combine
           try {
             expertRules = [
               ...ExpertService.validateRules(suppression.map(r => ({ ...r, action: { type: 'suppress' } }))),
-              ...ExpertService.validateRules(boost.map(r => ({ ...r, action: { type: 'boost', multiplier: r.action?.multiplier } })))
+              ...ExpertService.validateRules(boost.map(r => ({ ...r, action: { type: 'boost', multiplier: (r.action as Record<string, unknown>)?.multiplier } })))
             ];
           } catch (e) {
             fastify.log.warn({ err: e }, 'Failed to validate expert rules');
@@ -685,7 +684,6 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         author: {
           select: {
             id: true,
-            email: true,
             username: true,
             firstName: true,
             lastName: true,
@@ -719,7 +717,6 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
             author: {
               select: {
                 id: true,
-                email: true,
                 username: true,
                 firstName: true,
                 lastName: true,
@@ -895,7 +892,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         );
 
         // Combine scores using main weights
-        const boostMultiplier = (post as any).boostMultiplier || 1.0;
+        const boostMultiplier = (post as unknown as Record<string, unknown>).boostMultiplier as number || 1.0;
         const score = (
           (qualityScore * preferences.qualityWeight / 100) +
           (recencyScore * preferences.recencyWeight / 100) +
@@ -976,7 +973,6 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               firstName: true,
               lastName: true,
@@ -1071,8 +1067,26 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       const { id } = request.params as { id: string };
       const userId = (request.user as { sub: string }).sub;
 
+      // TipTap JSON schema for rich text content
+      const tipTapNodeSchema: z.ZodType<any> = z.lazy(() => z.object({
+        type: z.string(),
+        attrs: z.record(z.any()).optional(),
+        content: z.array(tipTapNodeSchema).optional(),
+        marks: z.array(z.object({
+          type: z.string(),
+          attrs: z.record(z.any()).optional(),
+        })).optional(),
+        text: z.string().optional(),
+      }));
+
+      const tipTapDocSchema = z.object({
+        type: z.literal('doc'),
+        content: z.array(tipTapNodeSchema),
+      });
+
       const schema = z.object({
         content: z.string().min(1).max(6000).optional(),
+        contentJson: tipTapDocSchema.optional(),
         title: z.string().min(1).max(300).optional(),
       });
 
@@ -1081,7 +1095,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, title } = parsed.data;
+      const { content, contentJson, title } = parsed.data;
 
       const post = await fastify.prisma.post.findUnique({ where: { id } });
 
@@ -1099,21 +1113,27 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(410).send({ error: 'Post has been deleted' });
       }
 
-      const updateData: { content?: string; title?: string; updatedAt: Date } = {
+      const updateData: Prisma.PostUpdateInput = {
         updatedAt: new Date(),
+        editedAt: new Date(),
       };
 
-      if (content !== undefined) updateData.content = content;
+      if (contentJson !== undefined) {
+        updateData.contentJson = contentJson;
+        updateData.contentFormat = 'tiptap';
+        updateData.content = extractTextFromTipTap(contentJson);
+      } else if (content !== undefined) {
+        updateData.content = content;
+      }
       if (title !== undefined) updateData.title = title;
 
       const updatedPost = await fastify.prisma.post.update({
         where: { id },
-        data: { ...updateData, editedAt: new Date() },
+        data: updateData,
         include: {
           author: {
             select: {
               id: true,
-              email: true,
               username: true,
               firstName: true,
               lastName: true,
@@ -1288,14 +1308,14 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     if (post.nodeId) {
       const nodeConfig = await fastify.prisma.nodeVectorConfig.findUnique({ where: { nodeId: post.nodeId } });
       if (nodeConfig) {
-        const expertConfig = (nodeConfig as any).expertConfig;
+        const expertConfig = nodeConfig.expertConfig as Record<string, unknown>;
         if (expertConfig && Object.keys(expertConfig).length > 0) {
           preferences = { ...preferences, ...expertConfig };
         }
 
         // Apply Rules (Simplified for explain - just checking boost)
-        const boostRules = (nodeConfig as any).boostRules as any[] || [];
-        const rules = ExpertService.validateRules(boostRules.map(r => ({ ...r, action: { type: 'boost', multiplier: r.action?.multiplier } })));
+        const boostRules = (nodeConfig.boostRules as Record<string, unknown>[]) || [];
+        const rules = ExpertService.validateRules(boostRules.map(r => ({ ...r, action: { type: 'boost', multiplier: (r.action as Record<string, unknown>)?.multiplier } })));
 
         // Evaluate rules against post
         // We need to construct a post object compatible with evaluateRule

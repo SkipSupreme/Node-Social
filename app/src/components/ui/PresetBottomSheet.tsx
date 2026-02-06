@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ComponentType } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { Clock, Scale, Flame, Users, Sparkles, Settings, Check, X } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
@@ -9,7 +9,7 @@ interface PresetOption {
   id: PresetType;
   name: string;
   description: string;
-  icon: any;
+  icon: ComponentType<{ size?: number; color?: string }>;
   weights: { quality: number; recency: number; engagement: number; personalization: number };
 }
 

@@ -2,22 +2,29 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, FlatList, TextInput, TouchableOpacity, Image, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Send } from 'lucide-react-native';
-import { api } from '../lib/api';
+import { api, type Message } from '../lib/api';
 import { COLORS } from '../constants/theme';
 import { useSocket } from '../context/SocketContext';
 import { useAuthStore } from '../store/auth';
 
+/** Minimal recipient info passed from the messages screen */
+interface ChatRecipient {
+    id: string;
+    username: string;
+    avatar: string | null;
+}
+
 interface ChatScreenProps {
     onBack: () => void;
     conversationId: string;
-    recipient: any;
+    recipient: ChatRecipient;
 }
 
 export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProps) => {
     const { user: currentUser } = useAuthStore();
     const { socket } = useSocket();
 
-    const [messages, setMessages] = useState<any[]>([]);
+    const [messages, setMessages] = useState<Message[]>([]);
     const [text, setText] = useState('');
     const flatListRef = useRef<FlatList>(null);
 
@@ -27,7 +34,7 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
         if (socket) {
             socket.emit('join_room', `conversation:${conversationId}`);
 
-            socket.on('message:new', (message: any) => {
+            socket.on('message:new', (message: Message) => {
                 if (message.conversationId === conversationId) {
                     setMessages(prev => [...prev, message]);
                     setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
@@ -45,7 +52,7 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
 
     const fetchMessages = async () => {
         try {
-            const res = await api.get<any[]>(`/conversations/${conversationId}`);
+            const res = await api.get<Message[]>(`/conversations/${conversationId}`);
             setMessages(res);
             setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
         } catch (error) {
@@ -78,7 +85,7 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
         }
     };
 
-    const renderItem = ({ item }: { item: any }) => {
+    const renderItem = ({ item }: { item: Message }) => {
         const isMe = currentUser && item.senderId === currentUser.id;
         return (
             <View style={[styles.msgContainer, isMe ? styles.msgRight : styles.msgLeft]}>
@@ -106,7 +113,7 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
                 ref={flatListRef}
                 data={messages}
                 renderItem={renderItem}
-                keyExtractor={(item: any) => item.id}
+                keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
                 onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
             />

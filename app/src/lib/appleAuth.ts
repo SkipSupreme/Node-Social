@@ -2,6 +2,7 @@
 // Apple Sign-In credential state checking and re-authentication handling
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Platform } from "react-native";
+import { getErrorMessage } from "./errors";
 
 /**
  * Check if Apple Sign-In credentials are still valid
@@ -36,9 +37,9 @@ export async function checkAppleCredentialState(
         needsReauth: state === AppleAuthentication.AppleAuthenticationCredentialState.REVOKED,
         state,
       };
-    } catch (error: any) {
+    } catch (error: unknown) {
       // Simulator error: "This method must be tested on a real device"
-      if (error?.message?.includes("real device")) {
+      if (getErrorMessage(error).includes("real device")) {
         console.warn("⚠️ Apple credential state check skipped (simulator)");
         // In dev, assume valid (will work on real devices)
         return {
@@ -65,13 +66,13 @@ export async function checkAppleCredentialState(
       needsReauth,
       state,
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error checking Apple credential state:", error);
     return {
       isValid: false,
       needsReauth: true,
       state: null,
-      error: error?.message || "Unknown error",
+      error: getErrorMessage(error),
     };
   }
 }
@@ -87,7 +88,8 @@ export function getCredentialStateMessage(
   switch (state) {
     case AppleAuthentication.AppleAuthenticationCredentialState.AUTHORIZED:
       return "Credentials are valid";
-    case AppleAuthentication.AppleAuthenticationCredentialState.REVOKED as any:
+    // REVOKED is not in the enum's comparison set, but exists at runtime
+    case AppleAuthentication.AppleAuthenticationCredentialState.REVOKED as AppleAuthentication.AppleAuthenticationCredentialState:
       return "Apple Sign-In has been revoked. Please sign in again.";
     case AppleAuthentication.AppleAuthenticationCredentialState.NOT_FOUND:
       return "Apple Sign-In credentials not found. Please sign in again.";

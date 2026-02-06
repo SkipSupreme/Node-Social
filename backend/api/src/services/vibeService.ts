@@ -2,8 +2,8 @@
 // Phase 0.1 - Vibe Vector Service
 // Core feature: Handles Vibe Vector reactions with intensity and Node weighting
 
-import { PrismaClient } from '@prisma/client';
-import type { VibeReaction } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
+import type { VibeReaction, PostVibeAggregate } from '@prisma/client';
 import type { FastifyInstance } from 'fastify';
 import { getSocketService } from './socketService.js';
 import { ModerationService } from './moderationService.js';
@@ -72,71 +72,70 @@ export async function createOrUpdateReaction(
     postId: postId || null,
     commentId: commentId || null,
     nodeId,
-    intensities: intensities as any, // Prisma Json type
+    intensities: intensities as Prisma.InputJsonValue,
     totalIntensity,
   };
 
-  // Check if reaction already exists (handle uniqueness manually since Prisma doesn't support conditional uniques)
-  const existingReaction = await prisma.vibeReaction.findFirst({
-    where: {
-      userId,
-      nodeId,
-      ...(postId ? { postId } : { commentId: commentId! }),
-    },
-  });
+  // Use transaction to prevent race condition between findFirst and create/update
+  const reaction = await prisma.$transaction(async (tx) => {
+    // Check if reaction already exists (handle uniqueness manually since Prisma doesn't support conditional uniques)
+    const existingReaction = await tx.vibeReaction.findFirst({
+      where: {
+        userId,
+        nodeId,
+        ...(postId ? { postId } : { commentId: commentId! }),
+      },
+    });
 
-  let reaction;
-  if (existingReaction) {
-    // Update existing reaction
-    reaction = await prisma.vibeReaction.update({
-      where: { id: existingReaction.id },
-      data: {
-        intensities: intensities as any,
-        totalIntensity,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
+    if (existingReaction) {
+      // Update existing reaction
+      return await tx.vibeReaction.update({
+        where: { id: existingReaction.id },
+        data: {
+          intensities: intensities as Prisma.InputJsonValue,
+          totalIntensity,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+            },
+          },
+          node: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
           },
         },
-        node: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
+      });
+    } else {
+      // Create new reaction
+      return await tx.vibeReaction.create({
+        data: reactionData,
+        include: {
+          user: {
+            select: {
+              id: true,
+            },
+          },
+          node: {
+            select: {
+              id: true,
+              slug: true,
+              name: true,
+            },
           },
         },
-      },
-    });
-  } else {
-    // Create new reaction
-    reaction = await prisma.vibeReaction.create({
-      data: reactionData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-          },
-        },
-        node: {
-          select: {
-            id: true,
-            slug: true,
-            name: true,
-          },
-        },
-      },
-    });
-  }
+      });
+    }
+  });
 
   // Update PostMetric if postId exists (fire-and-forget, don't block)
   if (postId) {
-    updatePostMetricsFromReactions(prisma, postId).catch((err) => {
-      console.error('Failed to update metrics for post ' + postId + ': ', err);
-    });
+    // Fire-and-forget: metrics update failure is non-critical
+    updatePostMetricsFromReactions(prisma, postId).catch(() => {});
   }
 
   return reaction;
@@ -184,11 +183,11 @@ export async function getReactionsForContent(
     where: {
       ...(postId ? { postId } : { commentId: commentId! }),
     },
+    take: 1000,
     include: {
       user: {
         select: {
           id: true,
-          email: true,
         },
       },
       node: {
@@ -275,14 +274,11 @@ export async function deleteReaction(
     throw new Error('Must provide either postId or commentId, not both');
   }
 
-  const where: any = {
+  const where: Prisma.VibeReactionWhereInput = {
     userId,
     ...(postId ? { postId } : { commentId: commentId! }),
+    ...(nodeId ? { nodeId } : {}),
   };
-
-  if (nodeId) {
-    where.nodeId = nodeId;
-  }
 
   const reaction = await prisma.vibeReaction.findFirst({
     where,
@@ -298,9 +294,8 @@ export async function deleteReaction(
 
   // Update PostMetric if postId exists
   if (postId) {
-    updatePostMetricsFromReactions(prisma, postId).catch((err) => {
-      console.error('Failed to update metrics for post ' + postId + ': ', err);
-    });
+    // Fire-and-forget: metrics update failure is non-critical
+    updatePostMetricsFromReactions(prisma, postId).catch(() => {});
   }
 
   return { message: 'Reaction deleted' };
@@ -334,7 +329,23 @@ async function updatePostMetricsFromReactions(
   let totalWeightedIntensity = 0;
 
   // Initialize aggregates for PostVibeAggregate
-  const aggregates: any = {
+  interface VibeAggregateData {
+    insightfulSum: number;
+    joySum: number;
+    fireSum: number;
+    supportSum: number;
+    shockSum: number;
+    questionableSum: number;
+    insightfulCount: number;
+    joyCount: number;
+    fireCount: number;
+    supportCount: number;
+    shockCount: number;
+    questionableCount: number;
+    totalReactors: number;
+    totalIntensity: number;
+  }
+  const aggregates: VibeAggregateData = {
     insightfulSum: 0,
     joySum: 0,
     fireSum: 0,
@@ -363,14 +374,15 @@ async function updatePostMetricsFromReactions(
       weightedEngagementScore += intensity * nodeWeight;
       totalWeightedIntensity += intensity;
 
-      // Update aggregates
-      const sumKey = slug + 'Sum';
-      const countKey = slug + 'Count';
+      // Update aggregates (cast for dynamic slug-based key access)
+      const agg = aggregates as unknown as Record<string, number>;
+      const sumKey = `${slug}Sum`;
+      const countKey = `${slug}Count`;
 
-      if (typeof aggregates[sumKey] === 'number') {
-        aggregates[sumKey] += intensity;
-        if (intensity > 0) {
-          aggregates[countKey] += 1;
+      if (typeof agg[sumKey] === 'number') {
+        agg[sumKey]! += intensity;
+        if (intensity > 0 && typeof agg[countKey] === 'number') {
+          agg[countKey]! += 1;
         }
       }
       aggregates.totalIntensity += intensity;
@@ -408,7 +420,7 @@ async function updatePostMetricsFromReactions(
   // We need to fetch the node ID for the post to pass to checkAndAddToModQueue
   const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true, nodeId: true, authorId: true } });
   if (post && post.nodeId) {
-    await ModerationService.checkAndAddToModQueue(postId, post.nodeId, aggregates);
+    await ModerationService.checkAndAddToModQueue(postId, post.nodeId, aggregates as unknown as PostVibeAggregate);
 
     // Phase 3: Update User Cred
     // We need to fetch the full post with reactions to calculate cred
@@ -441,9 +453,8 @@ async function updatePostMetricsFromReactions(
       },
       vibeAggregate: aggregates,
     });
-  } catch (error) {
-    // Ignore socket errors (e.g. if service not initialized in tests)
-    console.warn('Failed to emit socket update:', error);
+  } catch {
+    // Fire-and-forget: socket emit failure is non-critical
   }
 
   return metric;
@@ -463,7 +474,16 @@ export async function getAllVibeVectors(prisma: PrismaClient) {
  * Phase 3: Cred Logic
  */
 
-function calculateCredEarned(post: any): number {
+interface PostForCred {
+  id: string;
+  nodeId: string | null;
+  author: { id: string; nodeCredScores: Prisma.JsonValue };
+  reactions: Array<{ intensities: Prisma.JsonValue; user: { nodeCredScores: Prisma.JsonValue } }>;
+}
+
+function calculateCredEarned(post: PostForCred): number {
+  if (!post.nodeId) return 0;
+
   let credEarned = 0;
 
   for (const reaction of post.reactions) {
@@ -487,7 +507,9 @@ function calculateCredEarned(post: any): number {
   return credEarned;
 }
 
-function calculateCredLost(post: any): number {
+function calculateCredLost(post: PostForCred): number {
+  if (!post.nodeId) return 0;
+
   let credLost = 0;
 
   for (const reaction of post.reactions) {
@@ -513,7 +535,8 @@ function calculateCredLost(post: any): number {
   return credLost;
 }
 
-async function updateUserCred(prisma: PrismaClient, post: any) {
+async function updateUserCred(prisma: PrismaClient, post: PostForCred) {
+  if (!post.nodeId) return;
   const earned = calculateCredEarned(post);
   const lost = calculateCredLost(post);
   const netChange = earned - lost;

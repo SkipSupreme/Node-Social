@@ -24,6 +24,14 @@ const VIBE_VECTORS = [
     { key: 'questionable', label: 'Questionable', emoji: '🤔', color: '#6b7280' },
 ];
 
+interface CredTransaction {
+    id: string;
+    amount: number;
+    reason: string;
+    createdAt: string;
+    node?: { id: string; name: string; slug: string };
+}
+
 interface ProfileContentProps {
     userId: string;
     eraStyle: typeof ERAS[keyof typeof ERAS];
@@ -83,7 +91,7 @@ const ReplyCard: React.FC<{
 
 // Cred transaction card
 const CredCard: React.FC<{
-    transaction: any;
+    transaction: CredTransaction;
 }> = ({ transaction }) => (
     <View style={styles.credCard}>
         <View style={styles.credLeft}>
@@ -116,7 +124,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
     const [posts, setPosts] = useState<Post[]>([]);
     const [replies, setReplies] = useState<UserComment[]>([]);
     const [mediaPosts, setMediaPosts] = useState<Post[]>([]);
-    const [credHistory, setCredHistory] = useState<any[]>([]);
+    const [credHistory, setCredHistory] = useState<CredTransaction[]>([]);
     const [aggregatedVibes, setAggregatedVibes] = useState<AggregatedVibes>({});
     const [loading, setLoading] = useState(true);
 
@@ -141,9 +149,10 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                     vibes[v.key] = { sum: 0, count: 0 };
                 });
 
-                postsData.forEach((post: any) => {
-                    if (post.vibeAggregate) {
-                        const agg = post.vibeAggregate;
+                postsData.forEach((post) => {
+                    const postWithVibes = post as Post & { vibeAggregate?: Record<string, number> };
+                    if (postWithVibes.vibeAggregate) {
+                        const agg = postWithVibes.vibeAggregate;
                         if (agg.insightfulSum) { vibes.insightful.sum += agg.insightfulSum; vibes.insightful.count += agg.insightfulCount || 0; }
                         if (agg.joySum) { vibes.joy.sum += agg.joySum; vibes.joy.count += agg.joyCount || 0; }
                         if (agg.fireSum) { vibes.fire.sum += agg.fireSum; vibes.fire.count += agg.fireCount || 0; }
@@ -296,7 +305,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 }
                 return (
                     <View style={styles.credList}>
-                        {credHistory.map((tx: any) => (
+                        {credHistory.map((tx: CredTransaction) => (
                             <CredCard key={tx.id} transaction={tx} />
                         ))}
                     </View>

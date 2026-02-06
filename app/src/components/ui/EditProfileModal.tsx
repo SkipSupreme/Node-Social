@@ -14,12 +14,15 @@ import { showAlert } from '../../lib/alert';
 import { X, Camera, Link2, Check, Upload } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/theme';
-import { updateProfile, uploadAvatar } from '../../lib/api';
+import { updateProfile, uploadAvatar, AuthResponse } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
+
+type User = AuthResponse['user'];
 
 interface EditProfileModalProps {
   visible: boolean;
   onClose: () => void;
-  onSuccess: (updatedUser: any) => void;
+  onSuccess: (updatedUser: User) => void;
   currentAvatar?: string | null;
   username: string;
 }
@@ -74,8 +77,8 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       const result = await updateProfile({ avatar: avatarUrl || '' });
       onSuccess(result.user);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update profile');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update profile'));
       setUploading(false);
     } finally {
       setLoading(false);

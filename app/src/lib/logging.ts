@@ -33,7 +33,8 @@ export function setupLoggingFilters() {
 
   // Filter console.warn for JavaScript-level warnings
   const originalWarn = console.warn;
-  console.warn = (...args: any[]) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deliberate: matches console.warn signature
+  console.warn = (...args: unknown[]) => {
     const message = args.join(" ");
     
     // Filter out iOS Simulator warnings

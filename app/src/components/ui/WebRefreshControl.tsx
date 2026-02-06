@@ -38,14 +38,14 @@ export const WebRefreshControl: React.FC<WebRefreshControlProps> = ({
     extrapolate: 'clamp',
   });
 
-  const handleTouchStart = useCallback((e: any) => {
+  const handleTouchStart = useCallback((e: { nativeEvent: { pageY?: number; touches?: Array<{ pageY: number }> } }) => {
     if (refreshing) return;
     startY.current = e.nativeEvent.pageY || e.nativeEvent.touches?.[0]?.pageY || 0;
     // Check if we're at the top of the scroll
     isAtTop.current = true; // We'll update this on scroll
   }, [refreshing]);
 
-  const handleTouchMove = useCallback((e: any) => {
+  const handleTouchMove = useCallback((e: { nativeEvent: { pageY?: number; touches?: Array<{ pageY: number }> } }) => {
     if (refreshing || !isAtTop.current) return;
 
     const currentY = e.nativeEvent.pageY || e.nativeEvent.touches?.[0]?.pageY || 0;
@@ -83,7 +83,7 @@ export const WebRefreshControl: React.FC<WebRefreshControlProps> = ({
     });
   }, [refreshing, pullDistance, onRefresh]);
 
-  const handleScroll = useCallback((e: any) => {
+  const handleScroll = useCallback((e: { nativeEvent?: { contentOffset?: { y: number } } }) => {
     const scrollTop = e.nativeEvent?.contentOffset?.y || 0;
     isAtTop.current = scrollTop <= 0;
   }, []);

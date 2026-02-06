@@ -286,7 +286,7 @@ const SliderRow = ({ label, value, onChange, color, icon: Icon, min = 0, max = 1
     </View>
 );
 
-const ToggleRow = ({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: any }) => (
+const ToggleRow = ({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: React.ComponentType<{ size: number; color: string }> }) => (
     <View style={toggleStyles.row}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             {Icon && <Icon size={14} color={COLORS.node.muted} />}
@@ -466,7 +466,7 @@ const IntermediateMode = ({ settings, onUpdate }: {
         onUpdate({ ...settings, preset: 'custom', weights: { ...weights, [key]: val } });
     };
 
-    const updateIntermediate = (key: keyof IntermediateSettings, val: any) => {
+    const updateIntermediate = (key: keyof IntermediateSettings, val: IntermediateSettings[keyof IntermediateSettings]) => {
         onUpdate({ ...settings, intermediate: { ...intermediate, [key]: val } });
     };
 
@@ -648,7 +648,7 @@ const AdvancedMode = ({ settings, onUpdate }: {
 }) => {
     const advanced = settings.advanced || DEFAULT_ADVANCED;
 
-    const updateAdvanced = (key: keyof AdvancedSettings, val: any) => {
+    const updateAdvanced = (key: keyof AdvancedSettings, val: AdvancedSettings[keyof AdvancedSettings]) => {
         onUpdate({ ...settings, advanced: { ...advanced, [key]: val } });
     };
 
@@ -714,7 +714,7 @@ const ExpertMode = ({ settings, onUpdate }: {
 }) => {
     const expert = settings.expert || DEFAULT_EXPERT;
 
-    const updateExpert = (key: keyof ExpertSettings, val: any) => {
+    const updateExpert = (key: keyof ExpertSettings, val: ExpertSettings[keyof ExpertSettings]) => {
         onUpdate({ ...settings, expert: { ...expert, [key]: val } });
     };
 

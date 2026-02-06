@@ -4,11 +4,12 @@ import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import { api } from '../lib/api';
+import type { VibeValidatorSettings } from './ui/VibeValidator';
 
 interface SavePresetModalProps {
     visible: boolean;
     onClose: () => void;
-    currentConfig: any;
+    currentConfig: VibeValidatorSettings;
 }
 
 export const SavePresetModal: React.FC<SavePresetModalProps> = ({ visible, onClose, currentConfig }) => {

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { ComponentType } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Home, Compass, Bell, User, Plus } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
@@ -21,7 +21,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
     return currentView === view;
   };
 
-  const NavButton = ({ view, icon: Icon, label }: { view: NavItem; icon: any; label: string }) => {
+  const NavButton = ({ view, icon: Icon, label }: { view: NavItem; icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }>; label: string }) => {
     const active = isActive(view);
     return (
       <TouchableOpacity

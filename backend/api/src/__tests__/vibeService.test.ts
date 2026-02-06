@@ -21,7 +21,7 @@ import {
 
 // Mock Prisma client for service-layer tests
 function createServiceMockPrisma() {
-  return {
+  const client = {
     vibeReaction: {
       findFirst: vi.fn(),
       findMany: vi.fn(),
@@ -38,7 +38,11 @@ function createServiceMockPrisma() {
     postMetric: {
       upsert: vi.fn(),
     },
+    $transaction: vi.fn(),
   } as any;
+  // Interactive transaction: call the callback with the client itself
+  client.$transaction.mockImplementation((fn: any) => fn(client));
+  return client;
 }
 
 let mockPrisma: ReturnType<typeof createServiceMockPrisma>;

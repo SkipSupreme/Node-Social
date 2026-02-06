@@ -7,10 +7,16 @@ import { API_URL } from '../config';
 // Use the same URL logic as the API - production or local
 const SOCKET_URL = API_URL;
 
+/** Data payload for post update events from the socket */
+interface PostUpdateData {
+    postId: string;
+    [key: string]: unknown;
+}
+
 interface SocketContextType {
     socket: Socket | null;
     isConnected: boolean;
-    subscribeToPost: (postId: string, callback: (data: any) => void) => () => void;
+    subscribeToPost: (postId: string, callback: (data: PostUpdateData) => void) => () => void;
 }
 
 const SocketContext = createContext<SocketContextType>({
@@ -69,7 +75,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
 
         // Handle post updates and notify subscribers
-        socketInstance.on('post:update', (data: any) => {
+        socketInstance.on('post:update', (data: PostUpdateData) => {
             const key = `post:${data.postId}`;
             const callbacks = listenersRef.current.get(key);
             if (callbacks) {
@@ -88,7 +94,7 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }, [token]);
 
     // Stable subscribeToPost that uses ref instead of socket state
-    const subscribeToPost = useCallback((postId: string, callback: (data: any) => void) => {
+    const subscribeToPost = useCallback((postId: string, callback: (data: PostUpdateData) => void) => {
         const key = `post:${postId}`;
 
         if (!listenersRef.current.has(key)) {

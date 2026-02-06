@@ -21,13 +21,16 @@ interface VibeValidatorModalProps {
 }
 
 // Convert ColumnVibeSettings to VibeValidatorSettings
+// ColumnVibeSettings stores advanced/expert as Record<string, unknown> for serialization,
+// while VibeValidatorSettings uses typed AdvancedSettings/ExpertSettings interfaces.
+// The runtime shape is identical, so these casts are safe.
 const toVibeValidatorSettings = (settings: ColumnVibeSettings): VibeValidatorSettings => ({
   preset: settings.preset,
   weights: settings.weights,
   mode: settings.mode,
   intermediate: settings.intermediate,
-  advanced: settings.advanced as any,
-  expert: settings.expert as any,
+  advanced: settings.advanced as VibeValidatorSettings['advanced'],
+  expert: settings.expert as VibeValidatorSettings['expert'],
 });
 
 // Convert VibeValidatorSettings to ColumnVibeSettings
@@ -37,7 +40,7 @@ const toColumnVibeSettings = (settings: VibeValidatorSettings): ColumnVibeSettin
   mode: settings.mode,
   intermediate: settings.intermediate,
   advanced: settings.advanced as Record<string, unknown> | undefined,
-  expert: settings.expert as any,
+  expert: settings.expert as Record<string, unknown> | undefined,
 });
 
 export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({

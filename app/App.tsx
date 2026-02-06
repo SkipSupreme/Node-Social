@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StatusBar, Platform, TouchableOpacity, ActivityIndicator, StyleSheet, Modal, useWindowDimensions, Animated, Image, Text } from 'react-native';
 import { HelpCircle } from './src/components/ui/Icons';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -21,7 +21,8 @@ import { Sidebar } from './src/components/ui/Sidebar';
 import { Feed } from './src/components/ui/Feed';
 import { ProfileScreen } from './src/screens/ProfileScreen';
 import { VibeValidator, VibeValidatorSettings } from './src/components/ui/VibeValidator';
-import { getFeed, getNodes, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences, getCombinedExternalFeed, getBlueskyDiscover, getMastodonTrending, ExternalPost } from './src/lib/api';
+import { getFeed, getNodes, searchPosts, searchUsers, SearchUser, getFeedPreferences, updateFeedPreferences, getCombinedExternalFeed, getBlueskyDiscover, getMastodonTrending, ExternalPost, Node, Post, TipTapDoc } from './src/lib/api';
+import { VibeAggregateData } from './src/components/VibeBar';
 import { CreatePostModal } from './src/components/ui/CreatePostModal';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SavedPostsScreen } from './src/screens/SavedPostsScreen';
@@ -70,6 +71,120 @@ const queryClient = new QueryClient({
   },
 });
 
+// Mapped comment shape for feed state
+interface MappedComment {
+  id: string;
+  author: { id: string; username: string; avatar: string; era: string; cred: number };
+  content: string;
+  timestamp: Date;
+  depth: number;
+  replies: MappedComment[];
+}
+
+// Type for mapped posts used in feed state
+interface MappedPost {
+  id: string;
+  node: { id: string | undefined; name: string; slug: string; color: string };
+  author: { id: string; username: string; avatar: string; era: string; cred: number };
+  title: string;
+  content: string | null;
+  contentJson?: TipTapDoc | null;
+  contentFormat?: 'markdown' | 'tiptap';
+  commentCount: number;
+  createdAt: string;
+  expertGated: boolean;
+  vibes: string[];
+  linkUrl?: string | null;
+  mediaUrl?: string | null;
+  linkMeta?: Post['linkMeta'];
+  poll?: {
+    id: string;
+    question: string;
+    endsAt?: string;
+    options: { id: string; text: string; order?: number; _count?: { votes: number } }[];
+    votes?: { optionId: string }[];
+  };
+  myReaction?: { [key: string]: number } | null;
+  vibeAggregate?: VibeAggregateData | null;
+  isSaved: boolean;
+  comments: MappedComment[];
+}
+
+// Navigation parameter types
+type ViewName = 'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted';
+
+interface NavigationParams {
+  userId?: string;
+  postId?: string;
+  conversationId?: string;
+  recipient?: { id: string; username: string; avatar?: string | null };
+}
+
+interface NavigationEntry {
+  view: string;
+  params: NavigationParams | null;
+}
+
+// Feed query parameters
+interface FeedQueryParams {
+  nodeId?: string;
+  cursor?: string;
+  limit?: number;
+  preset?: string;
+  followingOnly?: boolean;
+  timeRange?: string;
+  textOnly?: boolean;
+  mediaOnly?: boolean;
+  linksOnly?: boolean;
+  hasDiscussion?: boolean;
+  qualityWeight?: number;
+  recencyWeight?: number;
+  engagementWeight?: number;
+  personalizationWeight?: number;
+}
+
+// Error Boundary to catch rendering errors
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
+    // Log error for debugging (could send to error reporting service)
+    console.error('App Error Boundary caught:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.node.bg, padding: 20 }}>
+          <Text style={{ color: COLORS.node.text, fontSize: 18, fontWeight: '600', marginBottom: 12 }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: COLORS.node.textSecondary, fontSize: 14, textAlign: 'center', marginBottom: 20 }}>
+            {this.state.error?.message || 'An unexpected error occurred'}
+          </Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#6366f1', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8 }}
+            onPress={() => this.setState({ hasError: false, error: null })}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 const MainApp = () => {
   const { user } = useAuthStore();
   const { requireAuth } = useAuthPrompt();
@@ -103,7 +218,7 @@ const MainApp = () => {
     }
   };
 
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<MappedPost[]>([]);
   const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -145,17 +260,17 @@ const MainApp = () => {
 
   // Handle post click to open detail view
   // Accepts either a post object or just a postId string (from desktop columns)
-  const handlePostClick = (postOrId: any) => {
+  const handlePostClick = useCallback((postOrId: any) => {
     const postId = typeof postOrId === 'string' ? postOrId : postOrId?.id;
     if (!postId) {
       console.error('handlePostClick called with invalid post:', postOrId);
       return;
     }
     navigateTo('post-detail', { postId });
-  };
+  }, []);
 
   // Handle scroll to hide/show header on mobile
-  const handleScroll = (scrollY: number) => {
+  const handleScroll = useCallback((scrollY: number) => {
     const diff = scrollY - lastScrollY.current;
     const threshold = 5; // More responsive
 
@@ -180,7 +295,7 @@ const MainApp = () => {
     }
 
     lastScrollY.current = scrollY;
-  };
+  }, [headerTranslateY]);
 
   // Handle bottom nav navigation
   // Bottom nav acts as "tab switching" - clears history and goes directly to the view
@@ -446,7 +561,7 @@ const MainApp = () => {
   const { width } = useWindowDimensions();
   const isDesktop = width >= 1024; // 3-column breakpoint
 
-  const [nodes, setNodes] = useState<any[]>([]);
+  const [nodes, setNodes] = useState<Array<Node & { type: string; color: string }>>([]);
 
   const fetchNodes = async () => {
     try {
@@ -629,10 +744,10 @@ const MainApp = () => {
   };
 
   // Pull-to-refresh handler
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchFeed(selectedNodeId, feedMode);
-  };
+  }, [selectedNodeId, feedMode]);
 
   // Handler for quoting an external post to Node
   const handleQuoteExternalPost = (post: ExternalPost) => {
@@ -1053,7 +1168,7 @@ const MainApp = () => {
             <Sidebar
               nodes={nodes}
               isDesktop={true}
-              user={user}
+              user={user ?? undefined}
               onProfileClick={() => navigateTo('profile')}
               selectedNodeId={selectedNodeId}
               onNodeSelect={handleNodeSelect}
@@ -1379,7 +1494,7 @@ const MainApp = () => {
               <Sidebar
                 nodes={nodes}
                 onClose={() => setMenuVisible(false)}
-                user={user}
+                user={user ?? undefined}
                 onProfileClick={() => {
                   setMenuVisible(false);
                   navigateTo('profile');
@@ -1522,10 +1637,14 @@ export default function App() {
     const handleDeepLink = (event: { url: string }) => {
       const { path, queryParams } = Linking.parse(event.url);
 
-      if (path === 'reset-password' && queryParams?.token) {
-        setResetToken(queryParams.token as string);
-      } else if (path === 'verify-email' && queryParams?.token) {
-        setVerifyToken(queryParams.token as string);
+      // Validate token format: should be a 64-char hex string (32 bytes)
+      const isValidToken = (t: unknown): t is string =>
+        typeof t === 'string' && /^[a-f0-9]{64}$/.test(t);
+
+      if (path === 'reset-password' && isValidToken(queryParams?.token)) {
+        setResetToken(queryParams.token);
+      } else if (path === 'verify-email' && isValidToken(queryParams?.token)) {
+        setVerifyToken(queryParams.token);
       }
     };
 
@@ -1551,6 +1670,7 @@ export default function App() {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+    <ErrorBoundary>
     <SafeAreaProvider style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
       <PortalProvider>
       <QueryClientProvider client={queryClient}>
@@ -1630,6 +1750,7 @@ export default function App() {
       </QueryClientProvider>
       </PortalProvider>
     </SafeAreaProvider>
+    </ErrorBoundary>
     </View>
   );
 }

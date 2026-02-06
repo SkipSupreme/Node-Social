@@ -5,11 +5,13 @@ import { COLORS, COLUMNS } from '../../constants/theme';
 import { useColumnsStore, FeedColumn as FeedColumnType } from '../../store/columns';
 import { FeedColumn } from './FeedColumn';
 import { AddColumnModal } from './AddColumnModal';
-import { ExternalPost } from '../../lib/api';
+import { ExternalPost, Node, AuthResponse } from '../../lib/api';
+
+type CurrentUser = AuthResponse['user'];
 
 interface MultiColumnContainerProps {
-  currentUser: any;
-  nodes: any[];
+  currentUser: CurrentUser | null;
+  nodes: Node[];
   globalNodeId?: string;
   onPostClick: (postId: string) => void;
   onAuthorClick: (authorId: string) => void;

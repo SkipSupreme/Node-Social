@@ -21,9 +21,17 @@ function useLatestRef<T>(value: T) {
 }
 
 // Types for TipTap JSON content
+interface TipTapNode {
+  type: string;
+  attrs?: Record<string, unknown>;
+  content?: TipTapNode[];
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
+  text?: string;
+}
+
 interface TipTapDoc {
   type: 'doc';
-  content: any[];
+  content: TipTapNode[];
 }
 
 // Ref methods exposed to native

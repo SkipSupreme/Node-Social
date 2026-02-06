@@ -1,15 +1,19 @@
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { ComponentType, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
 import { COLORS, ERAS } from '../../constants/theme';
+import type { Node } from '../../lib/api';
+import type { AuthResponse } from '../../lib/api';
+
+type User = AuthResponse['user'];
 
 interface SidebarProps {
-    nodes: any[];
+    nodes: Node[];
     onClose?: () => void;
     isDesktop?: boolean;
-    user?: any;
+    user?: User;
     onProfileClick?: () => void;
     selectedNodeId?: string | null;
     onNodeSelect?: (nodeId: string | null) => void;
@@ -535,7 +539,7 @@ export const Sidebar = ({
 };
 
 interface NavItemProps {
-    icon: any;
+    icon: ComponentType<{ size?: number; color?: string }>;
     label: string;
     active?: boolean;
     onPress?: () => void;
@@ -553,7 +557,7 @@ const NavItem = ({ icon: Icon, label, active, onPress }: NavItemProps) => (
 
 // Collapsed nav item - icon only
 interface CollapsedNavItemProps {
-    icon: any;
+    icon: ComponentType<{ size?: number; color?: string }>;
     active?: boolean;
     onPress?: () => void;
 }

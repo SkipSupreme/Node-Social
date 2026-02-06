@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { ComponentType, useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal, Pressable } from 'react-native';
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Portal } from '@gorhom/portal';
@@ -14,7 +14,7 @@ const MAX_RADIUS = 140;
 
 type VibeType = 'Insightful' | 'Joy' | 'Fire' | 'Support' | 'Shock' | 'Questionable';
 
-const VIBES: { id: VibeType; icon: any; label: string; color: string }[] = [
+const VIBES: { id: VibeType; icon: ComponentType<{ size?: number; color?: string }>; label: string; color: string }[] = [
     { id: 'Insightful', icon: Lightbulb, label: 'Insightful', color: '#3b82f6' },
     { id: 'Joy', icon: Smile, label: 'Joy', color: '#eab308' },
     { id: 'Fire', icon: Flame, label: 'Fire', color: '#f97316' },
@@ -148,7 +148,7 @@ export const VibeRadialWheel = ({
             // Convert intensities from 0-100 to 0-1 range for API
             // Only include nodeId if it's a valid UUID (backend will default to global otherwise)
             const isValidUUID = nodeId && nodeId !== 'global' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(nodeId);
-            const intensityData: any = {
+            const intensityData: { intensities: Record<string, number>; nodeId?: string } = {
                 intensities: {
                     insightful: finalIntensities.Insightful / 100,
                     joy: finalIntensities.Joy / 100,
@@ -171,11 +171,11 @@ export const VibeRadialWheel = ({
                 result = await createPostReaction(targetId, intensityData);
             }
             onComplete?.(finalIntensities);
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error(`[VibeRadialWheel] FAILED to submit ${contentType} reaction:`, error);
             // Show alert so user sees the error on mobile
             if (typeof alert !== 'undefined') {
-                alert(`Failed to save reaction: ${error?.message || error}`);
+                alert(`Failed to save reaction: ${error instanceof Error ? error.message : error}`);
             }
         }
     };
@@ -247,12 +247,12 @@ export const VibeRadialWheel = ({
         };
     }, []);
 
-    const handleWebMouseDown = (e: any) => {
+    const handleWebMouseDown = (e: { preventDefault: () => void; nativeEvent?: { clientX?: number; clientY?: number }; clientX?: number; clientY?: number }) => {
         if (Platform.OS !== 'web') return;
         e.preventDefault();
         // Use clientX/clientY for viewport-relative coordinates (fixed overlay)
-        const clientX = e.nativeEvent?.clientX ?? e.clientX;
-        const clientY = e.nativeEvent?.clientY ?? e.clientY;
+        const clientX = e.nativeEvent?.clientX ?? e.clientX ?? 0;
+        const clientY = e.nativeEvent?.clientY ?? e.clientY ?? 0;
 
         centerRef.current = { x: clientX, y: clientY };
         setCenter({ x: clientX, y: clientY });
@@ -598,7 +598,7 @@ const styles = StyleSheet.create({
         color: COLORS.node.muted,
     },
     webOverlay: {
-        position: 'fixed' as any,
+        position: 'fixed' as 'absolute',
         top: 0,
         left: 0,
         right: 0,

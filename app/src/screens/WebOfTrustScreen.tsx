@@ -16,6 +16,23 @@ import { COLORS } from '../constants/theme';
 import { api } from '../lib/api';
 import { useAuthStore } from '../store/auth';
 
+/** Shape of a vouch as returned in the trust graph endpoints */
+interface TrustVouch {
+    amount: number;
+    vouchee: {
+        id: string;
+        username: string;
+        avatar?: string | null;
+        cred: number;
+    };
+    voucher: {
+        id: string;
+        username: string;
+        avatar?: string | null;
+        cred: number;
+    };
+}
+
 interface TrustNode {
     id: string;
     username: string;
@@ -71,8 +88,8 @@ export const WebOfTrustScreen: React.FC<WebOfTrustScreenProps> = ({ onBack, user
         try {
             // Fetch vouches given and received
             const [vouchesGiven, vouchesReceived] = await Promise.all([
-                api.get<{ vouches: any[] }>(`/vouches/given/${targetUserId}`),
-                api.get<{ vouches: any[] }>(`/vouches/received/${targetUserId}`),
+                api.get<{ vouches: TrustVouch[] }>(`/vouches/given/${targetUserId}`),
+                api.get<{ vouches: TrustVouch[] }>(`/vouches/received/${targetUserId}`),
             ]);
 
             const givenVouches = vouchesGiven.vouches || [];

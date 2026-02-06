@@ -27,7 +27,7 @@ export const NodeCouncilScreen = ({ nodeId, nodeName, onBack }: NodeCouncilScree
                 ]);
                 setCouncil(councilData);
                 setEligibility(eligibilityData);
-            } catch (err: any) {
+            } catch (err: unknown) {
                 console.error('Failed to fetch council:', err);
                 setError('Failed to load council data');
             } finally {

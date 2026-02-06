@@ -21,9 +21,29 @@ import { login, loginWithApple, loginWithGoogle } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { googleOAuthConfig, isGoogleSignInEnabled } from "../config";
 import { COLORS } from "../constants/theme";
+import { getErrorMessage } from "../lib/errors";
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 import { X } from "lucide-react-native";
+
+/** Shape of a successful Google IdToken auth response (after type === 'success' check) */
+interface GoogleIdTokenSuccessResponse {
+  type: 'success';
+  params: Record<string, string>;
+  authentication?: { idToken?: string };
+}
+
+/** Shape of a Google auth error response (after type === 'error' check) */
+interface GoogleErrorResponse {
+  type: 'error';
+  error?: { message?: string; error_description?: string };
+}
+
+/** Apple auth errors include a code property */
+interface AppleAuthError {
+  code?: string;
+  message?: string;
+}
 
 // TEMPORARILY DISABLED: OAuth login buttons
 // Re-enable when all tester emails are added to Google/Apple developer console
@@ -133,8 +153,8 @@ export const LoginScreen: React.FC<{
       const data = await login(email.trim(), password);
       await setAuth(data);
       onSuccessLogin();
-    } catch (e: any) {
-      setError(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -148,8 +168,8 @@ export const LoginScreen: React.FC<{
         const data = await loginWithGoogle(idToken);
         await setAuth(data);
         onSuccessLogin();
-      } catch (e: any) {
-        setError(e?.message ?? "Google sign-in failed. Please try again.");
+      } catch (e: unknown) {
+        setError(getErrorMessage(e) || "Google sign-in failed. Please try again.");
       } finally {
         setGoogleLoading(false);
       }
@@ -163,20 +183,17 @@ export const LoginScreen: React.FC<{
     }
 
     // Debug logging to help diagnose issues
-    console.log("Google OAuth Response:", {
-      type: googleResponse.type,
-      params: (googleResponse as any).params,
-      error: (googleResponse as any).error,
-    });
+    console.log("Google OAuth Response:", googleResponse);
 
     if (googleResponse.type === "success") {
       // Try multiple possible locations for the id_token
-      const params = googleResponse.params as Record<string, string> | undefined;
+      const successResponse = googleResponse as unknown as GoogleIdTokenSuccessResponse;
+      const params = successResponse.params;
       const token =
         params?.id_token ||
         params?.idToken ||
         params?.token ||
-        (googleResponse as any).authentication?.idToken;
+        successResponse.authentication?.idToken;
 
       if (token) {
         console.log("Found Google id_token, proceeding with login");
@@ -191,9 +208,10 @@ export const LoginScreen: React.FC<{
       }
     } else if (googleResponse.type === "error") {
       setGoogleLoading(false);
+      const errorResponse = googleResponse as unknown as GoogleErrorResponse;
       const errorMsg =
-        googleResponse.error?.message ??
-        (googleResponse as any).error?.error_description ??
+        errorResponse.error?.message ??
+        errorResponse.error?.error_description ??
         "Google sign-in was interrupted. Please try again.";
       console.error("Google OAuth error:", googleResponse.error);
 
@@ -319,18 +337,19 @@ export const LoginScreen: React.FC<{
       // credential.user is the stable Apple user identifier
       await setAuth(data, credential.user);
       onSuccessLogin();
-    } catch (err: any) {
-      if (err?.code === "ERR_REQUEST_CANCELED") {
+    } catch (err: unknown) {
+      const appleErr = err as AppleAuthError;
+      if (appleErr?.code === "ERR_REQUEST_CANCELED") {
         setAppleLoading(false);
         return;
       }
 
       // Handle Error 1000 (missing entitlement) with helpful message
-      if (err?.code === "1000" || err?.message?.includes("1000")) {
-        console.error("❌ Apple Sign-In Error 1000: Missing entitlement in provisioning profile");
+      if (appleErr?.code === "1000" || appleErr?.message?.includes("1000")) {
+        console.error("Apple Sign-In Error 1000: Missing entitlement in provisioning profile");
         setError("Apple Sign-In is not properly configured. Please contact support.");
       } else {
-        setError(err?.message ?? "Apple sign-in failed. Please try again.");
+        setError(getErrorMessage(err) || "Apple sign-in failed. Please try again.");
       }
       setAppleLoading(false);
     }

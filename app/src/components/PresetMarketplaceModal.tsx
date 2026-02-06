@@ -4,6 +4,7 @@ import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
 import { COLORS } from '../constants/theme';
 import { api } from '../lib/api';
+import type { VibeValidatorSettings } from './ui/VibeValidator';
 
 interface Preset {
     id: string;
@@ -14,7 +15,7 @@ interface Preset {
         cred: number;
     };
     downloads: number;
-    config: any;
+    config: VibeValidatorSettings;
 }
 
 interface PresetMarketplaceModalProps {

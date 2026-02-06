@@ -66,9 +66,9 @@ export function NodeOverflowMenu({
           await leaveNode(nodeId);
           onLeave();
           onClose();
-        } catch (error: any) {
+        } catch (error: unknown) {
           console.error('Failed to leave node:', error);
-          showAlert('Error', error.message || 'Failed to leave node');
+          showAlert('Error', error instanceof Error ? error.message : 'Failed to leave node');
         } finally {
           setLoading(null);
         }

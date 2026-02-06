@@ -4,6 +4,17 @@ import { API_URL, resolveMediaUrl } from "../config";
 import { storage } from "./storage";
 import { getCookie } from "./cookies";
 
+/**
+ * React Native's FormData accepts file-like objects with uri/type/name
+ * instead of Blob/File objects used on web. This interface represents
+ * that native file descriptor, which must be cast for TypeScript compliance.
+ */
+interface NativeFileDescriptor {
+  uri: string;
+  type: string;
+  name: string;
+}
+
 // Fields that contain media URLs and need to be resolved
 const MEDIA_URL_FIELDS = ['avatar', 'banner', 'bannerImage', 'mediaUrl', 'image', 'linkImage'];
 
@@ -138,9 +149,9 @@ export type ModLogAction = {
 // TipTap JSON types for rich text content
 export interface TipTapNode {
   type: string;
-  attrs?: Record<string, any>;
+  attrs?: Record<string, unknown>;
   content?: TipTapNode[];
-  marks?: Array<{ type: string; attrs?: Record<string, any> }>;
+  marks?: Array<{ type: string; attrs?: Record<string, unknown> }>;
   text?: string;
 }
 
@@ -369,7 +380,7 @@ async function request<T>(
   }
 
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(options.body ? { "Content-Type": "application/json" } : {}),
     ...(options.headers as Record<string, string> || {}),
   };
   const csrfToken = readCsrfToken();
@@ -403,8 +414,10 @@ async function request<T>(
   }
 
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    const message = (body as any)?.error || `HTTP ${res.status}`;
+    const body: unknown = await res.json().catch(() => ({}));
+    const message = (typeof body === 'object' && body !== null && 'error' in body && typeof (body as Record<string, unknown>).error === 'string')
+      ? (body as Record<string, unknown>).error as string
+      : `HTTP ${res.status}`;
     throw new Error(message);
   }
 
@@ -416,7 +429,7 @@ async function request<T>(
 // --- Auth Endpoints ---
 
 export function checkUsername(username: string) {
-  return request<{ available: boolean }>(`/auth/check-username?username=${username}`, {
+  return request<{ available: boolean }>(`/auth/check-username?username=${encodeURIComponent(username)}`, {
     method: "GET",
   });
 }
@@ -492,7 +505,7 @@ export async function uploadAvatar(imageUri: string): Promise<{ success: boolean
       uri: imageUri,
       type: mimeType,
       name: `avatar.${fileType}`,
-    } as any);
+    } satisfies NativeFileDescriptor as unknown as Blob);
   }
 
   const response = await fetch(`${API_URL}/api/uploads/avatar`, {
@@ -547,7 +560,7 @@ export async function uploadBanner(imageUri: string): Promise<{ success: boolean
       uri: imageUri,
       type: mimeType,
       name: `banner.${fileType}`,
-    } as any);
+    } satisfies NativeFileDescriptor as unknown as Blob);
   }
 
   const response = await fetch(`${API_URL}/api/uploads/banner`, {
@@ -688,10 +701,19 @@ export function toggleNodeSubscription(nodeId: string) {
   });
 }
 
+export interface NodeMember {
+  id: string;
+  username: string;
+  avatar: string | null;
+  role: string;
+  joinedAt: string;
+  cred?: number;
+}
+
 export function getNodeMembers(nodeId: string, limit = 20, cursor?: string) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (cursor) params.append("cursor", cursor);
-  return request<{ members: any[]; nextCursor: string | null; hasMore: boolean }>(
+  return request<{ members: NodeMember[]; nextCursor: string | null; hasMore: boolean }>(
     `/nodes/${nodeId}/members?${params}`,
     { method: "GET" }
   );
@@ -803,7 +825,7 @@ export async function uploadNodeAvatar(nodeId: string, imageUri: string): Promis
       uri: imageUri,
       type: mimeType,
       name: `node_avatar.${fileType}`,
-    } as any);
+    } satisfies NativeFileDescriptor as unknown as Blob);
   }
 
   const response = await fetch(`${API_URL}/nodes/${nodeId}/avatar`, {
@@ -856,7 +878,7 @@ export async function uploadNodeBanner(nodeId: string, imageUri: string): Promis
       uri: imageUri,
       type: mimeType,
       name: `node_banner.${fileType}`,
-    } as any);
+    } satisfies NativeFileDescriptor as unknown as Blob);
   }
 
   const response = await fetch(`${API_URL}/nodes/${nodeId}/banner`, {
@@ -953,7 +975,7 @@ export async function uploadBotAvatar(botId: string, imageUri: string): Promise<
       uri: imageUri,
       type: mimeType,
       name: `bot_avatar.${fileType}`,
-    } as any);
+    } satisfies NativeFileDescriptor as unknown as Blob);
   }
 
   const response = await fetch(`${API_URL}/users/bots/${botId}/avatar`, {
@@ -1595,8 +1617,21 @@ export function reportContent(targetType: ReportTargetType, targetId: string, re
 }
 
 // Notifications
+export interface Notification {
+  id: string;
+  type: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  actorId?: string;
+  actorUsername?: string;
+  actorAvatar?: string | null;
+  targetType?: string;
+  targetId?: string;
+}
+
 export function getNotifications() {
-  return request<{ notifications: any[] }>("/notifications", {
+  return request<{ notifications: Notification[] }>("/notifications", {
     method: "GET",
   });
 }
@@ -2265,7 +2300,7 @@ export function getMastodonThread(instance: string, statusId: string) {
 
 export const api = {
   get: <T>(url: string) => request<T>(url, { method: "GET" }),
-  post: <T>(url: string, body: any) => request<T>(url, { method: "POST", body: JSON.stringify(body) }),
-  put: <T>(url: string, body: any) => request<T>(url, { method: "PUT", body: JSON.stringify(body) }),
+  post: <T>(url: string, body: Record<string, unknown>) => request<T>(url, { method: "POST", body: JSON.stringify(body) }),
+  put: <T>(url: string, body: Record<string, unknown>) => request<T>(url, { method: "PUT", body: JSON.stringify(body) }),
   delete: <T>(url: string) => request<T>(url, { method: "DELETE" }),
 };

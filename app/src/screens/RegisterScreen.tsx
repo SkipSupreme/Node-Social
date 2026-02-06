@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ChevronDown, Check, X } from "lucide-react-native";
 import { register, checkUsername } from "../lib/api";
+import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/auth";
 import { COLORS } from "../constants/theme";
 import { AuthLogo } from "../components/ui/AuthLogo";
@@ -167,8 +168,8 @@ export const RegisterScreen: React.FC<{
       );
       await setAuth(data);
       onSuccessLogin();
-    } catch (e: any) {
-      setError(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Something went wrong"));
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityInd
 import { AlertTriangle, X } from 'lucide-react-native';
 import { COLORS } from '../../constants/theme';
 import { vouchForUser } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
 
 interface VouchModalProps {
   visible: boolean;
@@ -42,8 +43,8 @@ export const VouchModal: React.FC<VouchModalProps> = ({
       await vouchForUser(userId, actualStake);
       onSuccess();
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to vouch');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to vouch'));
     } finally {
       setLoading(false);
     }

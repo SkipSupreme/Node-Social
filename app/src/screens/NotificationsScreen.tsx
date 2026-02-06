@@ -5,6 +5,21 @@ import { ArrowLeft, Bell, Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Tr
 import { COLORS } from '../constants/theme';
 import { getNotifications, markNotificationsRead } from '../lib/api';
 
+/** Notification shape as returned by the API and used in the UI */
+interface NotificationItem {
+    id: string;
+    type: string;
+    content: string;
+    createdAt: string;
+    read: boolean;
+    postId?: string | null;
+    actor?: {
+        id: string;
+        username: string;
+        avatar?: string | null;
+    } | null;
+}
+
 interface NotificationsScreenProps {
     onBack: () => void;
     onNavigateToPost?: (postId: string) => void;
@@ -12,7 +27,7 @@ interface NotificationsScreenProps {
 }
 
 export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser }: NotificationsScreenProps) => {
-    const [notifications, setNotifications] = React.useState<any[]>([]);
+    const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
     const [loading, setLoading] = React.useState(true);
 
     React.useEffect(() => {
@@ -23,7 +38,8 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         setLoading(true);
         try {
             const data = await getNotifications();
-            setNotifications(data.notifications || []);
+            // The API returns Notification[] but the runtime shape includes nested actor/postId
+            setNotifications((data.notifications || []) as unknown as NotificationItem[]);
             // Mark as read in background - don't fail if this errors
             markNotificationsRead().catch(err =>
                 console.warn('Failed to mark notifications as read:', err)
@@ -48,7 +64,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         }
     };
 
-    const getNotificationContent = (item: any) => {
+    const getNotificationContent = (item: NotificationItem) => {
         // For mod notifications, the content field contains the reason/message
         if (item.type === 'warning' || item.type === 'mod_removed' || item.type === 'banned') {
             return item.content;
@@ -57,7 +73,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         return item.content;
     };
 
-    const getNotificationPrefix = (item: any) => {
+    const getNotificationPrefix = (item: NotificationItem) => {
         switch (item.type) {
             case 'warning': return '⚠️ Warning: ';
             case 'mod_removed': return '🗑️ Post removed: ';
@@ -66,7 +82,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         }
     };
 
-    const handleNotificationPress = (item: any) => {
+    const handleNotificationPress = (item: NotificationItem) => {
         if (item.postId && onNavigateToPost) {
             onNavigateToPost(item.postId);
         } else if (item.actor?.id && onNavigateToUser) {
@@ -74,7 +90,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         }
     };
 
-    const isClickable = (item: any) => {
+    const isClickable = (item: NotificationItem) => {
         return (item.postId && onNavigateToPost) || (item.actor?.id && onNavigateToUser);
     };
 

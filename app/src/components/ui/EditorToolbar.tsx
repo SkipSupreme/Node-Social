@@ -18,6 +18,7 @@ import {
   BarChart2,
 } from 'lucide-react-native';
 import { COLORS, RADIUS } from '../../constants/theme';
+import type { StyleProp, ViewStyle } from 'react-native';
 import type { SelectionState, RichTextEditorRef } from './RichTextEditor';
 
 interface EditorToolbarProps {
@@ -26,7 +27,7 @@ interface EditorToolbarProps {
   onImagePress?: () => void;
   onPollPress?: () => void;
   showPoll?: boolean;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({

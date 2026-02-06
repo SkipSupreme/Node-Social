@@ -1,22 +1,24 @@
 // Individual feed column with independent state and scrolling
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Platform, ViewProps } from 'react-native';
 import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
 import { COLORS, COLUMNS } from '../../constants/theme';
 import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
-import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost } from '../../lib/api';
+import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost, Node, AuthResponse, Notification, TipTapDoc } from '../../lib/api';
 import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell, RefreshCw } from 'lucide-react-native';
-import { Feed } from './Feed';
+import { Feed, UIPost } from './Feed';
 import { WhatsVibing } from './WhatsVibing';
 import { NodeLandingPage } from './NodeLandingPage';
 import { ColumnSearchBar } from './ColumnSearchBar';
 import { VibeValidatorModal } from './VibeValidatorModal';
 import { ExternalPostCard } from './ExternalPostCard';
 
+type CurrentUser = AuthResponse['user'];
+
 interface FeedColumnProps {
   column: FeedColumnType;
-  currentUser: any;
-  nodes: any[];
+  currentUser: CurrentUser | null;
+  nodes: Node[];
   globalNodeId?: string;
   onPostClick: (postId: string) => void;
   onAuthorClick: (authorId: string) => void;
@@ -42,39 +44,65 @@ const DEFAULT_VIBE_SETTINGS: ColumnVibeSettings = {
   weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
 };
 
+// API post shape from the backend
+interface ApiPost {
+  id: string;
+  node?: { id?: string; name?: string; slug?: string } | null;
+  author: { id: string; username?: string; avatar?: string | null; era?: string; cred?: number };
+  title?: string | null;
+  content?: string | null;
+  contentJson?: unknown;
+  contentFormat?: 'markdown' | 'tiptap';
+  commentCount?: number;
+  createdAt: string;
+  linkUrl?: string | null;
+  mediaUrl?: string | null;
+  linkMeta?: unknown;
+  poll?: unknown;
+  myReaction?: unknown;
+  vibeAggregate?: unknown;
+  isSaved?: boolean;
+  comments?: Array<{
+    id: string;
+    author: { id: string; username?: string; avatar?: string | null; era?: string; cred?: number };
+    content: string;
+    createdAt: string;
+  }>;
+}
+
 // Map API posts to Feed format - pure function, no component dependencies
-const mapPosts = (apiPosts: any[]) => {
-  return apiPosts.map((p: any) => ({
+const mapPosts = (apiPosts: ApiPost[]) => {
+  return apiPosts.map((p: ApiPost) => ({
     id: p.id,
     node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
     author: {
       id: p.author.id,
       username: p.author.username || 'User',
-      avatar: p.author.avatar,
+      avatar: p.author.avatar || '',
       era: p.author.era || 'Lurker Era',
       cred: p.author.cred || 0
     },
     title: p.title || 'Untitled Post',
     content: p.content,
-    contentJson: p.contentJson,
+    contentJson: p.contentJson as TipTapDoc | null | undefined,
     contentFormat: p.contentFormat,
-    commentCount: p.commentCount,
+    commentCount: p.commentCount ?? 0,
     createdAt: p.createdAt,
     expertGated: false,
     vibes: [],
     linkUrl: p.linkUrl,
     mediaUrl: p.mediaUrl,
-    linkMeta: p.linkMeta,
-    poll: p.poll,
-    myReaction: p.myReaction,
-    vibeAggregate: p.vibeAggregate,
+    linkMeta: p.linkMeta as UIPost['linkMeta'],
+    poll: p.poll as UIPost['poll'],
+    myReaction: p.myReaction as UIPost['myReaction'],
+    vibeAggregate: p.vibeAggregate as UIPost['vibeAggregate'],
     isSaved: p.isSaved ?? false,
-    comments: p.comments?.map((c: any) => ({
+    comments: p.comments?.map((c) => ({
       id: c.id,
       author: {
         id: c.author.id,
         username: c.author.username || 'User',
-        avatar: c.author.avatar,
+        avatar: c.author.avatar || '',
         era: c.author.era || 'Lurker Era',
         cred: c.author.cred || 0
       },
@@ -106,9 +134,9 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   onSaveExternalPost,
 }) => {
   // Independent state for this column
-  const [posts, setPosts] = useState<any[]>([]);
+  const [posts, setPosts] = useState<ReturnType<typeof mapPosts>>([]);
   const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -296,7 +324,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
       }
 
       // Standard feed columns (global, node, discovery, following)
-      const params: any = { cursor, limit: 20 };
+      const params: Record<string, unknown> = { cursor, limit: 20 };
 
       if (column.type === 'node' && column.nodeId) {
         params.nodeId = column.nodeId;
@@ -463,12 +491,12 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   }, [fetchData, loadingMore, hasMore, nextCursor]);
 
   // Web pull-to-refresh handlers (for ScrollViews that use RefreshControl on native)
-  const handleWebTouchStart = useCallback((e: any) => {
+  const handleWebTouchStart = useCallback((e: { touches?: Array<{ clientY: number }>; clientY?: number }) => {
     if (Platform.OS !== 'web' || refreshing) return;
     webStartY.current = e.touches?.[0]?.clientY || e.clientY || 0;
   }, [refreshing]);
 
-  const handleWebTouchMove = useCallback((e: any) => {
+  const handleWebTouchMove = useCallback((e: { touches?: Array<{ clientY: number }>; clientY?: number; preventDefault?: () => void }) => {
     if (Platform.OS !== 'web' || refreshing) return;
     if (webScrollTop.current > 0) return;
 
@@ -493,20 +521,22 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
     setIsWebPulling(false);
   }, [refreshing, webPullDistance, handleRefresh]);
 
-  const handleWebScroll = useCallback((e: any) => {
+  const handleWebScroll = useCallback((e: { nativeEvent?: { contentOffset?: { y: number } } }) => {
     const scrollY = e.nativeEvent?.contentOffset?.y || 0;
     webScrollTop.current = scrollY;
   }, []);
 
   // Web pull-to-refresh touch props
-  const webTouchProps = Platform.OS === 'web' ? {
-    onTouchStart: handleWebTouchStart,
-    onTouchMove: handleWebTouchMove,
+  // On web, touch events have DOM-compatible shape (touches[].clientY, etc.)
+  // Cast to ViewProps since these are only active on web platform
+  const webTouchProps: Partial<ViewProps> = Platform.OS === 'web' ? {
+    onTouchStart: handleWebTouchStart as ViewProps['onTouchStart'],
+    onTouchMove: handleWebTouchMove as ViewProps['onTouchMove'],
     onTouchEnd: handleWebTouchEnd,
   } : {};
 
   // Handle post click - Feed expects (post) => void, we have (postId) => void
-  const handlePostClick = useCallback((post: any) => {
+  const handlePostClick = useCallback((post: { id: string }) => {
     onPostClick(post.id);
   }, [onPostClick]);
 
@@ -607,8 +637,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                     key={item.id}
                     style={[styles.notificationItem, isModNotification && styles.modNotification]}
                     onPress={() => {
-                      if (item.postId) onPostClick(item.postId);
-                      else if (item.actor?.id) onUserClick(item.actor.id);
+                      if (item.targetId) onPostClick(item.targetId);
+                      else if (item.actorId) onUserClick(item.actorId);
                     }}
                   >
                     <View style={styles.notificationIcon}>
@@ -617,10 +647,10 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                     <View style={{ flex: 1 }}>
                       <Text style={styles.notificationText} numberOfLines={2}>
                         {isModNotification ? (
-                          item.content
+                          item.message
                         ) : (
                           <>
-                            <Text style={{ fontWeight: '600' }}>@{item.actor?.username}</Text> {item.content}
+                            <Text style={{ fontWeight: '600' }}>@{item.actorUsername}</Text> {item.message}
                           </>
                         )}
                       </Text>
@@ -779,7 +809,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
           currentTitle={column.title}
           onTypeChange={handleTypeChange}
           onSearch={handleSearch}
-          nodes={nodes}
+          nodes={nodes.map(n => ({ ...n, color: n.color ?? undefined, avatar: n.avatar ?? undefined }))}
         />
 
         {/* Settings Button (only for feed-based columns) */}

@@ -3,6 +3,8 @@ import {
     View,
     Text,
     StyleSheet,
+    StyleProp,
+    TextStyle,
     TouchableOpacity,
     Animated,
     useWindowDimensions,
@@ -27,7 +29,7 @@ interface CredDashboardProps {
 }
 
 // Animated number counter
-const AnimatedCounter: React.FC<{ value: number; duration?: number; style?: any }> = ({
+const AnimatedCounter: React.FC<{ value: number; duration?: number; style?: StyleProp<TextStyle> }> = ({
     value,
     duration = 1500,
     style,

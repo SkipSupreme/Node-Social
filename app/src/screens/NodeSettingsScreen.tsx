@@ -23,6 +23,7 @@ import {
   deleteNodeBanner,
   NodeDetails,
 } from '../lib/api';
+import { getErrorMessage } from '../lib/errors';
 import * as ImagePicker from 'expo-image-picker';
 
 interface NodeSettingsScreenProps {
@@ -79,8 +80,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
       setDescription(data.description || '');
       setColor(data.color || '#6366f1');
       setRules(data.rules || []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load node');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -102,8 +103,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
       });
       showAlert('Success', 'Node settings updated');
       onBack();
-    } catch (err: any) {
-      showAlert('Error', err.message || 'Failed to save settings');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
     } finally {
       setSaving(false);
     }
@@ -134,8 +135,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
       setNodeData((prev) =>
         prev ? { ...prev, avatar: result.avatarUrl } : prev
       );
-    } catch (err: any) {
-      showAlert('Error', err.message || 'Failed to upload avatar');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
     } finally {
       setUploadingAvatar(false);
     }
@@ -148,8 +149,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
       setNodeData((prev) =>
         prev ? { ...prev, banner: result.bannerUrl } : prev
       );
-    } catch (err: any) {
-      showAlert('Error', err.message || 'Failed to upload banner');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
     } finally {
       setUploadingBanner(false);
     }
@@ -159,8 +160,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
     try {
       await deleteNodeAvatar(nodeId);
       setNodeData((prev) => (prev ? { ...prev, avatar: null } : prev));
-    } catch (err: any) {
-      showAlert('Error', err.message || 'Failed to delete avatar');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
     }
   };
 
@@ -168,8 +169,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
     try {
       await deleteNodeBanner(nodeId);
       setNodeData((prev) => (prev ? { ...prev, banner: null } : prev));
-    } catch (err: any) {
-      showAlert('Error', err.message || 'Failed to delete banner');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
     }
   };
 

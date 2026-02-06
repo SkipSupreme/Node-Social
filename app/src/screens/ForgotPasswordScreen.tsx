@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Mail, ArrowLeft, X } from "lucide-react-native";
 import { forgotPassword } from "../lib/api";
+import { getErrorMessage } from "../lib/errors";
 import { COLORS } from "../constants/theme";
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
@@ -39,8 +40,8 @@ export const ForgotPasswordScreen: React.FC<{
     try {
       await forgotPassword(email.trim());
       setSuccess(true);
-    } catch (e: any) {
-      setError(e.message ?? "Something went wrong");
+    } catch (e: unknown) {
+      setError(getErrorMessage(e, "Something went wrong"));
     } finally {
       setLoading(false);
     }

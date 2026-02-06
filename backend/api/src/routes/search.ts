@@ -74,7 +74,6 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
             author: {
               select: {
                 id: true,
-                email: true,
                 username: true,
                 firstName: true,
                 lastName: true,
@@ -94,7 +93,6 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
                 author: {
                   select: {
                     id: true,
-                    email: true,
                     username: true,
                     firstName: true,
                     lastName: true,
@@ -116,12 +114,15 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
               }
             },
           },
-          orderBy: { createdAt: 'desc' },
         });
+
+        // Reorder posts to match MeiliSearch relevance ordering
+        const postMap = new Map(posts.map(p => [p.id, p]));
+        const orderedPosts = postIds.map(id => postMap.get(id)).filter((p): p is NonNullable<typeof p> => p != null);
 
         // Format response
         // TODO: Fix strict typing for post with relations. Using explicit any to resolve implicit any error.
-        const formattedPosts = posts.map((post: any) => ({
+        const formattedPosts = orderedPosts.map((post) => ({
           ...post,
           commentCount: post._count.comments,
           _count: undefined,
@@ -220,9 +221,11 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
           users: formattedUsers,
           hasMore,
         });
-      } catch (error: any) {
-        fastify.log.error({ err: error, message: error?.message, stack: error?.stack }, 'User search failed');
-        return reply.status(500).send({ error: 'Search failed', details: error?.message });
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : undefined;
+        const stack = error instanceof Error ? error.stack : undefined;
+        fastify.log.error({ err: error, message, stack }, 'User search failed');
+        return reply.status(500).send({ error: 'Search failed', details: message });
       }
     }
   );

@@ -3,17 +3,25 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator, 
 import { showAlert } from '../lib/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, X } from 'lucide-react-native';
-import { api } from '../lib/api';
+import { api, type Post } from '../lib/api';
 import { PostCard } from '../components/PostCard';
 import { COLORS } from '../constants/theme';
+
+/** Breakdown of flag scores by category */
+interface FlagBreakdown {
+    toxicity?: number;
+    spam?: number;
+    reports?: number;
+    [key: string]: number | undefined;
+}
 
 interface ModQueueItem {
     id: string;
     postId: string;
     flagScore: number;
     priority: 'critical' | 'high' | 'medium' | 'low' | 'monitor';
-    breakdown: any;
-    post: any; // Full post object
+    breakdown: FlagBreakdown;
+    post: Post;
     status: string;
 }
 

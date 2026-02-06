@@ -1,5 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { getErrorMessage } from '../lib/errors.js';
 
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
     // Get current user profile
@@ -49,7 +50,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             avatar: z.string().url().optional().or(z.literal('')),
             bannerColor: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional().or(z.literal('')),
             bannerImage: z.string().url().optional().or(z.literal('')),
-            theme: z.string().optional(),
+            theme: z.string().max(50).optional(),
             era: z.string().optional(),
             customCss: z.string().max(5000).optional(),
             location: z.string().max(100).optional().or(z.literal('')),
@@ -209,8 +210,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 });
                 return { muted: true };
             }
-        } catch (error: any) {
-            fastify.log.error({ error: error.message, stack: error.stack }, 'Mute failed');
+        } catch (error: unknown) {
+            fastify.log.error({ error: getErrorMessage(error), stack: error instanceof Error ? error.stack : undefined }, 'Mute failed');
             return reply.status(500).send({ error: 'Failed to mute user' });
         }
     });
@@ -247,8 +248,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 });
                 return { blocked: true };
             }
-        } catch (error: any) {
-            fastify.log.error({ error: error.message, stack: error.stack }, 'Block failed');
+        } catch (error: unknown) {
+            fastify.log.error({ error: getErrorMessage(error), stack: error instanceof Error ? error.stack : undefined }, 'Block failed');
             return reply.status(500).send({ error: 'Failed to block user' });
         }
     });
@@ -668,9 +669,9 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             });
 
             return { success: true, bot: updatedBot, avatarUrl };
-        } catch (error: any) {
-            console.error('Bot avatar upload error:', error);
-            if (error.code === 'FST_REQ_FILE_TOO_LARGE') {
+        } catch (error: unknown) {
+            fastify.log.error({ error }, 'Bot avatar upload error');
+            if (error instanceof Error && 'code' in error && (error as Error & { code: string }).code === 'FST_REQ_FILE_TOO_LARGE') {
                 return reply.status(400).send({ error: 'File too large. Maximum size is 5MB' });
             }
             return reply.status(500).send({ error: 'Failed to upload avatar' });

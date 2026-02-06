@@ -2,17 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, MessageSquarePlus } from 'lucide-react-native';
-import { api } from '../lib/api';
+import { api, type Conversation, type Message } from '../lib/api';
 import { COLORS } from '../constants/theme';
 import { useSocket } from '../context/SocketContext';
 
+/** Participant user info as returned nested in a Conversation */
+interface ConversationParticipantUser {
+    id: string;
+    username: string;
+    avatar: string | null;
+    firstName?: string;
+    lastName?: string;
+}
+
 interface MessagesScreenProps {
     onBack: () => void;
-    onNavigate: (screen: string, params: any) => void;
+    onNavigate: (screen: string, params: Record<string, unknown>) => void;
 }
 
 export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
-    const [conversations, setConversations] = useState<any[]>([]);
+    const [conversations, setConversations] = useState<Conversation[]>([]);
     const [loading, setLoading] = useState(true);
     const { socket } = useSocket();
 
@@ -34,7 +43,7 @@ export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
 
     const fetchConversations = async () => {
         try {
-            const res = await api.get<any[]>('/conversations');
+            const res = await api.get<Conversation[]>('/conversations');
             setConversations(res);
         } catch (error) {
             console.error('Failed to fetch conversations:', error);
@@ -43,9 +52,9 @@ export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
         }
     };
 
-    const renderItem = ({ item }: { item: any }) => {
+    const renderItem = ({ item }: { item: Conversation }) => {
         const otherParticipant = item.participants[0]?.user;
-        const lastMessage = item.messages[0];
+        const lastMessage = item.messages?.[0];
 
         return (
             <TouchableOpacity
@@ -84,7 +93,7 @@ export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
                 <FlatList
                     data={conversations}
                     renderItem={renderItem}
-                    keyExtractor={(item: any) => item.id}
+                    keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.list}
                     ListEmptyComponent={
                         <View style={styles.emptyState}>

@@ -2,19 +2,19 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { ArrowLeft } from '../components/ui/Icons';
 import { COLORS } from '../constants/theme';
-import { Feed } from '../components/ui/Feed';
+import { Feed, type UIPost } from '../components/ui/Feed';
 import { getSavedPosts } from '../lib/api';
 import { useAuthStore } from '../store/auth';
 
 interface SavedPostsScreenProps {
     onBack: () => void;
-    onPostClick?: (post: any) => void;
+    onPostClick?: (post: UIPost) => void;
     onAuthorClick?: (authorId: string) => void;
 }
 
 export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPostsScreenProps) => {
     const { user } = useAuthStore();
-    const [posts, setPosts] = useState<any[]>([]);
+    const [posts, setPosts] = useState<UIPost[]>([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -26,25 +26,41 @@ export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPo
         try {
             const data = await getSavedPosts();
             // Map API posts to UI posts
-            const mappedPosts = data.posts.map((p: any) => ({
+            const mappedPosts: UIPost[] = data.posts.map((p) => ({
                 id: p.id,
-                node: { id: p.node?.id, name: p.node?.name || 'Global', slug: p.node?.slug || 'global', color: '#6366f1' },
+                node: { id: p.node?.id, name: p.node?.name || 'Global', color: '#6366f1' },
                 author: {
                     id: p.author.id,
                     username: p.author.username || 'User',
-                    avatar: p.author.avatar,
+                    avatar: p.author.avatar || '',
                     era: p.author.era || 'Lurker Era',
                     cred: p.author.cred || 0
                 },
                 title: p.title || 'Untitled Post',
                 content: p.content,
-                commentCount: p._count?.comments || 0,
+                commentCount: p.commentCount || 0,
                 createdAt: p.createdAt,
                 expertGated: false,
                 vibes: [],
                 linkUrl: p.linkUrl,
-                linkMeta: p.linkMeta,
-                poll: p.poll,
+                linkMeta: p.linkMeta ? {
+                    id: p.linkMeta.id,
+                    url: p.linkMeta.url,
+                    title: p.linkMeta.title,
+                    description: p.linkMeta.description,
+                    image: p.linkMeta.image,
+                    domain: p.linkMeta.domain,
+                } : undefined,
+                poll: p.poll ? {
+                    id: p.poll.id,
+                    question: p.poll.question,
+                    options: p.poll.options.map(o => ({
+                        id: o.id,
+                        text: o.text,
+                        _count: o._count,
+                    })),
+                    votes: p.poll.votes,
+                } : undefined,
                 comments: [],
                 isSaved: true, // All posts in saved view are saved
             }));
@@ -84,7 +100,7 @@ export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPo
             ) : (
                 <Feed
                     posts={posts}
-                    currentUser={user}
+                    currentUser={user ?? undefined}
                     onPostClick={onPostClick}
                     onAuthorClick={onAuthorClick}
                     onSaveToggle={handleSaveToggle}

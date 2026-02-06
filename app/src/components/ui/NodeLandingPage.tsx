@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, ActivityIn
 import { Users, Calendar, TrendingUp, BookOpen, Crown, FileText, Settings, ChevronRight, CheckCircle, MoreHorizontal, MessageSquare, Bot, X, Pencil } from './Icons';
 import { COLORS } from '../../constants/theme';
 import { getNodeDetails, joinNode, leaveNode, NodeDetails, getAvailableCuratorBots, updateNodeCuratorBot, CuratorBot, BotProfile } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
 import { useAuthStore } from '../../store/auth';
 import { NodeOverflowMenu } from './NodeOverflowMenu';
 import { ModLogPreview } from './ModLogPreview';
@@ -58,8 +59,8 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
     try {
       const data = await getNodeDetails(nodeId);
       setNodeData(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load node');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to load node'));
     } finally {
       setLoading(false);
     }
@@ -77,8 +78,8 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
       }
       // Refresh data
       await fetchNodeData();
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setJoining(false);
     }
@@ -108,8 +109,8 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
         curatorBot: result.curatorBot,
       });
       setShowBotModal(false);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      setError(getErrorMessage(err));
     } finally {
       setUpdatingBot(false);
     }

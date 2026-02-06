@@ -15,6 +15,7 @@ import { X, Camera, Link2, Check, Upload, Bot } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '../../constants/theme';
 import { updateBotProfile, uploadBotAvatar, BotProfile } from '../../lib/api';
+import { getErrorMessage } from '../../lib/errors';
 
 interface EditBotModalProps {
   visible: boolean;
@@ -96,8 +97,8 @@ export const EditBotModal: React.FC<EditBotModalProps> = ({
       showToast(`@${bot.username} updated`, 'success');
       onSuccess(updatedBot);
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to update bot');
+    } catch (err: unknown) {
+      setError(getErrorMessage(err, 'Failed to update bot'));
       setUploading(false);
     } finally {
       setLoading(false);

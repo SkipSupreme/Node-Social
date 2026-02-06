@@ -1,16 +1,16 @@
 import React from 'react';
-import { View, Text, Image, TouchableOpacity, Linking, StyleSheet } from 'react-native';
+import { View, Text, Image, TouchableOpacity, Linking, StyleSheet, StyleProp, ViewStyle, TextStyle } from 'react-native';
 import { COLORS, RADIUS } from '../../constants/theme';
 
 // TipTap JSON types
 interface TipTapMark {
   type: string;
-  attrs?: Record<string, any>;
+  attrs?: Record<string, unknown>;
 }
 
 interface TipTapNode {
   type: string;
-  attrs?: Record<string, any>;
+  attrs?: Record<string, unknown>;
   content?: TipTapNode[];
   marks?: TipTapMark[];
   text?: string;
@@ -23,7 +23,7 @@ interface TipTapDoc {
 
 interface TipTapContentProps {
   content: TipTapDoc;
-  style?: any;
+  style?: StyleProp<ViewStyle>;
   onMentionPress?: (userId: string) => void;
 }
 
@@ -109,8 +109,8 @@ export const TipTapContent: React.FC<TipTapContentProps> = ({
         return <Text key={index}>{'\n'}</Text>;
 
       case 'image': {
-        const src = node.attrs?.src;
-        const alt = node.attrs?.alt;
+        const src = node.attrs?.src as string | undefined;
+        const alt = node.attrs?.alt as string | undefined;
         if (!src) return null;
         return (
           <Image
@@ -124,12 +124,12 @@ export const TipTapContent: React.FC<TipTapContentProps> = ({
       }
 
       case 'mention': {
-        const id = node.attrs?.id;
-        const label = node.attrs?.label;
+        const id = node.attrs?.id as string | undefined;
+        const label = node.attrs?.label as string | undefined;
         return (
           <TouchableOpacity
             key={index}
-            onPress={() => onMentionPress?.(id)}
+            onPress={() => id && onMentionPress?.(id)}
             disabled={!onMentionPress}
           >
             <Text style={styles.mention}>@{label}</Text>
@@ -152,7 +152,7 @@ export const TipTapContent: React.FC<TipTapContentProps> = ({
   const renderTextWithMarks = (node: TipTapNode, index: number) => {
     if (!node.text) return null;
 
-    let textStyle: any[] = [styles.text];
+    let textStyle: TextStyle[] = [styles.text];
     let onPress: (() => void) | undefined;
     let linkUrl: string | undefined;
 
@@ -172,7 +172,7 @@ export const TipTapContent: React.FC<TipTapContentProps> = ({
           break;
         case 'link':
           textStyle.push(styles.link);
-          linkUrl = mark.attrs?.href;
+          linkUrl = mark.attrs?.href as string | undefined;
           break;
       }
     });

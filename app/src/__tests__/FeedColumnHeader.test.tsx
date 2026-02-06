@@ -37,13 +37,16 @@ const renderWithProviders = (ui: React.ReactElement) => {
 };
 
 const mockNodes = [
-  { id: 'node-1', name: 'Tech', color: '#00ff00' },
-  { id: 'node-2', name: 'Gaming', color: '#ff0000' },
+  { id: 'node-1', name: 'Tech', slug: 'tech', description: null, color: '#00ff00' },
+  { id: 'node-2', name: 'Gaming', slug: 'gaming', description: null, color: '#ff0000' },
 ];
 
 const mockCurrentUser = {
   id: 'user-1',
   username: 'testuser',
+  email: 'test@example.com',
+  emailVerified: true,
+  createdAt: '2024-01-01T00:00:00.000Z',
 };
 
 const createColumn = (type: ColumnType, title: string, overrides = {}): FeedColumnType => ({
