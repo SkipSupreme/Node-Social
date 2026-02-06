@@ -8,6 +8,7 @@
     "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "seed:bots": "tsx prisma/seedBots.ts",
     "harvest": "tsx src/jobs/harvester.ts",
     "curator:stats": "tsx src/jobs/curatorHelpers.ts stats",
