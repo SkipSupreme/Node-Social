@@ -11,20 +11,27 @@ import {
     TextInput,
     TouchableOpacity,
     Image,
+    Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, Crown, Globe, Scale, Ban } from 'lucide-react-native';
+import Svg, { Circle, Line, G, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useTheme';
 import {
     api,
     type Post,
+    type Vouch,
     getNodeCouncil,
     getCouncilEligibility,
+    getVouchesGiven,
+    getVouchesReceived,
     type CouncilInfo,
     type CouncilEligibility,
     type CouncilMember,
 } from '../lib/api';
-import { showAlert } from '../lib/alert';
+import { showAlert, showToast } from '../lib/alert';
+import { useAuthStore } from '../store/auth';
+import { RevokeVouchModal } from '../components/ui/RevokeVouchModal';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -1135,6 +1142,777 @@ const CouncilTab = React.memo(function CouncilTab({ nodeId, nodeName }: CouncilT
     );
 });
 
+// ── Trust types ──────────────────────────────────────────────────
+
+type VouchFilter = 'all' | 'given' | 'received' | 'revoked';
+
+/** Shape of a vouch as returned in the trust graph endpoints */
+interface TrustVouch {
+    amount: number;
+    vouchee: {
+        id: string;
+        username: string;
+        avatar?: string | null;
+        cred: number;
+    };
+    voucher: {
+        id: string;
+        username: string;
+        avatar?: string | null;
+        cred: number;
+    };
+}
+
+interface TrustNode {
+    id: string;
+    username: string;
+    avatar?: string | null;
+    cred: number;
+    x: number;
+    y: number;
+    radius: number;
+    color: string;
+    type: 'self' | 'vouched' | 'voucher';
+}
+
+interface TrustEdge {
+    from: string;
+    to: string;
+    amount: number;
+    color: string;
+}
+
+// ── Trust static styles ──────────────────────────────────────────
+
+const trustStyles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingBottom: 32,
+    },
+    // Section headers
+    sectionTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        paddingHorizontal: 16,
+        paddingTop: 16,
+        paddingBottom: 8,
+    },
+    // Stats strip
+    statsStrip: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+    },
+    statsText: {
+        fontSize: 13,
+        lineHeight: 20,
+    },
+    statsBold: {
+        fontWeight: '700',
+    },
+    // Filter pills
+    filterRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        gap: 8,
+    },
+    filterPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        gap: 6,
+    },
+    filterPillLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    filterPillCount: {
+        fontSize: 11,
+        fontWeight: '700',
+        minWidth: 18,
+        textAlign: 'center',
+    },
+    // Vouch row
+    vouchRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    vouchRowRevoked: {
+        opacity: 0.6,
+    },
+    vouchAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    vouchAvatarFallback: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    vouchAvatarInitial: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    vouchInfo: {
+        flex: 1,
+        gap: 2,
+    },
+    vouchUsername: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    vouchDetail: {
+        fontSize: 12,
+    },
+    vouchPenalty: {
+        fontSize: 11,
+        color: '#ef4444',
+    },
+    revokeBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+    },
+    revokeBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#ef4444',
+    },
+    // Graph
+    graphContainer: {
+        marginHorizontal: 16,
+        marginTop: 8,
+        borderRadius: 12,
+        borderWidth: 1,
+        padding: 12,
+        alignItems: 'center',
+    },
+    graphWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    // Legend
+    legendRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        gap: 16,
+        flexWrap: 'wrap',
+    },
+    legendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    legendDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+    },
+    legendText: {
+        fontSize: 11,
+    },
+    // Selected node detail
+    selectedCard: {
+        marginHorizontal: 16,
+        marginTop: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        padding: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    selectedAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectedAvatarText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    selectedInfo: {
+        flex: 1,
+    },
+    selectedUsername: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    selectedMeta: {
+        fontSize: 12,
+    },
+    // Empty / loading
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 12,
+    },
+    emptySubtitle: {
+        fontSize: 13,
+        marginTop: 4,
+        textAlign: 'center',
+    },
+});
+
+// ── TrustTab ──────────────────────────────────────────────────
+
+interface TrustTabProps {
+    userId?: string;
+    onUserClick?: (userId: string) => void;
+}
+
+const VOUCH_FILTERS: { id: VouchFilter; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'given', label: 'Given' },
+    { id: 'received', label: 'Received' },
+    { id: 'revoked', label: 'Revoked' },
+];
+
+const TrustTab = React.memo(function TrustTab({ userId, onUserClick }: TrustTabProps) {
+    const theme = useAppTheme();
+    const { user: authUser } = useAuthStore();
+    const [loading, setLoading] = useState(true);
+    const [givenVouches, setGivenVouches] = useState<Vouch[]>([]);
+    const [receivedVouches, setReceivedVouches] = useState<Vouch[]>([]);
+    const [filter, setFilter] = useState<VouchFilter>('all');
+    const [revokeTarget, setRevokeTarget] = useState<{ userId: string; username: string; stake: number } | null>(null);
+
+    // Graph state
+    const [graphNodes, setGraphNodes] = useState<TrustNode[]>([]);
+    const [graphEdges, setGraphEdges] = useState<TrustEdge[]>([]);
+    const [selectedNode, setSelectedNode] = useState<TrustNode | null>(null);
+
+    const targetUserId = userId ?? authUser?.id;
+    const screenWidth = Dimensions.get('window').width;
+    const GRAPH_SIZE = Math.min(screenWidth - 40, 400);
+    const CENTER_XY = GRAPH_SIZE / 2;
+
+    // Themed styles
+    const tts = useMemo(() => StyleSheet.create({
+        statsText: { color: theme.muted },
+        statsBold: { color: theme.text },
+        statsAccent: { color: theme.accent },
+        sectionTitle: { color: theme.text },
+        filterPillActive: { backgroundColor: theme.accent },
+        filterPillInactive: { backgroundColor: theme.bgAlt },
+        filterPillLabelActive: { color: '#fff' },
+        filterPillLabelInactive: { color: theme.textSecondary },
+        filterPillCountActive: { color: 'rgba(255,255,255,0.8)' },
+        filterPillCountInactive: { color: theme.muted },
+        vouchRow: { borderBottomColor: theme.border },
+        vouchUsername: { color: theme.text },
+        vouchDetail: { color: theme.muted },
+        graphContainer: { backgroundColor: theme.panel, borderColor: theme.border },
+        legendText: { color: theme.muted },
+        selectedCard: { backgroundColor: theme.panel, borderColor: theme.accent },
+        selectedUsername: { color: theme.text },
+        selectedMeta: { color: theme.muted },
+        emptyTitle: { color: theme.text },
+        emptySubtitle: { color: theme.muted },
+    }), [theme]);
+
+    // Fetch vouch data
+    const fetchData = useCallback(async () => {
+        if (!targetUserId) return;
+        setLoading(true);
+        try {
+            const [given, received] = await Promise.all([
+                getVouchesGiven(),
+                getVouchesReceived(),
+            ]);
+            setGivenVouches(given);
+            setReceivedVouches(received);
+
+            // Build graph from trust graph API endpoints
+            try {
+                const [graphGiven, graphReceived] = await Promise.all([
+                    api.get<{ vouches: TrustVouch[] }>(`/vouches/given/${targetUserId}`),
+                    api.get<{ vouches: TrustVouch[] }>(`/vouches/received/${targetUserId}`),
+                ]);
+
+                const givenList = graphGiven.vouches ?? [];
+                const receivedList = graphReceived.vouches ?? [];
+
+                const nodeMap = new Map<string, TrustNode>();
+
+                // Self node at center
+                nodeMap.set(targetUserId, {
+                    id: targetUserId,
+                    username: authUser?.username ?? 'You',
+                    avatar: authUser?.avatar,
+                    cred: authUser?.cred ?? 0,
+                    x: CENTER_XY,
+                    y: CENTER_XY,
+                    radius: 35,
+                    color: theme.accent,
+                    type: 'self',
+                });
+
+                // Inner ring: users you vouched for
+                const vouchedCount = givenList.length;
+                givenList.forEach((vouch, index) => {
+                    const angle = (2 * Math.PI * index) / Math.max(vouchedCount, 1) - Math.PI / 2;
+                    const distance = 100;
+                    const x = CENTER_XY + Math.cos(angle) * distance;
+                    const y = CENTER_XY + Math.sin(angle) * distance;
+
+                    nodeMap.set(vouch.vouchee.id, {
+                        id: vouch.vouchee.id,
+                        username: vouch.vouchee.username,
+                        avatar: vouch.vouchee.avatar,
+                        cred: vouch.vouchee.cred,
+                        x,
+                        y,
+                        radius: Math.max(15, Math.min(25, 15 + vouch.amount / 20)),
+                        color: '#10b981',
+                        type: 'vouched',
+                    });
+                });
+
+                // Outer ring: users who vouched for you
+                const voucherCount = receivedList.length;
+                receivedList.forEach((vouch, index) => {
+                    if (nodeMap.has(vouch.voucher.id)) {
+                        // Bidirectional — mark gold
+                        const existing = nodeMap.get(vouch.voucher.id);
+                        if (existing) {
+                            existing.color = '#f59e0b';
+                        }
+                    } else {
+                        const angle = (2 * Math.PI * index) / Math.max(voucherCount, 1);
+                        const distance = 150;
+                        const x = CENTER_XY + Math.cos(angle) * distance;
+                        const y = CENTER_XY + Math.sin(angle) * distance;
+
+                        nodeMap.set(vouch.voucher.id, {
+                            id: vouch.voucher.id,
+                            username: vouch.voucher.username,
+                            avatar: vouch.voucher.avatar,
+                            cred: vouch.voucher.cred,
+                            x,
+                            y,
+                            radius: Math.max(15, Math.min(25, 15 + vouch.amount / 20)),
+                            color: '#8b5cf6',
+                            type: 'voucher',
+                        });
+                    }
+                });
+
+                // Build edges
+                const edgeList: TrustEdge[] = [];
+                for (const vouch of givenList) {
+                    edgeList.push({
+                        from: targetUserId,
+                        to: vouch.vouchee.id,
+                        amount: vouch.amount,
+                        color: '#10b981',
+                    });
+                }
+                for (const vouch of receivedList) {
+                    edgeList.push({
+                        from: vouch.voucher.id,
+                        to: targetUserId,
+                        amount: vouch.amount,
+                        color: '#8b5cf6',
+                    });
+                }
+
+                setGraphNodes(Array.from(nodeMap.values()));
+                setGraphEdges(edgeList);
+            } catch (graphErr) {
+                console.error('Failed to fetch trust graph data:', graphErr);
+                // Graph is non-critical, vouch list still works
+            }
+        } catch (err) {
+            console.error('Failed to fetch vouch data:', err);
+            showAlert('Error', 'Failed to load vouch data');
+        } finally {
+            setLoading(false);
+        }
+    }, [targetUserId, authUser, CENTER_XY, theme.accent]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Derived stats
+    const activeGiven = useMemo(() => givenVouches.filter(v => v.active), [givenVouches]);
+    const activeReceived = useMemo(() => receivedVouches.filter(v => v.active), [receivedVouches]);
+    const revokedVouches = useMemo(() => [
+        ...givenVouches.filter(v => !v.active),
+        ...receivedVouches.filter(v => !v.active),
+    ], [givenVouches, receivedVouches]);
+
+    const totalCredOut = useMemo(() => activeGiven.reduce((sum, v) => sum + v.stake, 0), [activeGiven]);
+    const totalCredIn = useMemo(() => activeReceived.reduce((sum, v) => sum + v.stake, 0), [activeReceived]);
+    const trustScore = Math.round((totalCredIn + totalCredOut) / 2);
+
+    // Filter counts
+    const filterCounts: Record<VouchFilter, number> = useMemo(() => ({
+        all: activeGiven.length + activeReceived.length,
+        given: activeGiven.length,
+        received: activeReceived.length,
+        revoked: revokedVouches.length,
+    }), [activeGiven, activeReceived, revokedVouches]);
+
+    // Filtered vouch list
+    const filteredVouches = useMemo(() => {
+        switch (filter) {
+            case 'given': return activeGiven;
+            case 'received': return activeReceived;
+            case 'revoked': return revokedVouches;
+            default: return [...activeGiven, ...activeReceived];
+        }
+    }, [filter, activeGiven, activeReceived, revokedVouches]);
+
+    // Handlers
+    const handleRevokeSuccess = useCallback((penaltyPaid: number) => {
+        showToast(`Vouch revoked. ${penaltyPaid} cred penalty.`, 'info');
+        fetchData();
+    }, [fetchData]);
+
+    const handleNodePress = useCallback((node: TrustNode) => {
+        if (node.type === 'self') {
+            setSelectedNode(null);
+        } else {
+            setSelectedNode(node);
+        }
+    }, []);
+
+    // SVG graph render (memoized — expensive)
+    const renderGraph = useMemo(() => {
+        if (graphNodes.length === 0) return null;
+
+        return (
+            <Svg width={GRAPH_SIZE} height={GRAPH_SIZE} viewBox={`0 0 ${GRAPH_SIZE} ${GRAPH_SIZE}`}>
+                <Defs>
+                    <RadialGradient id="trustSelfGlow" cx="50%" cy="50%" r="50%">
+                        <Stop offset="0%" stopColor={theme.accent} stopOpacity="0.4" />
+                        <Stop offset="100%" stopColor={theme.accent} stopOpacity="0" />
+                    </RadialGradient>
+                </Defs>
+
+                {/* Edges */}
+                <G>
+                    {graphEdges.map((edge, index) => {
+                        const fromNode = graphNodes.find(n => n.id === edge.from);
+                        const toNode = graphNodes.find(n => n.id === edge.to);
+                        if (!fromNode || !toNode) return null;
+
+                        return (
+                            <Line
+                                key={`trust-edge-${index}`}
+                                x1={fromNode.x}
+                                y1={fromNode.y}
+                                x2={toNode.x}
+                                y2={toNode.y}
+                                stroke={edge.color}
+                                strokeWidth={Math.max(1, Math.min(4, edge.amount / 50))}
+                                strokeOpacity={0.5}
+                            />
+                        );
+                    })}
+                </G>
+
+                {/* Self glow */}
+                <Circle cx={CENTER_XY} cy={CENTER_XY} r={60} fill="url(#trustSelfGlow)" />
+
+                {/* Nodes */}
+                <G>
+                    {graphNodes.map((node) => (
+                        <G key={node.id}>
+                            <Circle
+                                cx={node.x}
+                                cy={node.y}
+                                r={node.radius}
+                                fill={node.color}
+                                stroke={selectedNode?.id === node.id ? '#fff' : theme.border}
+                                strokeWidth={selectedNode?.id === node.id ? 3 : 2}
+                                onPress={() => handleNodePress(node)}
+                            />
+                            <SvgText
+                                x={node.x}
+                                y={node.y + node.radius + 14}
+                                fontSize={node.type === 'self' ? 12 : 10}
+                                fill={theme.text}
+                                textAnchor="middle"
+                                fontWeight={node.type === 'self' ? 'bold' : 'normal'}
+                            >
+                                {node.type === 'self' ? 'You' : `@${node.username.slice(0, 8)}`}
+                            </SvgText>
+                            <SvgText
+                                x={node.x}
+                                y={node.y + 5}
+                                fontSize={node.radius * 0.8}
+                                fill="#fff"
+                                textAnchor="middle"
+                                fontWeight="bold"
+                            >
+                                {node.username[0]?.toUpperCase() ?? '?'}
+                            </SvgText>
+                        </G>
+                    ))}
+                </G>
+            </Svg>
+        );
+    }, [graphNodes, graphEdges, selectedNode, GRAPH_SIZE, CENTER_XY, theme, handleNodePress]);
+
+    // Loading state
+    if (loading) {
+        return (
+            <View style={trustStyles.centered}>
+                <ActivityIndicator size="large" color={theme.accent} />
+            </View>
+        );
+    }
+
+    // Determine if a vouch is "given" by the current user
+    const isGivenVouch = (v: Vouch) => v.voucherId === authUser?.id;
+
+    return (
+        <View style={trustStyles.container}>
+            <ScrollView contentContainerStyle={trustStyles.scrollContent}>
+                {/* ── Section 1: Vouch Management ── */}
+
+                {/* Stats strip */}
+                <View style={trustStyles.statsStrip}>
+                    <Text style={[trustStyles.statsText, tts.statsText]}>
+                        <Text style={[trustStyles.statsBold, tts.statsAccent]}>{activeGiven.length}</Text>
+                        <Text> Given</Text>
+                        <Text> · </Text>
+                        <Text style={[trustStyles.statsBold, tts.statsBold]}>{totalCredOut}</Text>
+                        <Text> cred out</Text>
+                        <Text>  |  </Text>
+                        <Text style={[trustStyles.statsBold, tts.statsAccent]}>{activeReceived.length}</Text>
+                        <Text> Received</Text>
+                        <Text> · </Text>
+                        <Text style={[trustStyles.statsBold, tts.statsBold]}>{totalCredIn}</Text>
+                        <Text> cred in</Text>
+                        <Text>  |  </Text>
+                        <Text>Trust: </Text>
+                        <Text style={[trustStyles.statsBold, tts.statsAccent]}>{trustScore}</Text>
+                    </Text>
+                </View>
+
+                {/* Filter pills */}
+                <View style={trustStyles.filterRow}>
+                    {VOUCH_FILTERS.map(f => {
+                        const isActive = filter === f.id;
+                        return (
+                            <Pressable
+                                key={f.id}
+                                style={[
+                                    trustStyles.filterPill,
+                                    isActive ? tts.filterPillActive : tts.filterPillInactive,
+                                ]}
+                                onPress={() => setFilter(f.id)}
+                            >
+                                <Text
+                                    style={[
+                                        trustStyles.filterPillLabel,
+                                        isActive ? tts.filterPillLabelActive : tts.filterPillLabelInactive,
+                                    ]}
+                                >
+                                    {f.label}
+                                </Text>
+                                <Text
+                                    style={[
+                                        trustStyles.filterPillCount,
+                                        isActive ? tts.filterPillCountActive : tts.filterPillCountInactive,
+                                    ]}
+                                >
+                                    {filterCounts[f.id]}
+                                </Text>
+                            </Pressable>
+                        );
+                    })}
+                </View>
+
+                {/* Vouch list */}
+                {filteredVouches.length === 0 ? (
+                    <View style={[trustStyles.centered, { minHeight: 120 }]}>
+                        <Globe size={28} color={theme.muted} />
+                        <Text style={[trustStyles.emptyTitle, tts.emptyTitle]}>No vouches</Text>
+                        <Text style={[trustStyles.emptySubtitle, tts.emptySubtitle]}>
+                            {filter === 'all'
+                                ? 'No active vouches yet'
+                                : `No ${filter} vouches`}
+                        </Text>
+                    </View>
+                ) : (
+                    filteredVouches.map((vouch) => {
+                        const given = isGivenVouch(vouch);
+                        const otherUser = given ? vouch.vouchee : vouch.voucher;
+                        const username = otherUser?.username ?? 'unknown';
+                        const avatarUrl = otherUser?.avatar;
+                        const isRevoked = !vouch.active;
+
+                        return (
+                            <Pressable
+                                key={vouch.id}
+                                style={[
+                                    trustStyles.vouchRow,
+                                    tts.vouchRow,
+                                    isRevoked && trustStyles.vouchRowRevoked,
+                                ]}
+                                onPress={() => otherUser?.id && onUserClick?.(otherUser.id)}
+                            >
+                                {/* Avatar */}
+                                {avatarUrl ? (
+                                    <Image source={{ uri: avatarUrl }} style={trustStyles.vouchAvatar} />
+                                ) : (
+                                    <View style={[trustStyles.vouchAvatarFallback, { backgroundColor: theme.accent }]}>
+                                        <Text style={trustStyles.vouchAvatarInitial}>
+                                            {username.slice(0, 1).toUpperCase()}
+                                        </Text>
+                                    </View>
+                                )}
+
+                                {/* Info */}
+                                <View style={trustStyles.vouchInfo}>
+                                    <Text style={[trustStyles.vouchUsername, tts.vouchUsername]} numberOfLines={1}>
+                                        @{username}
+                                    </Text>
+                                    <Text style={[trustStyles.vouchDetail, tts.vouchDetail]} numberOfLines={1}>
+                                        {given ? `You vouched ${vouch.stake} cred` : `Vouched you ${vouch.stake} cred`}
+                                        {' · '}
+                                        {formatTimeAgo(vouch.createdAt)}
+                                    </Text>
+                                    {isRevoked && vouch.penaltyPaid != null && (
+                                        <Text style={trustStyles.vouchPenalty}>
+                                            Revoked · {vouch.penaltyPaid} cred penalty
+                                        </Text>
+                                    )}
+                                </View>
+
+                                {/* Revoke button — only for active given vouches */}
+                                {given && vouch.active && otherUser && (
+                                    <Pressable
+                                        style={trustStyles.revokeBtn}
+                                        onPress={(e) => {
+                                            e.stopPropagation();
+                                            setRevokeTarget({
+                                                userId: otherUser.id,
+                                                username: otherUser.username,
+                                                stake: vouch.stake,
+                                            });
+                                        }}
+                                    >
+                                        <Text style={trustStyles.revokeBtnText}>Revoke</Text>
+                                    </Pressable>
+                                )}
+                            </Pressable>
+                        );
+                    })
+                )}
+
+                {/* ── Section 2: Trust Graph ── */}
+                <Text style={[trustStyles.sectionTitle, tts.sectionTitle]}>Trust Network</Text>
+
+                {graphNodes.length === 0 ? (
+                    <View style={[trustStyles.centered, { minHeight: 160 }]}>
+                        <Globe size={36} color={theme.muted} />
+                        <Text style={[trustStyles.emptyTitle, tts.emptyTitle]}>No connections yet</Text>
+                        <Text style={[trustStyles.emptySubtitle, tts.emptySubtitle]}>
+                            Vouch for users you trust to build your web of trust
+                        </Text>
+                    </View>
+                ) : (
+                    <>
+                        {/* SVG Graph */}
+                        <View style={[trustStyles.graphContainer, tts.graphContainer]}>
+                            <View style={trustStyles.graphWrapper}>
+                                {renderGraph}
+                            </View>
+                        </View>
+
+                        {/* Compact legend */}
+                        <View style={trustStyles.legendRow}>
+                            <View style={trustStyles.legendItem}>
+                                <View style={[trustStyles.legendDot, { backgroundColor: theme.accent }]} />
+                                <Text style={[trustStyles.legendText, tts.legendText]}>You</Text>
+                            </View>
+                            <View style={trustStyles.legendItem}>
+                                <View style={[trustStyles.legendDot, { backgroundColor: '#10b981' }]} />
+                                <Text style={[trustStyles.legendText, tts.legendText]}>Vouched</Text>
+                            </View>
+                            <View style={trustStyles.legendItem}>
+                                <View style={[trustStyles.legendDot, { backgroundColor: '#8b5cf6' }]} />
+                                <Text style={[trustStyles.legendText, tts.legendText]}>Vouchers</Text>
+                            </View>
+                            <View style={trustStyles.legendItem}>
+                                <View style={[trustStyles.legendDot, { backgroundColor: '#f59e0b' }]} />
+                                <Text style={[trustStyles.legendText, tts.legendText]}>Mutual</Text>
+                            </View>
+                        </View>
+
+                        {/* Selected node detail */}
+                        {selectedNode && selectedNode.type !== 'self' && (
+                            <Pressable
+                                style={[trustStyles.selectedCard, tts.selectedCard]}
+                                onPress={() => onUserClick?.(selectedNode.id)}
+                            >
+                                <View style={[trustStyles.selectedAvatar, { backgroundColor: selectedNode.color }]}>
+                                    <Text style={trustStyles.selectedAvatarText}>
+                                        {selectedNode.username[0]?.toUpperCase() ?? '?'}
+                                    </Text>
+                                </View>
+                                <View style={trustStyles.selectedInfo}>
+                                    <Text style={[trustStyles.selectedUsername, tts.selectedUsername]}>
+                                        @{selectedNode.username}
+                                    </Text>
+                                    <Text style={[trustStyles.selectedMeta, tts.selectedMeta]}>
+                                        {selectedNode.cred} cred · {selectedNode.type === 'vouched'
+                                            ? 'You vouched for this user'
+                                            : selectedNode.color === '#f59e0b'
+                                                ? 'Mutual trust'
+                                                : 'This user vouched for you'}
+                                    </Text>
+                                </View>
+                            </Pressable>
+                        )}
+                    </>
+                )}
+            </ScrollView>
+
+            {/* Revoke modal */}
+            {revokeTarget && (
+                <RevokeVouchModal
+                    visible={revokeTarget !== null}
+                    onClose={() => setRevokeTarget(null)}
+                    onSuccess={handleRevokeSuccess}
+                    userId={revokeTarget.userId}
+                    username={revokeTarget.username}
+                    stake={revokeTarget.stake}
+                />
+            )}
+        </View>
+    );
+});
+
 // ── Component ──────────────────────────────────────────────────
 
 export const GovernanceScreen = ({
@@ -1142,8 +1920,8 @@ export const GovernanceScreen = ({
     initialTab = 'moderation',
     nodeId,
     nodeName,
-    userId: _userId,
-    onUserClick: _onUserClick,
+    userId,
+    onUserClick,
 }: GovernanceScreenProps) => {
     const theme = useAppTheme();
     const [activeTab, setActiveTab] = useState<TabId>(initialTab);
@@ -1217,6 +1995,8 @@ export const GovernanceScreen = ({
                 <ModerationTab />
             ) : activeTab === 'council' ? (
                 <CouncilTab nodeId={nodeId ?? ''} nodeName={nodeName ?? 'this node'} />
+            ) : activeTab === 'trust' ? (
+                <TrustTab userId={userId} onUserClick={onUserClick} />
             ) : (
                 <View style={styles.content}>
                     <Text style={[styles.placeholderText, ts.placeholderText]}>
