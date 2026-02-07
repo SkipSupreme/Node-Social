@@ -2,8 +2,9 @@
 import React, { ComponentType, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Scale, Crown, Handshake, Ban, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
-import { COLORS, ERAS } from '../../constants/theme';
+import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
+import { ERAS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import type { Node } from '../../lib/api';
 import type { AuthResponse } from '../../lib/api';
 
@@ -23,6 +24,7 @@ interface SidebarProps {
     onThemesClick?: () => void;
     onSavedClick?: () => void;
     onNewPostClick?: () => void;
+    onGovernanceClick?: () => void;
     onModerationClick?: () => void;
     onAppealsClick?: () => void;
     onCouncilClick?: () => void;
@@ -42,6 +44,7 @@ interface SidebarProps {
 
 // Animated Logo Component
 const PulsingLogo = () => {
+    const theme = useAppTheme();
     const pulseAnim = useRef(new Animated.Value(1)).current;
     const glowAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -88,7 +91,7 @@ const PulsingLogo = () => {
     }, []);
 
     return (
-        <View style={styles.logoIcon}>
+        <View style={[styles.logoIcon, { backgroundColor: theme.accent }]}>
             {/* Glow effect layer - just for the icon */}
             <Animated.View
                 style={[
@@ -96,10 +99,11 @@ const PulsingLogo = () => {
                     {
                         opacity: glowAnim,
                         transform: [{ scale: pulseAnim }],
+                        boxShadow: `0px 0px 8px ${theme.accent}`,
                     },
                 ]}
             >
-                <Hexagon size={20} color={COLORS.node.accent} />
+                <Hexagon size={20} color={theme.accent} />
             </Animated.View>
             {/* Main icon */}
             <Animated.View
@@ -130,11 +134,7 @@ export const Sidebar = ({
     onThemesClick,
     onSavedClick,
     onNewPostClick,
-    onModerationClick,
-    onAppealsClick,
-    onCouncilClick,
-    onVouchesClick,
-    onBlockedMutedClick,
+    onGovernanceClick,
     onNotificationsClick,
     onMessagesClick,
     onAddColumnClick,
@@ -146,6 +146,7 @@ export const Sidebar = ({
     onToggleCollapse,
     onSearch
 }: SidebarProps) => {
+    const theme = useAppTheme();
     const [searchQuery, setSearchQuery] = useState('');
 
     const handleSearchSubmit = () => {
@@ -182,31 +183,31 @@ export const Sidebar = ({
     // Collapsed sidebar view - icons only
     if (collapsed && isDesktop) {
         return (
-            <SafeAreaView style={styles.collapsedContainer}>
+            <SafeAreaView style={[styles.collapsedContainer, { backgroundColor: theme.panel, borderRightColor: theme.border }]}>
                 {/* Expand button */}
                 <TouchableOpacity
                     style={styles.collapseButton}
                     onPress={onToggleCollapse}
                     activeOpacity={0.7}
                 >
-                    <Hexagon size={24} color={COLORS.node.muted} />
+                    <Hexagon size={24} color={theme.muted} />
                 </TouchableOpacity>
 
                 {/* Icon-only nav items */}
                 <View style={styles.collapsedNav}>
                     <CollapsedNavItem
                         icon={Flame}
-                        active={feedMode === 'global' && selectedNodeId === null}
+                        active={feedMode === 'global' && selectedNodeId === null && currentView === 'feed'}
                         onPress={() => handleModeClick('global')}
                     />
                     <CollapsedNavItem
                         icon={Search}
-                        active={feedMode === 'discovery'}
+                        active={feedMode === 'discovery' && currentView === 'discovery'}
                         onPress={() => handleModeClick('discovery')}
                     />
                     <CollapsedNavItem
                         icon={Users}
-                        active={feedMode === 'following'}
+                        active={feedMode === 'following' && currentView === 'following'}
                         onPress={() => handleModeClick('following')}
                     />
                     <CollapsedNavItem
@@ -220,29 +221,9 @@ export const Sidebar = ({
                         onPress={onSavedClick}
                     />
                     <CollapsedNavItem
-                        icon={Ban}
-                        active={currentView === 'blocked-muted'}
-                        onPress={onBlockedMutedClick}
-                    />
-                    <CollapsedNavItem
                         icon={Shield}
-                        active={currentView === 'moderation'}
-                        onPress={onModerationClick}
-                    />
-                    <CollapsedNavItem
-                        icon={Scale}
-                        active={currentView === 'appeals'}
-                        onPress={onAppealsClick}
-                    />
-                    <CollapsedNavItem
-                        icon={Crown}
-                        active={currentView === 'council'}
-                        onPress={onCouncilClick}
-                    />
-                    <CollapsedNavItem
-                        icon={Handshake}
-                        active={currentView === 'vouches'}
-                        onPress={onVouchesClick}
+                        active={currentView === 'governance' || currentView === 'moderation' || currentView === 'appeals' || currentView === 'council' || currentView === 'vouches' || currentView === 'trust-graph' || currentView === 'blocked-muted'}
+                        onPress={onGovernanceClick}
                     />
                     {/* Node avatars - right after nav items */}
                     {nodes.length > 0 && (
@@ -273,8 +254,8 @@ export const Sidebar = ({
                 </View>
 
                 {/* User avatar at bottom */}
-                <TouchableOpacity style={styles.collapsedFooter} onPress={onProfileClick}>
-                    <View style={[styles.collapsedAvatar, { backgroundColor: COLORS.node.border }]}>
+                <TouchableOpacity style={[styles.collapsedFooter, { borderTopColor: theme.border }]} onPress={onProfileClick}>
+                    <View style={[styles.collapsedAvatar, { backgroundColor: theme.border }]}>
                         {user?.avatar ? (
                             <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.collapsedAvatarImage} />
                         ) : (
@@ -289,12 +270,12 @@ export const Sidebar = ({
     }
 
     return (
-        <SafeAreaView style={[styles.container, isDesktop && styles.containerDesktop]}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.panel }, isDesktop && styles.containerDesktop, isDesktop && { borderRightColor: theme.border }]}>
             {/* Header */}
             <View style={styles.header}>
                 <View style={styles.logoRow}>
                     <PulsingLogo />
-                    <Text style={styles.logoText}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
+                    <Text style={styles.logoText}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
                 </View>
 
                 {/* Desktop: Collapse button */}
@@ -307,7 +288,7 @@ export const Sidebar = ({
                 {/* Mobile: Close button */}
                 {!isDesktop && onClose && (
                     <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                        <X size={20} color={COLORS.node.muted} />
+                        <X size={20} color={theme.muted} />
                     </TouchableOpacity>
                 )}
             </View>
@@ -315,11 +296,11 @@ export const Sidebar = ({
             {/* Search - Only show on Mobile/Tablet (not Desktop) */}
             {!isDesktop && (
                 <View style={styles.searchContainer}>
-                    <Search size={16} color={COLORS.node.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
+                    <Search size={16} color={theme.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.border }]}
                         placeholder="Search posts, users, nodes..."
-                        placeholderTextColor={COLORS.node.muted}
+                        placeholderTextColor={theme.muted}
                         value={searchQuery}
                         onChangeText={setSearchQuery}
                         onSubmitEditing={handleSearchSubmit}
@@ -330,7 +311,7 @@ export const Sidebar = ({
                             onPress={() => setSearchQuery('')}
                             style={{ position: 'absolute', right: 12, top: 8 }}
                         >
-                            <X size={16} color={COLORS.node.muted} />
+                            <X size={16} color={theme.muted} />
                         </TouchableOpacity>
                     )}
                 </View>
@@ -341,7 +322,7 @@ export const Sidebar = ({
                     {/* New Post Button (Desktop) */}
                     {isDesktop && (
                         <TouchableOpacity
-                            style={[styles.navItem, { backgroundColor: COLORS.node.accent, marginBottom: 8, justifyContent: 'center' }]}
+                            style={[styles.navItem, { backgroundColor: theme.accent, marginBottom: 8, justifyContent: 'center' }]}
                             onPress={onNewPostClick}
                         >
                             <Text style={[styles.navText, { color: '#fff', fontWeight: 'bold' }]}>+ New Post</Text>
@@ -351,30 +332,30 @@ export const Sidebar = ({
                     {/* Add Column Button (Desktop, Multi-Column mode only) */}
                     {isDesktop && isMultiColumnEnabled && (
                         <TouchableOpacity
-                            style={[styles.navItem, styles.addColumnButton, { marginBottom: 16, justifyContent: 'center' }]}
+                            style={[styles.navItem, styles.addColumnButton, { marginBottom: 16, justifyContent: 'center', borderColor: theme.accent }]}
                             onPress={onAddColumnClick}
                         >
-                            <Plus size={16} color={COLORS.node.accent} />
-                            <Text style={[styles.navText, { color: COLORS.node.accent }]}>Add Column</Text>
+                            <Plus size={16} color={theme.accent} />
+                            <Text style={[styles.navText, { color: theme.accent }]}>Add Column</Text>
                         </TouchableOpacity>
                     )}
 
                     <NavItem
                         icon={Flame}
                         label="Your Feed"
-                        active={feedMode === 'global' && selectedNodeId === null}
+                        active={feedMode === 'global' && selectedNodeId === null && currentView === 'feed'}
                         onPress={() => handleModeClick('global')}
                     />
                     <NavItem
                         icon={Search}
                         label="Discovery"
-                        active={feedMode === 'discovery'}
+                        active={feedMode === 'discovery' && currentView === 'discovery'}
                         onPress={() => handleModeClick('discovery')}
                     />
                     <NavItem
                         icon={Users}
                         label="Following"
-                        active={feedMode === 'following'}
+                        active={feedMode === 'following' && currentView === 'following'}
                         onPress={() => handleModeClick('following')}
                     />
                     <NavItem
@@ -390,54 +371,18 @@ export const Sidebar = ({
                         onPress={onSavedClick}
                     />
                     <NavItem
-                        icon={Ban}
-                        label="Blocked & Muted"
-                        active={currentView === 'blocked-muted'}
-                        onPress={() => {
-                            if (onClose && !isDesktop) onClose();
-                            if (onBlockedMutedClick) onBlockedMutedClick();
-                        }}
-                    />
-                    <NavItem
                         icon={Shield}
-                        label="Moderation"
-                        active={currentView === 'moderation'}
+                        label="Governance"
+                        active={currentView === 'governance' || currentView === 'moderation' || currentView === 'appeals' || currentView === 'council' || currentView === 'vouches' || currentView === 'trust-graph' || currentView === 'blocked-muted'}
                         onPress={() => {
                             if (onClose && !isDesktop) onClose();
-                            if (onModerationClick) onModerationClick();
-                        }}
-                    />
-                    <NavItem
-                        icon={Scale}
-                        label="Appeals"
-                        active={currentView === 'appeals'}
-                        onPress={() => {
-                            if (onClose && !isDesktop) onClose();
-                            if (onAppealsClick) onAppealsClick();
-                        }}
-                    />
-                    <NavItem
-                        icon={Crown}
-                        label="Node Council"
-                        active={currentView === 'council'}
-                        onPress={() => {
-                            if (onClose && !isDesktop) onClose();
-                            if (onCouncilClick) onCouncilClick();
-                        }}
-                    />
-                    <NavItem
-                        icon={Handshake}
-                        label="My Vouches"
-                        active={currentView === 'vouches'}
-                        onPress={() => {
-                            if (onClose && !isDesktop) onClose();
-                            if (onVouchesClick) onVouchesClick();
+                            if (onGovernanceClick) onGovernanceClick();
                         }}
                     />
                 </View>
 
                 <View style={styles.sectionTitleRow}>
-                    <Text style={styles.sectionTitle}>Your Nodes</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.muted }]}>Your Nodes</Text>
                 </View>
 
                 <View style={styles.nodeList}>
@@ -457,9 +402,9 @@ export const Sidebar = ({
                                 )}
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={[styles.nodeName, selectedNodeId === node.id && styles.nodeNameActive]}>{node.name}</Text>
+                                <Text style={[styles.nodeName, { color: theme.text }, selectedNodeId === node.id && { color: theme.accent, fontWeight: '700' }]}>{node.name}</Text>
                                 {node.subscriberCount !== undefined && (
-                                    <Text style={styles.nodeSubscribers}>{node.subscriberCount} {node.subscriberCount === 1 ? 'member' : 'members'}</Text>
+                                    <Text style={[styles.nodeSubscribers, { color: theme.muted }]}>{node.subscriberCount} {node.subscriberCount === 1 ? 'member' : 'members'}</Text>
                                 )}
                             </View>
                             {/* Info button */}
@@ -472,10 +417,10 @@ export const Sidebar = ({
                                     }}
                                     hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                 >
-                                    <HelpCircle size={16} color={COLORS.node.muted} />
+                                    <HelpCircle size={16} color={theme.muted} />
                                 </TouchableOpacity>
                             )}
-                            {node.isSubscribed && !onNodeInfo && <Users size={12} color={COLORS.node.accent} />}
+                            {node.isSubscribed && !onNodeInfo && <Users size={12} color={theme.accent} />}
                         </TouchableOpacity>
                     ))}
                 </View>
@@ -486,10 +431,10 @@ export const Sidebar = ({
                 const userEra = user?.era || 'Lurker Era';
                 const eraStyle = ERAS[userEra] || ERAS['Default'];
                 return (
-                    <View style={styles.footer}>
+                    <View style={[styles.footer, { borderTopColor: theme.border }]}>
                         {/* User Profile */}
                         <TouchableOpacity style={styles.footerProfile} onPress={onProfileClick}>
-                            <View style={[styles.avatar, { borderColor: COLORS.node.accent, borderWidth: 2 }]}>
+                            <View style={[styles.avatar, { borderColor: theme.accent, borderWidth: 2, backgroundColor: theme.border }]}>
                                 {user?.avatar ? (
                                     <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.avatarImage} />
                                 ) : (
@@ -510,8 +455,8 @@ export const Sidebar = ({
                         </TouchableOpacity>
                         {/* Notification & Message Icons - Right side */}
                         <View style={styles.footerIcons}>
-                            <TouchableOpacity style={styles.footerIconButton} onPress={onNotificationsClick}>
-                                <Bell size={18} color={COLORS.node.muted} />
+                            <TouchableOpacity style={[styles.footerIconButton, { backgroundColor: theme.bg }]} onPress={onNotificationsClick}>
+                                <Bell size={18} color={theme.muted} />
                                 {unreadNotifications > 0 && (
                                     <View style={styles.footerBadge}>
                                         <Text style={styles.footerBadgeText}>
@@ -520,8 +465,8 @@ export const Sidebar = ({
                                     </View>
                                 )}
                             </TouchableOpacity>
-                            <TouchableOpacity style={styles.footerIconButton} onPress={onMessagesClick}>
-                                <MessageSquare size={18} color={COLORS.node.muted} />
+                            <TouchableOpacity style={[styles.footerIconButton, { backgroundColor: theme.bg }]} onPress={onMessagesClick}>
+                                <MessageSquare size={18} color={theme.muted} />
                                 {unreadMessages > 0 && (
                                     <View style={styles.footerBadge}>
                                         <Text style={styles.footerBadgeText}>
@@ -545,15 +490,18 @@ interface NavItemProps {
     onPress?: () => void;
 }
 
-const NavItem = ({ icon: Icon, label, active, onPress }: NavItemProps) => (
-    <TouchableOpacity
-        style={[styles.navItem, active && styles.navItemActive]}
-        onPress={onPress}
-    >
-        <Icon size={20} color={active ? COLORS.node.accent : COLORS.node.muted} />
-        <Text style={[styles.navText, active && { color: COLORS.node.accent }]}>{label}</Text>
-    </TouchableOpacity>
-);
+const NavItem = ({ icon: Icon, label, active, onPress }: NavItemProps) => {
+    const theme = useAppTheme();
+    return (
+        <TouchableOpacity
+            style={[styles.navItem, active && styles.navItemActive]}
+            onPress={onPress}
+        >
+            <Icon size={20} color={active ? theme.accent : theme.muted} />
+            <Text style={[styles.navText, { color: theme.muted }, active && { color: theme.accent }]}>{label}</Text>
+        </TouchableOpacity>
+    );
+};
 
 // Collapsed nav item - icon only
 interface CollapsedNavItemProps {
@@ -562,25 +510,27 @@ interface CollapsedNavItemProps {
     onPress?: () => void;
 }
 
-const CollapsedNavItem = ({ icon: Icon, active, onPress }: CollapsedNavItemProps) => (
-    <TouchableOpacity
-        style={[styles.collapsedNavItem, active && styles.collapsedNavItemActive]}
-        onPress={onPress}
-        activeOpacity={0.7}
-    >
-        <Icon size={20} color={active ? COLORS.node.accent : COLORS.node.muted} />
-    </TouchableOpacity>
-);
+const CollapsedNavItem = ({ icon: Icon, active, onPress }: CollapsedNavItemProps) => {
+    const theme = useAppTheme();
+    return (
+        <TouchableOpacity
+            style={[styles.collapsedNavItem, active && styles.collapsedNavItemActive]}
+            onPress={onPress}
+            activeOpacity={0.7}
+        >
+            <Icon size={20} color={active ? theme.accent : theme.muted} />
+        </TouchableOpacity>
+    );
+};
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.node.panel },
-    containerDesktop: { borderRightWidth: 1, borderRightColor: COLORS.node.border },
+    container: { flex: 1 },
+    containerDesktop: { borderRightWidth: 1 },
     header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
     logoRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-    logoIcon: { width: 32, height: 32, backgroundColor: COLORS.node.accent, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
+    logoIcon: { width: 32, height: 32, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
     logoGlow: {
         position: 'absolute',
-        boxShadow: `0px 0px 8px ${COLORS.node.accent}`,
     },
     logoIconInner: {
         position: 'absolute',
@@ -589,15 +539,15 @@ const styles = StyleSheet.create({
     closeBtn: { padding: 8 },
     searchContainer: { marginHorizontal: 16, marginBottom: 24, position: 'relative' },
     input: {
-        backgroundColor: COLORS.node.bg, borderRadius: 8, borderWidth: 1, borderColor: COLORS.node.border,
+        borderRadius: 8, borderWidth: 1,
         paddingVertical: 8, paddingLeft: 36, paddingRight: 12, color: '#fff'
     },
     navSection: { paddingHorizontal: 8, marginBottom: 24 },
     navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
     navItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
-    navText: { fontSize: 16, fontWeight: '500', color: COLORS.node.muted },
+    navText: { fontSize: 16, fontWeight: '500' },
     sectionTitleRow: { paddingHorizontal: 20, marginBottom: 8 },
-    sectionTitle: { fontSize: 12, fontWeight: 'bold', color: COLORS.node.muted, textTransform: 'uppercase' },
+    sectionTitle: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' },
     nodeList: { paddingHorizontal: 8 },
     nodeItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
     nodeItemActive: { backgroundColor: 'rgba(99, 102, 241, 0.1)' },
@@ -620,11 +570,10 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         color: '#fff',
     },
-    nodeName: { fontSize: 14, fontWeight: '500', color: COLORS.node.text },
-    nodeNameActive: { color: COLORS.node.accent, fontWeight: '700' },
-    nodeSubscribers: { fontSize: 11, color: COLORS.node.muted, marginTop: 2 },
-    footer: { padding: 16, borderTopWidth: 1, borderTopColor: COLORS.node.border, flexDirection: 'row', alignItems: 'center', gap: 12 },
-    avatar: { width: 36, height: 36, borderRadius: 10, backgroundColor: COLORS.node.border, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
+    nodeName: { fontSize: 14, fontWeight: '500' },
+    nodeSubscribers: { fontSize: 11, marginTop: 2 },
+    footer: { padding: 16, borderTopWidth: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+    avatar: { width: 36, height: 36, borderRadius: 10, justifyContent: 'center', alignItems: 'center', overflow: 'hidden' },
     avatarImage: { width: '100%', height: '100%', borderRadius: 8 },
     footerUser: { color: '#fff', fontWeight: 'bold', fontSize: 13 },
     footerEraBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, borderWidth: 1, marginTop: 3, alignSelf: 'flex-start' },
@@ -632,7 +581,6 @@ const styles = StyleSheet.create({
     // Add Column button style
     addColumnButton: {
         borderWidth: 1,
-        borderColor: COLORS.node.accent,
         borderStyle: 'dashed',
         backgroundColor: 'transparent',
     },
@@ -647,7 +595,6 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 8,
-        backgroundColor: COLORS.node.bg,
         alignItems: 'center',
         justifyContent: 'center',
         position: 'relative',
@@ -679,9 +626,7 @@ const styles = StyleSheet.create({
     collapsedContainer: {
         width: 56,
         height: '100%',
-        backgroundColor: COLORS.node.panel,
         borderRightWidth: 1,
-        borderRightColor: COLORS.node.border,
         alignItems: 'center',
         paddingTop: 12,
         paddingBottom: 12,
@@ -697,7 +642,6 @@ const styles = StyleSheet.create({
     },
     collapseIcon: {
         fontSize: 20,
-        color: COLORS.node.muted,
     },
     collapsedNav: {
         flex: 1,
@@ -722,7 +666,7 @@ const styles = StyleSheet.create({
     collapsedDivider: {
         width: 24,
         height: 1,
-        backgroundColor: COLORS.node.border,
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         marginBottom: 8,
     },
     collapsedNodeItem: {
@@ -756,7 +700,6 @@ const styles = StyleSheet.create({
     collapsedFooter: {
         paddingTop: 12,
         borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
         alignItems: 'center',
     },
     collapsedAvatar: {

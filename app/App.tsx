@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalProvider, PortalHost } from '@gorhom/portal';
 import { useAuthStore } from './src/store/auth';
+import { useThemeStore, type ThemeTokens } from './src/store/theme';
 import { LoginScreen } from './src/screens/LoginScreen';
 import { RegisterScreen } from './src/screens/RegisterScreen';
 import { ForgotPasswordScreen } from './src/screens/ForgotPasswordScreen';
@@ -14,6 +15,7 @@ import { ResetPasswordScreen } from './src/screens/ResetPasswordScreen';
 import { VerifyEmailScreen } from './src/screens/VerifyEmailScreen';
 import * as Linking from 'expo-linking';
 import { COLORS } from './src/constants/theme';
+import { useAppTheme } from './src/hooks/useTheme';
 import { MobileBottomNav } from './src/components/ui/MobileBottomNav';
 
 // New UI Components
@@ -29,20 +31,16 @@ import { UIPost } from './src/components/ui/Feed';
 import { NotificationsScreen } from './src/screens/NotificationsScreen';
 import { SavedPostsScreen } from './src/screens/SavedPostsScreen';
 import { ThemesScreen } from './src/screens/ThemesScreen';
+import { ThemeEditorScreen } from './src/screens/ThemeEditorScreen';
 import { CredHistoryScreen } from './src/screens/CredHistoryScreen';
 import { MessagesScreen } from './src/screens/MessagesScreen';
 import { ChatScreen } from './src/screens/ChatScreen';
 import { DiscoveryScreen } from './src/screens/DiscoveryScreen';
 import { FollowingScreen } from './src/screens/FollowingScreen';
 import { PostDetailScreen } from './src/screens/PostDetailScreen';
-import { ModerationQueueScreen } from './src/screens/ModerationQueueScreen';
-import { AppealsScreen } from './src/screens/AppealsScreen';
-import { NodeCouncilScreen } from './src/screens/NodeCouncilScreen';
-import { MyVouchesScreen } from './src/screens/MyVouchesScreen';
-import { WebOfTrustScreen } from './src/screens/WebOfTrustScreen';
+import { GovernanceScreen } from './src/screens/GovernanceScreen';
 import { NodeSettingsScreen } from './src/screens/NodeSettingsScreen';
 import { ModLogScreen } from './src/screens/ModLogScreen';
-import { BlockedMutedScreen } from './src/screens/BlockedMutedScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
 import { AuthPromptProvider, useAuthPrompt } from './src/context/AuthPromptContext';
 import { FeedHeader } from './src/components/ui/FeedHeader';
@@ -113,7 +111,7 @@ interface MappedPost {
 }
 
 // Navigation parameter types
-type ViewName = 'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted';
+type ViewName = 'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'governance' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted';
 
 interface NavigationParams {
   userId?: string;
@@ -188,6 +186,7 @@ class ErrorBoundary extends React.Component<
 }
 
 const MainApp = () => {
+  const theme = useAppTheme();
   const { user } = useAuthStore();
   const { requireAuth } = useAuthPrompt();
   const { isMultiColumnEnabled, loadFromStorage: loadColumnsConfig } = useColumnsStore();
@@ -195,7 +194,7 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'theme-editor' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'governance' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
@@ -908,6 +907,24 @@ const MainApp = () => {
     setCurrentView('feed'); // Always return to feed view when selecting a node
     setFeedMode('global');
     fetchFeed(nodeId, 'global');
+
+    // Theme override: apply node theme when entering a community, clear when leaving
+    if (nodeId) {
+      // Fetch node details to get customTheme (fire-and-forget)
+      import('./src/lib/api').then(({ getNodeDetails }) => {
+        getNodeDetails(nodeId).then((details) => {
+          if (details?.customTheme && typeof details.customTheme === 'object') {
+            useThemeStore.getState().setNodeThemeOverride(details.customTheme as Partial<ThemeTokens>);
+          } else {
+            useThemeStore.getState().clearNodeOverride();
+          }
+        }).catch(() => {
+          // Silently fail — keep current theme
+        });
+      });
+    } else {
+      useThemeStore.getState().clearNodeOverride();
+    }
   };
 
   const handleFeedModeSelect = (mode: 'global' | 'discovery' | 'following') => {
@@ -915,6 +932,8 @@ const MainApp = () => {
     setSelectedNodeId(null); // Clear node selection
     setSearchQuery('');
     setSearchUserResults([]); // Clear user search results
+    // Clear node theme override when leaving a node
+    useThemeStore.getState().clearNodeOverride();
 
     // Navigate to proper screens for discovery/following, otherwise go to feed
     if (mode === 'discovery') {
@@ -1155,7 +1174,7 @@ const MainApp = () => {
   const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 0) : insets.top;
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
       {/* Persistent status bar background - always visible behind notch/status bar area */}
       {!isDesktop && (
         <View style={{
@@ -1164,18 +1183,18 @@ const MainApp = () => {
           left: 0,
           right: 0,
           height: statusBarHeight,
-          backgroundColor: COLORS.node.bg,
+          backgroundColor: theme.bg,
           zIndex: 200,
         }} />
       )}
 
-      <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.bg }}>
       <View style={{ flex: 1 }}>
         <View style={{ flex: 1, flexDirection: 'row' }}>
 
         {/* Desktop Sidebar */}
         {isDesktop && (
-          <View style={[styles.drawerLeft, sidebarCollapsed && styles.drawerLeftCollapsed]}>
+          <View style={[styles.drawerLeft, { backgroundColor: theme.panel }, sidebarCollapsed && styles.drawerLeftCollapsed]}>
             <Sidebar
               nodes={nodes}
               isDesktop={true}
@@ -1192,11 +1211,7 @@ const MainApp = () => {
               onThemesClick={() => navigateTo('themes')}
               onSavedClick={() => requireAuth('Sign in to see your saved posts') && navigateTo('saved')}
               onNewPostClick={() => requireAuth('Sign in to create posts') && setIsCreatePostOpen(true)}
-              onModerationClick={() => navigateTo('moderation')}
-              onAppealsClick={() => navigateTo('appeals')}
-              onCouncilClick={() => navigateTo('council')}
-              onVouchesClick={() => navigateTo('vouches')}
-              onBlockedMutedClick={() => requireAuth('Sign in to manage blocked users') && navigateTo('blocked-muted')}
+              onGovernanceClick={() => requireAuth('Sign in to access governance') && navigateTo('governance')}
               onNotificationsClick={() => requireAuth('Sign in to see your notifications') && navigateTo('notifications')}
               onMessagesClick={() => requireAuth('Sign in to access messages') && navigateTo('messages')}
               onAddColumnClick={() => setShowAddColumnModal(true)}
@@ -1212,7 +1227,7 @@ const MainApp = () => {
         )}
 
         {/* Main Content Wrapper */}
-        <View style={{ flex: 1, borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: COLORS.node.border }}>
+        <View style={{ flex: 1, borderLeftWidth: isDesktop ? 1 : 0, borderRightWidth: isDesktop ? 1 : 0, borderColor: theme.border }}>
 
           {/* Mobile Header */}
           {!isDesktop && (
@@ -1240,12 +1255,12 @@ const MainApp = () => {
                 const currentNode = nodes.find(n => n.id === selectedNodeId);
                 if (!currentNode) return null;
                 return (
-                  <View style={styles.mobileNodeHeader}>
+                  <View style={[styles.mobileNodeHeader, { backgroundColor: theme.panel, borderBottomColor: theme.border }]}>
                     <TouchableOpacity
-                      style={styles.mobileNodeHeaderBack}
+                      style={[styles.mobileNodeHeaderBack, { backgroundColor: theme.bg, borderColor: theme.border }]}
                       onPress={() => handleNodeSelect(null)}
                     >
-                      <Text style={styles.mobileNodeHeaderBackText}>← All</Text>
+                      <Text style={[styles.mobileNodeHeaderBackText, { color: theme.textSecondary }]}>← All</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.mobileNodeHeaderInfo}
@@ -1266,10 +1281,10 @@ const MainApp = () => {
                           </Text>
                         </View>
                       )}
-                      <Text style={styles.mobileNodeHeaderName} numberOfLines={1}>
+                      <Text style={[styles.mobileNodeHeaderName, { color: theme.text }]} numberOfLines={1}>
                         {currentNode.name}
                       </Text>
-                      <HelpCircle size={16} color={COLORS.node.muted} />
+                      <HelpCircle size={16} color={theme.muted} />
                     </TouchableOpacity>
                   </View>
                 );
@@ -1378,7 +1393,12 @@ const MainApp = () => {
             ) : currentView === 'cred-history' ? (
               <CredHistoryScreen onBack={goBack} />
             ) : currentView === 'themes' ? (
-              <ThemesScreen onBack={goBack} />
+              <ThemesScreen
+                onBack={goBack}
+                onEditTheme={() => navigateTo('theme-editor')}
+              />
+            ) : currentView === 'theme-editor' ? (
+              <ThemeEditorScreen onBack={goBack} />
             ) : currentView === 'messages' ? (
               <MessagesScreen
                 onBack={goBack}
@@ -1414,27 +1434,21 @@ const MainApp = () => {
                   ));
                 }}
               />
-            ) : currentView === 'moderation' ? (
-              <ModerationQueueScreen onBack={goBack} />
-            ) : currentView === 'appeals' ? (
-              <AppealsScreen onBack={goBack} />
-            ) : currentView === 'council' ? (
-              <NodeCouncilScreen
+            ) : currentView === 'governance' || currentView === 'moderation' || currentView === 'appeals' || currentView === 'council' || currentView === 'vouches' || currentView === 'trust-graph' || currentView === 'blocked-muted' ? (
+              <GovernanceScreen
+                onBack={goBack}
+                initialTab={
+                  currentView === 'moderation' ? 'moderation' :
+                  currentView === 'council' ? 'council' :
+                  currentView === 'trust-graph' || currentView === 'vouches' ? 'trust' :
+                  currentView === 'appeals' ? 'appeals' :
+                  currentView === 'blocked-muted' ? 'blocked' :
+                  (viewParams?.initialTab || 'moderation')
+                }
                 nodeId={selectedNodeId || 'global'}
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Global'}
-                onBack={goBack}
-              />
-            ) : currentView === 'vouches' ? (
-              <MyVouchesScreen
-                onBack={goBack}
-                onViewProfile={(userId) => {
-                  navigateTo('profile', { userId });
-                }}
-              />
-            ) : currentView === 'trust-graph' ? (
-              <WebOfTrustScreen
-                onBack={goBack}
                 userId={viewParams?.userId}
+                onUserClick={(uid: string) => navigateTo('profile', { userId: uid })}
               />
             ) : currentView === 'nodeSettings' && selectedNodeId ? (
               <NodeSettingsScreen
@@ -1447,11 +1461,6 @@ const MainApp = () => {
                 nodeName={nodes.find(n => n.id === selectedNodeId)?.name || 'Node'}
                 onBack={goBack}
               />
-            ) : currentView === 'blocked-muted' ? (
-              <BlockedMutedScreen
-                onBack={goBack}
-                onUserClick={(userId) => navigateTo('profile', { userId })}
-              />
             ) : null}
 
           </View>
@@ -1459,7 +1468,7 @@ const MainApp = () => {
 
         {/* Desktop Right Panel - Hidden when multi-column mode is enabled (WhatsVibing is now a column type) */}
         {isDesktop && !isMultiColumnEnabled && (
-          <View style={styles.drawerRight}>
+          <View style={[styles.drawerRight, { backgroundColor: theme.panel }]}>
             {selectedNodeId ? (
               <NodeLandingPage
                 nodeId={selectedNodeId}
@@ -1509,7 +1518,7 @@ const MainApp = () => {
       {!isDesktop && (
         <Modal visible={menuVisible} animationType="fade" transparent>
           <View style={styles.modalOverlay}>
-            <View style={styles.drawerLeft}>
+            <View style={[styles.drawerLeft, { backgroundColor: theme.panel }]}>
               <Sidebar
                 nodes={nodes}
                 onClose={() => setMenuVisible(false)}
@@ -1535,26 +1544,10 @@ const MainApp = () => {
                   setMenuVisible(false);
                   navigateTo('saved');
                 }}
-                onModerationClick={() => {
+                onGovernanceClick={() => {
                   setMenuVisible(false);
-                  navigateTo('moderation');
-                }}
-                onAppealsClick={() => {
-                  setMenuVisible(false);
-                  navigateTo('appeals');
-                }}
-                onCouncilClick={() => {
-                  setMenuVisible(false);
-                  navigateTo('council');
-                }}
-                onVouchesClick={() => {
-                  setMenuVisible(false);
-                  navigateTo('vouches');
-                }}
-                onBlockedMutedClick={() => {
-                  setMenuVisible(false);
-                  if (requireAuth('Sign in to manage blocked users')) {
-                    navigateTo('blocked-muted');
+                  if (requireAuth('Sign in to access governance')) {
+                    navigateTo('governance');
                   }
                 }}
                 onNotificationsClick={() => {
@@ -1625,7 +1618,7 @@ const MainApp = () => {
               onPress={() => setVibeVisible(false)}
             />
             {/* Content */}
-            <View style={styles.vibeModalContent}>
+            <View style={[styles.vibeModalContent, { backgroundColor: theme.panel }]}>
               <VibeValidator
                 settings={algoSettings}
                 onUpdate={setAlgoSettings}
@@ -1659,6 +1652,7 @@ const MainApp = () => {
 };
 
 export default function App() {
+  const theme = useAppTheme();
   const { user, loading, loadFromStorage, markEmailVerified, logout } = useAuthStore();
   // Auth modal state - null means closed, otherwise shows the specified screen
   const [authModal, setAuthModal] = useState<'login' | 'register' | 'forgot-password' | null>(null);
@@ -1695,21 +1689,33 @@ export default function App() {
     loadFromStorage();
   }, []);
 
+  // Hydrate theme store from local storage on first load
+  useEffect(() => {
+    useThemeStore.getState().hydrate();
+  }, []);
+
+  // Sync user's custom theme from the API when user data arrives
+  useEffect(() => {
+    if (user?.customTheme && typeof user.customTheme === 'object') {
+      useThemeStore.getState().setUserTheme(user.customTheme as Partial<ThemeTokens>);
+    }
+  }, [user]);
+
   if (loading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.node.bg }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
         <ActivityIndicator size="large" color="#6366f1" />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+    <View style={{ flex: 1, backgroundColor: theme.bg }}>
     <ErrorBoundary>
-    <SafeAreaProvider style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+    <SafeAreaProvider style={{ flex: 1, backgroundColor: theme.bg }}>
       <PortalProvider>
       <QueryClientProvider client={queryClient}>
-        <StatusBar barStyle="light-content" backgroundColor={COLORS.node.bg} />
+        <StatusBar barStyle="light-content" backgroundColor={theme.bg} />
 
         {/* Main App - always shown, works for anonymous and logged-in users */}
         <AuthPromptProvider
@@ -1724,7 +1730,7 @@ export default function App() {
 
         {/* Auth Modal - shown when user needs to login/register */}
         <Modal visible={authModal !== null} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+            <View style={{ flex: 1, backgroundColor: theme.bg }}>
             {authModal === 'login' ? (
               <LoginScreen
                 onSuccessLogin={() => setAuthModal(null)}
@@ -1749,7 +1755,7 @@ export default function App() {
 
         {/* Reset Password Modal - shown via deep link */}
         <Modal visible={resetToken !== null} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+          <View style={{ flex: 1, backgroundColor: theme.bg }}>
             <ResetPasswordScreen
               token={resetToken || ''}
               onSuccess={() => setResetToken(null)}
@@ -1760,7 +1766,7 @@ export default function App() {
 
         {/* Verify Email Modal - shown via deep link */}
         <Modal visible={verifyToken !== null} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: COLORS.node.bg }}>
+          <View style={{ flex: 1, backgroundColor: theme.bg }}>
             <VerifyEmailScreen
               pendingToken={verifyToken || ''}
               email={emailForVerification}
@@ -1808,7 +1814,6 @@ const styles = StyleSheet.create({
   drawerLeft: {
     width: '80%',
     maxWidth: 300,
-    backgroundColor: COLORS.node.panel,
     height: '100%',
   },
   drawerLeftCollapsed: {
@@ -1818,7 +1823,6 @@ const styles = StyleSheet.create({
   drawerRight: {
     width: '85%',
     maxWidth: 320,
-    backgroundColor: COLORS.node.panel,
     height: '100%',
     position: 'relative',
   },
@@ -1832,7 +1836,6 @@ const styles = StyleSheet.create({
     height: '10%',
   },
   vibeModalContent: {
-    backgroundColor: COLORS.node.panel,
     borderTopLeftRadius: 8,
     borderTopRightRadius: 8,
     height: '90%',
@@ -1844,21 +1847,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: COLORS.node.panel,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   mobileNodeHeaderBack: {
     paddingVertical: 6,
     paddingHorizontal: 10,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   mobileNodeHeaderBackText: {
     fontSize: 13,
-    color: COLORS.node.textSecondary,
     fontWeight: '500',
   },
   mobileNodeHeaderInfo: {
@@ -1885,7 +1883,6 @@ const styles = StyleSheet.create({
   mobileNodeHeaderName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
     maxWidth: 150,
   },
 });
