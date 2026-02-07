@@ -14,7 +14,7 @@ import {
     Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, Crown, Globe, Scale, Ban } from 'lucide-react-native';
+import { ArrowLeft, Shield, Crown, Globe, Scale, Ban, Clock, CheckCircle, XCircle, AlertCircle, ChevronRight } from 'lucide-react-native';
 import Svg, { Circle, Line, G, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useTheme';
 import {
@@ -25,9 +25,17 @@ import {
     getCouncilEligibility,
     getVouchesGiven,
     getVouchesReceived,
+    listAppeals,
+    getMyJuryDuties,
+    getMyAppeals,
+    voteOnAppeal,
     type CouncilInfo,
     type CouncilEligibility,
     type CouncilMember,
+    type Appeal,
+    type AppealStatus,
+    type JuryDuty,
+    type AppealJuror,
 } from '../lib/api';
 import { showAlert, showToast } from '../lib/alert';
 import { useAuthStore } from '../store/auth';
@@ -1913,6 +1921,591 @@ const TrustTab = React.memo(function TrustTab({ userId, onUserClick }: TrustTabP
     );
 });
 
+// ── Appeals static styles ─────────────────────────────────────
+
+const STATUS_COLORS: Record<AppealStatus, string> = {
+    pending: '#f59e0b',
+    voting: '#3b82f6',
+    upheld: '#10b981',
+    overturned: '#ef4444',
+    expired: '#6b7280',
+};
+
+const STATUS_ICONS: Record<AppealStatus, React.ComponentType<{ size?: number; color?: string }>> = {
+    pending: Clock,
+    voting: Scale,
+    upheld: CheckCircle,
+    overturned: XCircle,
+    expired: AlertCircle,
+};
+
+const APPEAL_TARGET_LABELS: Record<string, string> = {
+    post: 'Appeal against post removal',
+    comment: 'Appeal against comment removal',
+    mod_action: 'Appeal against moderation action',
+};
+
+type AppealsSubTab = 'all' | 'jury' | 'mine';
+
+const APPEALS_SUB_TABS: { id: AppealsSubTab; label: string }[] = [
+    { id: 'all', label: 'All' },
+    { id: 'jury', label: 'Jury' },
+    { id: 'mine', label: 'Mine' },
+];
+
+const appealStyles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    subTabRow: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        gap: 8,
+    },
+    subTabPill: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    subTabLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    listContent: {
+        paddingBottom: 32,
+    },
+    // Appeal card
+    card: {
+        marginHorizontal: 16,
+        marginTop: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        flexDirection: 'row',
+        overflow: 'hidden',
+    },
+    cardStripe: {
+        width: 3,
+    },
+    cardBody: {
+        flex: 1,
+        padding: 12,
+        gap: 6,
+    },
+    cardHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    statusBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 8,
+        paddingVertical: 2,
+        borderRadius: 10,
+        gap: 4,
+    },
+    statusBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'capitalize',
+    },
+    appealTypeText: {
+        fontSize: 12,
+        flex: 1,
+    },
+    dateText: {
+        fontSize: 11,
+    },
+    reasonText: {
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    cardFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 2,
+    },
+    stakeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    timeRemainingText: {
+        fontSize: 11,
+        marginLeft: 12,
+    },
+    chevronContainer: {
+        marginLeft: 'auto',
+    },
+    // Jury duty card
+    juryCard: {
+        marginHorizontal: 16,
+        marginTop: 10,
+        borderRadius: 10,
+        borderWidth: 2,
+        overflow: 'hidden',
+    },
+    juryBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        gap: 6,
+    },
+    juryBannerText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    juryCardBody: {
+        padding: 12,
+        gap: 6,
+    },
+    juryButtonRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 4,
+    },
+    juryButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    juryButtonText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    // Vote modal
+    modalOverlay: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        padding: 24,
+    },
+    modalCard: {
+        width: '100%',
+        maxWidth: 400,
+        borderRadius: 14,
+        padding: 20,
+        gap: 16,
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        textAlign: 'center',
+    },
+    modalInput: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        fontSize: 14,
+        minHeight: 80,
+        textAlignVertical: 'top',
+    },
+    modalButtonRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    modalButton: {
+        flex: 1,
+        paddingVertical: 12,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    modalButtonText: {
+        fontSize: 15,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    modalCancelBtn: {
+        paddingVertical: 8,
+        alignItems: 'center',
+    },
+    modalCancelText: {
+        fontSize: 14,
+    },
+    // Empty / loading
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 12,
+    },
+    emptySubtitle: {
+        fontSize: 13,
+        marginTop: 4,
+        textAlign: 'center',
+    },
+});
+
+// ── AppealsTab ──────────────────────────────────────────────────
+
+function formatTimeRemaining(deadline: string): string {
+    const remaining = new Date(deadline).getTime() - Date.now();
+    if (remaining <= 0) return 'Expired';
+    const hours = Math.floor(remaining / (1000 * 60 * 60));
+    const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
+    if (hours >= 24) {
+        const days = Math.floor(hours / 24);
+        return `${days}d ${hours % 24}h left`;
+    }
+    return `${hours}h ${minutes}m left`;
+}
+
+function formatDate(iso: string): string {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const AppealsTab = React.memo(function AppealsTab() {
+    const theme = useAppTheme();
+    const [subTab, setSubTab] = useState<AppealsSubTab>('all');
+    const [loading, setLoading] = useState(true);
+    const [appeals, setAppeals] = useState<Appeal[]>([]);
+    const [juryDuties, setJuryDuties] = useState<Array<AppealJuror & { appeal: Appeal }>>([]);
+    const [myAppeals, setMyAppeals] = useState<Appeal[]>([]);
+
+    // Vote modal state
+    const [voteModalVisible, setVoteModalVisible] = useState(false);
+    const [voteAppealId, setVoteAppealId] = useState<string | null>(null);
+    const [voteReason, setVoteReason] = useState('');
+    const [voteSubmitting, setVoteSubmitting] = useState(false);
+
+    // Themed styles
+    const ats = useMemo(() => StyleSheet.create({
+        subTabPillActive: { backgroundColor: theme.accent, borderColor: theme.accent },
+        subTabPillInactive: { backgroundColor: 'transparent', borderColor: theme.border },
+        subTabLabelActive: { color: '#fff' },
+        subTabLabelInactive: { color: theme.muted },
+        card: { backgroundColor: theme.panel, borderColor: theme.border },
+        appealTypeText: { color: theme.textSecondary },
+        dateText: { color: theme.muted },
+        reasonText: { color: theme.text },
+        stakeText: { color: theme.accent },
+        timeRemainingText: { color: theme.muted },
+        juryCard: { borderColor: theme.accent },
+        juryBanner: { backgroundColor: theme.accent },
+        juryCardBody: { backgroundColor: theme.panel },
+        modalCard: { backgroundColor: theme.panel },
+        modalTitle: { color: theme.text },
+        modalInput: { borderColor: theme.border, color: theme.text, backgroundColor: theme.bg },
+        modalCancelText: { color: theme.muted },
+        emptyTitle: { color: theme.text },
+        emptySubtitle: { color: theme.muted },
+    }), [theme]);
+
+    // Fetch data
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            if (subTab === 'all') {
+                const result = await listAppeals();
+                setAppeals(result.appeals);
+            } else if (subTab === 'jury') {
+                const result = await getMyJuryDuties();
+                setJuryDuties(result.pending);
+            } else {
+                const result = await getMyAppeals();
+                setMyAppeals(result);
+            }
+        } catch (err) {
+            showAlert('Error', 'Failed to load appeals data.');
+        } finally {
+            setLoading(false);
+        }
+    }, [subTab]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    // Vote handlers
+    const openVoteModal = useCallback((appealId: string) => {
+        setVoteAppealId(appealId);
+        setVoteReason('');
+        setVoteModalVisible(true);
+    }, []);
+
+    const closeVoteModal = useCallback(() => {
+        setVoteModalVisible(false);
+        setVoteAppealId(null);
+        setVoteReason('');
+    }, []);
+
+    const handleVote = useCallback(async (vote: 'uphold' | 'overturn') => {
+        if (!voteAppealId) return;
+        setVoteSubmitting(true);
+        try {
+            await voteOnAppeal(voteAppealId, vote, voteReason || undefined);
+            showToast('Vote cast successfully');
+            closeVoteModal();
+            fetchData();
+        } catch (err) {
+            showAlert('Error', 'Failed to cast vote. Please try again.');
+        } finally {
+            setVoteSubmitting(false);
+        }
+    }, [voteAppealId, voteReason, closeVoteModal, fetchData]);
+
+    // Render an appeal card (for "all" and "mine" sub-tabs)
+    const renderAppealCard = useCallback(({ item }: { item: Appeal }) => {
+        const statusColor = STATUS_COLORS[item.status];
+        const StatusIcon = STATUS_ICONS[item.status];
+        const targetLabel = APPEAL_TARGET_LABELS[item.targetType] ?? 'Appeal';
+        const isVoting = item.status === 'voting';
+
+        return (
+            <View style={[appealStyles.card, ats.card]}>
+                <View style={[appealStyles.cardStripe, { backgroundColor: statusColor }]} />
+                <View style={appealStyles.cardBody}>
+                    {/* Header: status badge + type + date */}
+                    <View style={appealStyles.cardHeaderRow}>
+                        <View style={[appealStyles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <StatusIcon size={12} color={statusColor} />
+                            <Text style={[appealStyles.statusBadgeText, { color: statusColor }]}>
+                                {item.status}
+                            </Text>
+                        </View>
+                        <Text style={[appealStyles.appealTypeText, ats.appealTypeText]} numberOfLines={1}>
+                            {targetLabel}
+                        </Text>
+                        <Text style={[appealStyles.dateText, ats.dateText]}>
+                            {formatDate(item.createdAt)}
+                        </Text>
+                    </View>
+
+                    {/* Reason (truncated to 2 lines) */}
+                    <Text style={[appealStyles.reasonText, ats.reasonText]} numberOfLines={2}>
+                        {item.reason}
+                    </Text>
+
+                    {/* Footer: stake + time remaining + chevron */}
+                    <View style={appealStyles.cardFooter}>
+                        <Text style={[appealStyles.stakeText, ats.stakeText]}>
+                            {item.stake} cred staked
+                        </Text>
+                        {isVoting && item.juryDeadline && (
+                            <Text style={[appealStyles.timeRemainingText, ats.timeRemainingText]}>
+                                {formatTimeRemaining(item.juryDeadline)}
+                            </Text>
+                        )}
+                        <View style={appealStyles.chevronContainer}>
+                            <ChevronRight size={16} color={theme.muted} />
+                        </View>
+                    </View>
+                </View>
+            </View>
+        );
+    }, [ats, theme.muted]);
+
+    // Render a jury duty card
+    const renderJuryCard = useCallback(({ item }: { item: AppealJuror & { appeal: Appeal } }) => {
+        const appeal = item.appeal;
+        const statusColor = STATUS_COLORS[appeal.status];
+        const StatusIcon = STATUS_ICONS[appeal.status];
+        const targetLabel = APPEAL_TARGET_LABELS[appeal.targetType] ?? 'Appeal';
+
+        return (
+            <View style={[appealStyles.juryCard, ats.juryCard]}>
+                {/* "Your Vote Needed" banner */}
+                <View style={[appealStyles.juryBanner, ats.juryBanner]}>
+                    <Scale size={14} color="#fff" />
+                    <Text style={appealStyles.juryBannerText}>Your Vote Needed</Text>
+                </View>
+
+                <View style={[appealStyles.juryCardBody, ats.juryCardBody]}>
+                    {/* Header */}
+                    <View style={appealStyles.cardHeaderRow}>
+                        <View style={[appealStyles.statusBadge, { backgroundColor: statusColor + '20' }]}>
+                            <StatusIcon size={12} color={statusColor} />
+                            <Text style={[appealStyles.statusBadgeText, { color: statusColor }]}>
+                                {appeal.status}
+                            </Text>
+                        </View>
+                        <Text style={[appealStyles.appealTypeText, ats.appealTypeText]} numberOfLines={1}>
+                            {targetLabel}
+                        </Text>
+                        <Text style={[appealStyles.dateText, ats.dateText]}>
+                            {formatDate(appeal.createdAt)}
+                        </Text>
+                    </View>
+
+                    {/* Reason */}
+                    <Text style={[appealStyles.reasonText, ats.reasonText]} numberOfLines={2}>
+                        {appeal.reason}
+                    </Text>
+
+                    {/* Footer: stake + time remaining */}
+                    <View style={appealStyles.cardFooter}>
+                        <Text style={[appealStyles.stakeText, ats.stakeText]}>
+                            {appeal.stake} cred staked
+                        </Text>
+                        {appeal.juryDeadline && (
+                            <Text style={[appealStyles.timeRemainingText, ats.timeRemainingText]}>
+                                {formatTimeRemaining(appeal.juryDeadline)}
+                            </Text>
+                        )}
+                    </View>
+
+                    {/* Vote buttons */}
+                    <View style={appealStyles.juryButtonRow}>
+                        <Pressable
+                            style={[appealStyles.juryButton, { backgroundColor: '#10b981' }]}
+                            onPress={() => openVoteModal(appeal.id)}
+                        >
+                            <Text style={appealStyles.juryButtonText}>Uphold</Text>
+                        </Pressable>
+                        <Pressable
+                            style={[appealStyles.juryButton, { backgroundColor: '#ef4444' }]}
+                            onPress={() => openVoteModal(appeal.id)}
+                        >
+                            <Text style={appealStyles.juryButtonText}>Overturn</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </View>
+        );
+    }, [ats, openVoteModal]);
+
+    // Key extractors
+    const appealKeyExtractor = useCallback((item: Appeal) => item.id, []);
+    const juryKeyExtractor = useCallback((item: AppealJuror & { appeal: Appeal }) => item.id, []);
+
+    // Current data and renderer based on sub-tab
+    const listData = subTab === 'all' ? appeals : subTab === 'jury' ? juryDuties : myAppeals;
+    const isEmpty = !loading && listData.length === 0;
+
+    const emptyMessages: Record<AppealsSubTab, { title: string; subtitle: string }> = {
+        all: { title: 'No Appeals', subtitle: 'No appeals have been filed yet.' },
+        jury: { title: 'No Jury Duties', subtitle: 'You have no pending jury duties.' },
+        mine: { title: 'No Appeals Filed', subtitle: 'You haven\'t filed any appeals.' },
+    };
+
+    return (
+        <View style={appealStyles.container}>
+            {/* Sub-tab pills */}
+            <View style={appealStyles.subTabRow}>
+                {APPEALS_SUB_TABS.map((tab) => {
+                    const isActive = tab.id === subTab;
+                    return (
+                        <Pressable
+                            key={tab.id}
+                            style={[
+                                appealStyles.subTabPill,
+                                isActive ? ats.subTabPillActive : ats.subTabPillInactive,
+                            ]}
+                            onPress={() => setSubTab(tab.id)}
+                        >
+                            <Text
+                                style={[
+                                    appealStyles.subTabLabel,
+                                    isActive ? ats.subTabLabelActive : ats.subTabLabelInactive,
+                                ]}
+                            >
+                                {tab.label}
+                            </Text>
+                        </Pressable>
+                    );
+                })}
+            </View>
+
+            {/* Loading state */}
+            {loading ? (
+                <View style={appealStyles.centered}>
+                    <ActivityIndicator size="large" color={theme.accent} />
+                </View>
+            ) : isEmpty ? (
+                <View style={appealStyles.centered}>
+                    <Scale size={40} color={theme.muted} />
+                    <Text style={[appealStyles.emptyTitle, ats.emptyTitle]}>
+                        {emptyMessages[subTab].title}
+                    </Text>
+                    <Text style={[appealStyles.emptySubtitle, ats.emptySubtitle]}>
+                        {emptyMessages[subTab].subtitle}
+                    </Text>
+                </View>
+            ) : subTab === 'jury' ? (
+                <FlatList
+                    data={juryDuties}
+                    keyExtractor={juryKeyExtractor}
+                    renderItem={renderJuryCard}
+                    contentContainerStyle={appealStyles.listContent}
+                />
+            ) : (
+                <FlatList
+                    data={subTab === 'all' ? appeals : myAppeals}
+                    keyExtractor={appealKeyExtractor}
+                    renderItem={renderAppealCard}
+                    contentContainerStyle={appealStyles.listContent}
+                />
+            )}
+
+            {/* Vote modal (lazy) */}
+            {voteModalVisible && (
+                <Modal
+                    transparent
+                    animationType="fade"
+                    visible={voteModalVisible}
+                    onRequestClose={closeVoteModal}
+                >
+                    <Pressable style={appealStyles.modalOverlay} onPress={closeVoteModal}>
+                        <Pressable style={[appealStyles.modalCard, ats.modalCard]} onPress={(e) => e.stopPropagation()}>
+                            <Text style={[appealStyles.modalTitle, ats.modalTitle]}>Cast Your Vote</Text>
+
+                            <TextInput
+                                style={[appealStyles.modalInput, ats.modalInput]}
+                                placeholder="Reason for your vote (optional)"
+                                placeholderTextColor={theme.muted}
+                                value={voteReason}
+                                onChangeText={setVoteReason}
+                                multiline
+                                numberOfLines={3}
+                            />
+
+                            <View style={appealStyles.modalButtonRow}>
+                                <Pressable
+                                    style={[appealStyles.modalButton, { backgroundColor: '#10b981' }]}
+                                    onPress={() => handleVote('uphold')}
+                                    disabled={voteSubmitting}
+                                >
+                                    <Text style={appealStyles.modalButtonText}>
+                                        {voteSubmitting ? 'Submitting...' : 'Uphold'}
+                                    </Text>
+                                </Pressable>
+                                <Pressable
+                                    style={[appealStyles.modalButton, { backgroundColor: '#ef4444' }]}
+                                    onPress={() => handleVote('overturn')}
+                                    disabled={voteSubmitting}
+                                >
+                                    <Text style={appealStyles.modalButtonText}>
+                                        {voteSubmitting ? 'Submitting...' : 'Overturn'}
+                                    </Text>
+                                </Pressable>
+                            </View>
+
+                            <Pressable style={appealStyles.modalCancelBtn} onPress={closeVoteModal}>
+                                <Text style={[appealStyles.modalCancelText, ats.modalCancelText]}>Cancel</Text>
+                            </Pressable>
+                        </Pressable>
+                    </Pressable>
+                </Modal>
+            )}
+        </View>
+    );
+});
+
 // ── Component ──────────────────────────────────────────────────
 
 export const GovernanceScreen = ({
@@ -1997,6 +2590,8 @@ export const GovernanceScreen = ({
                 <CouncilTab nodeId={nodeId ?? ''} nodeName={nodeName ?? 'this node'} />
             ) : activeTab === 'trust' ? (
                 <TrustTab userId={userId} onUserClick={onUserClick} />
+            ) : activeTab === 'appeals' ? (
+                <AppealsTab />
             ) : (
                 <View style={styles.content}>
                     <Text style={[styles.placeholderText, ts.placeholderText]}>
