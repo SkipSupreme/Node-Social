@@ -25,11 +25,6 @@ interface SidebarProps {
     onSavedClick?: () => void;
     onNewPostClick?: () => void;
     onGovernanceClick?: () => void;
-    onModerationClick?: () => void;
-    onAppealsClick?: () => void;
-    onCouncilClick?: () => void;
-    onVouchesClick?: () => void;
-    onBlockedMutedClick?: () => void;
     onNotificationsClick?: () => void;
     onMessagesClick?: () => void;
     onAddColumnClick?: () => void;
