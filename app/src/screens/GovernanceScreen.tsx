@@ -14,7 +14,7 @@ import {
     Dimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, Shield, Crown, Globe, Scale, Ban, Clock, CheckCircle, XCircle, AlertCircle, ChevronRight } from 'lucide-react-native';
+import { ArrowLeft, Shield, Crown, Globe, Scale, Ban, Clock, CheckCircle, XCircle, AlertCircle, ChevronRight, UserX } from 'lucide-react-native';
 import Svg, { Circle, Line, G, Text as SvgText, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { useAppTheme } from '../hooks/useTheme';
 import {
@@ -36,9 +36,15 @@ import {
     type AppealStatus,
     type JuryDuty,
     type AppealJuror,
+    getBlockedUsers,
+    getMutedUsers,
+    blockUser,
+    muteUser,
+    type BlockedMutedUser,
 } from '../lib/api';
 import { showAlert, showToast } from '../lib/alert';
 import { useAuthStore } from '../store/auth';
+import { ERAS } from '../constants/theme';
 import { RevokeVouchModal } from '../components/ui/RevokeVouchModal';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -2506,6 +2512,310 @@ const AppealsTab = React.memo(function AppealsTab() {
     );
 });
 
+// ── Blocked Tab ───────────────────────────────────────────────
+
+type BlockedSubTab = 'blocked' | 'muted';
+
+interface BlockedTabProps {
+    onUserClick?: (userId: string) => void;
+}
+
+const blockedTabStyles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    subTabBar: {
+        flexDirection: 'row',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        gap: 8,
+    },
+    subTabPill: {
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    subTabPillLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    scrollContent: {
+        paddingBottom: 24,
+    },
+    userRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+    },
+    avatar: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+    },
+    avatarPlaceholder: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    avatarInitial: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    userInfo: {
+        flex: 1,
+        marginLeft: 12,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    username: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    eraBadge: {
+        paddingHorizontal: 6,
+        paddingVertical: 1,
+        borderRadius: 8,
+        borderWidth: 1,
+    },
+    eraBadgeText: {
+        fontSize: 10,
+        fontWeight: '600',
+    },
+    actionBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    actionBtnText: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    emptyContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 80,
+    },
+    emptyText: {
+        fontSize: 15,
+        marginTop: 12,
+    },
+    loader: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingTop: 80,
+    },
+});
+
+const BlockedTab = React.memo(function BlockedTab({ onUserClick }: BlockedTabProps) {
+    const theme = useAppTheme();
+    const [subTab, setSubTab] = useState<BlockedSubTab>('blocked');
+    const [blockedUsers, setBlockedUsers] = useState<BlockedMutedUser[]>([]);
+    const [mutedUsers, setMutedUsers] = useState<BlockedMutedUser[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [actionLoadingIds, setActionLoadingIds] = useState<Set<string>>(new Set());
+
+    // Themed styles
+    const bts = useMemo(() => StyleSheet.create({
+        container: { backgroundColor: theme.bg },
+        subTabPillActive: { backgroundColor: theme.accent, borderColor: theme.accent },
+        subTabPillInactive: { backgroundColor: 'transparent', borderColor: theme.border },
+        subTabPillLabelActive: { color: '#fff' },
+        subTabPillLabelInactive: { color: theme.muted },
+        userRow: { borderBottomColor: theme.border },
+        username: { color: theme.text },
+        actionBtnText: { color: theme.accent },
+        emptyText: { color: theme.muted },
+    }), [theme]);
+
+    // Fetch both lists in parallel
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const [blockedRes, mutedRes] = await Promise.all([
+                getBlockedUsers(),
+                getMutedUsers(),
+            ]);
+            setBlockedUsers(blockedRes.users);
+            setMutedUsers(mutedRes.users);
+        } catch {
+            showToast('Failed to load blocked/muted users', 'error');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        void fetchData();
+    }, [fetchData]);
+
+    const handleUnblock = useCallback(async (user: BlockedMutedUser) => {
+        setActionLoadingIds(prev => new Set(prev).add(user.id));
+        // Optimistic: remove from list immediately
+        setBlockedUsers(prev => prev.filter(u => u.id !== user.id));
+        try {
+            await blockUser(user.id);
+            showToast(`@${user.username} unblocked`, 'success');
+        } catch {
+            // Revert on failure
+            setBlockedUsers(prev => [...prev, user]);
+            showToast('Failed to unblock user', 'error');
+        } finally {
+            setActionLoadingIds(prev => {
+                const next = new Set(prev);
+                next.delete(user.id);
+                return next;
+            });
+        }
+    }, []);
+
+    const handleUnmute = useCallback(async (user: BlockedMutedUser) => {
+        setActionLoadingIds(prev => new Set(prev).add(user.id));
+        // Optimistic: remove from list immediately
+        setMutedUsers(prev => prev.filter(u => u.id !== user.id));
+        try {
+            await muteUser(user.id);
+            showToast(`@${user.username} unmuted`, 'success');
+        } catch {
+            // Revert on failure
+            setMutedUsers(prev => [...prev, user]);
+            showToast('Failed to unmute user', 'error');
+        } finally {
+            setActionLoadingIds(prev => {
+                const next = new Set(prev);
+                next.delete(user.id);
+                return next;
+            });
+        }
+    }, []);
+
+    const activeList = subTab === 'blocked' ? blockedUsers : mutedUsers;
+    const handleAction = subTab === 'blocked' ? handleUnblock : handleUnmute;
+    const actionLabel = subTab === 'blocked' ? 'Unblock' : 'Unmute';
+    const emptyMessage = subTab === 'blocked'
+        ? "You haven't blocked anyone"
+        : "You haven't muted anyone";
+
+    const renderUserRow = useCallback((user: BlockedMutedUser) => {
+        const eraStyle = ERAS[user.era] || ERAS['Default'];
+        const isActionLoading = actionLoadingIds.has(user.id);
+        const initial = user.username.charAt(0).toUpperCase();
+
+        return (
+            <Pressable
+                key={user.id}
+                style={[blockedTabStyles.userRow, bts.userRow]}
+                onPress={() => onUserClick?.(user.id)}
+            >
+                {/* Avatar */}
+                {user.avatar ? (
+                    <Image
+                        source={{ uri: user.avatar }}
+                        style={blockedTabStyles.avatar}
+                    />
+                ) : (
+                    <View style={[blockedTabStyles.avatarPlaceholder, { backgroundColor: eraStyle.bg }]}>
+                        <Text style={[blockedTabStyles.avatarInitial, { color: eraStyle.text }]}>
+                            {initial}
+                        </Text>
+                    </View>
+                )}
+
+                {/* Username + Era badge */}
+                <View style={blockedTabStyles.userInfo}>
+                    <Text style={[blockedTabStyles.username, bts.username]}>
+                        @{user.username}
+                    </Text>
+                    <View style={[blockedTabStyles.eraBadge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border }]}>
+                        <Text style={[blockedTabStyles.eraBadgeText, { color: eraStyle.text }]}>
+                            {user.era}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Action button */}
+                <Pressable
+                    style={blockedTabStyles.actionBtn}
+                    onPress={() => void handleAction(user)}
+                    disabled={isActionLoading}
+                >
+                    {isActionLoading ? (
+                        <ActivityIndicator size="small" color={theme.accent} />
+                    ) : (
+                        <Text style={[blockedTabStyles.actionBtnText, bts.actionBtnText]}>
+                            {actionLabel}
+                        </Text>
+                    )}
+                </Pressable>
+            </Pressable>
+        );
+    }, [actionLoadingIds, bts, onUserClick, handleAction, actionLabel, theme.accent]);
+
+    if (loading) {
+        return (
+            <View style={blockedTabStyles.loader}>
+                <ActivityIndicator size="large" color={theme.accent} />
+            </View>
+        );
+    }
+
+    return (
+        <View style={[blockedTabStyles.container, bts.container]}>
+            {/* Sub-tab pills */}
+            <View style={blockedTabStyles.subTabBar}>
+                <Pressable
+                    style={[
+                        blockedTabStyles.subTabPill,
+                        subTab === 'blocked' ? bts.subTabPillActive : bts.subTabPillInactive,
+                    ]}
+                    onPress={() => setSubTab('blocked')}
+                >
+                    <Text style={[
+                        blockedTabStyles.subTabPillLabel,
+                        subTab === 'blocked' ? bts.subTabPillLabelActive : bts.subTabPillLabelInactive,
+                    ]}>
+                        Blocked ({blockedUsers.length})
+                    </Text>
+                </Pressable>
+                <Pressable
+                    style={[
+                        blockedTabStyles.subTabPill,
+                        subTab === 'muted' ? bts.subTabPillActive : bts.subTabPillInactive,
+                    ]}
+                    onPress={() => setSubTab('muted')}
+                >
+                    <Text style={[
+                        blockedTabStyles.subTabPillLabel,
+                        subTab === 'muted' ? bts.subTabPillLabelActive : bts.subTabPillLabelInactive,
+                    ]}>
+                        Muted ({mutedUsers.length})
+                    </Text>
+                </Pressable>
+            </View>
+
+            {/* User list or empty state */}
+            {activeList.length === 0 ? (
+                <View style={blockedTabStyles.emptyContainer}>
+                    <UserX size={40} color={theme.muted} />
+                    <Text style={[blockedTabStyles.emptyText, bts.emptyText]}>
+                        {emptyMessage}
+                    </Text>
+                </View>
+            ) : (
+                <ScrollView contentContainerStyle={blockedTabStyles.scrollContent}>
+                    {activeList.map(renderUserRow)}
+                </ScrollView>
+            )}
+        </View>
+    );
+});
+
 // ── Component ──────────────────────────────────────────────────
 
 export const GovernanceScreen = ({
@@ -2593,11 +2903,7 @@ export const GovernanceScreen = ({
             ) : activeTab === 'appeals' ? (
                 <AppealsTab />
             ) : (
-                <View style={styles.content}>
-                    <Text style={[styles.placeholderText, ts.placeholderText]}>
-                        {activeTabDef ? `${activeTabDef.label} tab placeholder` : ''}
-                    </Text>
-                </View>
+                <BlockedTab onUserClick={onUserClick} />
             )}
         </SafeAreaView>
     );
