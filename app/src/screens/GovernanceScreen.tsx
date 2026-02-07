@@ -10,11 +10,20 @@ import {
     Modal,
     TextInput,
     TouchableOpacity,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Shield, Crown, Globe, Scale, Ban } from 'lucide-react-native';
 import { useAppTheme } from '../hooks/useTheme';
-import { api, type Post } from '../lib/api';
+import {
+    api,
+    type Post,
+    getNodeCouncil,
+    getCouncilEligibility,
+    type CouncilInfo,
+    type CouncilEligibility,
+    type CouncilMember,
+} from '../lib/api';
 import { showAlert } from '../lib/alert';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -333,6 +342,168 @@ const modStyles = StyleSheet.create({
     modalBtnText: {
         fontSize: 14,
         fontWeight: '600',
+    },
+});
+
+// ── Council static styles ────────────────────────────────────────
+
+const councilStyles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    listContent: {
+        paddingBottom: 24,
+    },
+    // Status card
+    statusCard: {
+        marginHorizontal: 16,
+        marginTop: 16,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        padding: 14,
+    },
+    statusCardOnCouncil: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+    },
+    statusCardTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+    },
+    statusCardSub: {
+        fontSize: 13,
+        marginTop: 2,
+    },
+    progressRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 6,
+    },
+    progressLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    progressValue: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    progressBarBg: {
+        height: 8,
+        borderRadius: 4,
+        overflow: 'hidden',
+    },
+    progressBarFill: {
+        height: 8,
+        borderRadius: 4,
+    },
+    progressHint: {
+        fontSize: 12,
+        marginTop: 6,
+    },
+    // Stats row
+    statsRow: {
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+    },
+    statsText: {
+        fontSize: 13,
+    },
+    statsBold: {
+        fontWeight: '700',
+    },
+    // Leaderboard row
+    leaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        gap: 10,
+    },
+    rankBadge: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    rankText: {
+        fontSize: 12,
+        fontWeight: '800',
+    },
+    memberAvatar: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+    },
+    memberAvatarFallback: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    memberAvatarInitial: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: '#fff',
+    },
+    memberInfo: {
+        flex: 1,
+        gap: 4,
+    },
+    memberUsername: {
+        fontSize: 13,
+        fontWeight: '600',
+    },
+    weightBarRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    weightBarBg: {
+        flex: 1,
+        height: 6,
+        borderRadius: 3,
+        overflow: 'hidden',
+    },
+    weightBarFill: {
+        height: 6,
+        borderRadius: 3,
+    },
+    weightLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        minWidth: 36,
+        textAlign: 'right',
+    },
+    activityPill: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 8,
+    },
+    activityPillText: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    // Loading / Error / Empty
+    centered: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+    },
+    emptyTitle: {
+        fontSize: 16,
+        fontWeight: '600',
+        marginTop: 12,
+    },
+    emptySubtitle: {
+        fontSize: 13,
+        marginTop: 4,
+        textAlign: 'center',
     },
 });
 
@@ -694,13 +865,283 @@ const ModerationTab = React.memo(function ModerationTab() {
     );
 });
 
+// ── CouncilTab ──────────────────────────────────────────────────
+
+interface CouncilTabProps {
+    nodeId: string;
+    nodeName: string;
+}
+
+const CouncilTab = React.memo(function CouncilTab({ nodeId, nodeName }: CouncilTabProps) {
+    const theme = useAppTheme();
+    const [council, setCouncil] = useState<CouncilInfo | null>(null);
+    const [eligibility, setEligibility] = useState<CouncilEligibility | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    // Themed styles
+    const cts = useMemo(() => StyleSheet.create({
+        statusCardBorder: { borderColor: '#d4a017', backgroundColor: theme.panel },
+        statusCardDefault: { borderColor: theme.border, backgroundColor: theme.panel },
+        statusCardTitle: { color: theme.text },
+        statusCardSub: { color: theme.muted },
+        progressLabel: { color: theme.text },
+        progressValue: { color: theme.accent },
+        progressBarBg: { backgroundColor: theme.bgAlt },
+        progressBarFill: { backgroundColor: theme.accent },
+        progressHint: { color: theme.muted },
+        statsText: { color: theme.muted },
+        statsBold: { color: theme.text },
+        leaderRow: { borderBottomColor: theme.border },
+        rankBadgeDefault: { backgroundColor: theme.bgAlt },
+        rankText: { color: theme.text },
+        memberUsername: { color: theme.text },
+        weightBarBg: { backgroundColor: theme.bgAlt },
+        weightBarFill: { backgroundColor: theme.accent },
+        weightLabel: { color: theme.textSecondary },
+        activityPill: { backgroundColor: theme.bgAlt },
+        activityPillText: { color: theme.textSecondary },
+        emptyTitle: { color: theme.text },
+        emptySubtitle: { color: theme.muted },
+    }), [theme]);
+
+    // Fetch data
+    useEffect(() => {
+        let cancelled = false;
+
+        async function load() {
+            try {
+                setLoading(true);
+                setError(null);
+
+                const [councilData, eligibilityData] = await Promise.all([
+                    getNodeCouncil(nodeId),
+                    getCouncilEligibility(nodeId).catch(() => null),
+                ]);
+
+                if (cancelled) return;
+                setCouncil(councilData);
+                setEligibility(eligibilityData);
+            } catch (err) {
+                if (cancelled) return;
+                console.error('Failed to fetch council data:', err);
+                setError('Failed to load council data');
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+
+        load();
+        return () => { cancelled = true; };
+    }, [nodeId]);
+
+    // Derived: max governance weight for proportional bars
+    const maxWeight = useMemo(() => {
+        if (!council?.members.length) return 1;
+        return Math.max(...council.members.map(m => m.governanceWeight), 1);
+    }, [council]);
+
+    // Render leaderboard row
+    const renderMember = useCallback(({ item, index }: { item: CouncilMember; index: number }) => {
+        const rank = index + 1;
+        const isFirst = rank === 1;
+        const barWidthPercent = (item.governanceWeight / maxWeight) * 100;
+        const activityPercent = Math.round(item.activityMultiplier * 100);
+
+        return (
+            <View style={[councilStyles.leaderRow, cts.leaderRow]}>
+                {/* Rank badge */}
+                <View
+                    style={[
+                        councilStyles.rankBadge,
+                        isFirst
+                            ? { backgroundColor: '#d4a017' }
+                            : cts.rankBadgeDefault,
+                    ]}
+                >
+                    {isFirst ? (
+                        <Crown size={14} color="#fff" />
+                    ) : (
+                        <Text style={[councilStyles.rankText, cts.rankText]}>{rank}</Text>
+                    )}
+                </View>
+
+                {/* Avatar */}
+                {item.avatar ? (
+                    <Image
+                        source={{ uri: item.avatar }}
+                        style={councilStyles.memberAvatar}
+                    />
+                ) : (
+                    <View style={[councilStyles.memberAvatarFallback, { backgroundColor: theme.accent }]}>
+                        <Text style={councilStyles.memberAvatarInitial}>
+                            {item.username.slice(0, 1).toUpperCase()}
+                        </Text>
+                    </View>
+                )}
+
+                {/* Name + weight bar */}
+                <View style={councilStyles.memberInfo}>
+                    <Text style={[councilStyles.memberUsername, cts.memberUsername]} numberOfLines={1}>
+                        @{item.username}
+                    </Text>
+                    <View style={councilStyles.weightBarRow}>
+                        <View style={[councilStyles.weightBarBg, cts.weightBarBg]}>
+                            <View
+                                style={[
+                                    councilStyles.weightBarFill,
+                                    cts.weightBarFill,
+                                    { width: `${barWidthPercent}%` },
+                                ]}
+                            />
+                        </View>
+                        <Text style={[councilStyles.weightLabel, cts.weightLabel]}>
+                            {item.governanceWeight.toLocaleString()}
+                        </Text>
+                    </View>
+                </View>
+
+                {/* Activity multiplier pill */}
+                <View style={[councilStyles.activityPill, cts.activityPill]}>
+                    <Text style={[councilStyles.activityPillText, cts.activityPillText]}>
+                        {activityPercent}%
+                    </Text>
+                </View>
+            </View>
+        );
+    }, [maxWeight, theme, cts]);
+
+    const keyExtractor = useCallback((item: CouncilMember) => item.id, []);
+
+    // List header: status card + stats row
+    const ListHeader = useMemo(() => {
+        if (!council) return null;
+
+        const memberCount = council.members.length;
+        const totalWeight = council.totalGovernanceWeight;
+
+        return (
+            <View>
+                {/* Your Status Card */}
+                {eligibility != null && (
+                    eligibility.isOnCouncil ? (
+                        <View style={[councilStyles.statusCard, cts.statusCardBorder, councilStyles.statusCardOnCouncil]}>
+                            <Crown size={22} color="#d4a017" />
+                            <View style={{ flex: 1 }}>
+                                <Text style={[councilStyles.statusCardTitle, cts.statusCardTitle]}>
+                                    You&apos;re on the Council!
+                                </Text>
+                                <Text style={[councilStyles.statusCardSub, cts.statusCardSub]}>
+                                    Rank #{eligibility.rank ?? '—'} in {nodeName}
+                                </Text>
+                            </View>
+                        </View>
+                    ) : (
+                        <View style={[councilStyles.statusCard, cts.statusCardDefault]}>
+                            <View style={councilStyles.progressRow}>
+                                <Text style={[councilStyles.progressLabel, cts.progressLabel]}>
+                                    Your Weight
+                                </Text>
+                                <Text style={[councilStyles.progressValue, cts.progressValue]}>
+                                    {eligibility.governanceWeight.toLocaleString()}
+                                </Text>
+                            </View>
+                            <View style={[councilStyles.progressBarBg, cts.progressBarBg]}>
+                                <View
+                                    style={[
+                                        councilStyles.progressBarFill,
+                                        cts.progressBarFill,
+                                        {
+                                            width: eligibility.credNeededForCouncil > 0
+                                                ? `${Math.min(
+                                                    (eligibility.governanceWeight / (eligibility.governanceWeight + eligibility.credNeededForCouncil)) * 100,
+                                                    100
+                                                )}%`
+                                                : '100%',
+                                        },
+                                    ]}
+                                />
+                            </View>
+                            <Text style={[councilStyles.progressHint, cts.progressHint]}>
+                                {eligibility.credNeededForCouncil > 0
+                                    ? `Need ${eligibility.credNeededForCouncil.toLocaleString()} more weight to join`
+                                    : 'You meet the threshold — keep it up!'}
+                            </Text>
+                        </View>
+                    )
+                )}
+
+                {/* Stats row */}
+                <View style={councilStyles.statsRow}>
+                    <Text style={[councilStyles.statsText, cts.statsText]}>
+                        <Text style={[councilStyles.statsBold, cts.statsBold]}>{memberCount}</Text>
+                        {' '}Member{memberCount !== 1 ? 's' : ''} · <Text style={[councilStyles.statsBold, cts.statsBold]}>{totalWeight.toLocaleString()}</Text>
+                        {' '}Total Weight
+                    </Text>
+                </View>
+            </View>
+        );
+    }, [council, eligibility, nodeName, cts]);
+
+    // Loading state
+    if (loading) {
+        return (
+            <View style={councilStyles.centered}>
+                <ActivityIndicator size="large" color={theme.accent} />
+            </View>
+        );
+    }
+
+    // Error state
+    if (error || !council) {
+        return (
+            <View style={councilStyles.centered}>
+                <Crown size={36} color={theme.muted} />
+                <Text style={[councilStyles.emptyTitle, cts.emptyTitle]}>
+                    {error ?? 'No council data'}
+                </Text>
+                <Text style={[councilStyles.emptySubtitle, cts.emptySubtitle]}>
+                    Council data could not be loaded for this node
+                </Text>
+            </View>
+        );
+    }
+
+    // Empty council
+    if (council.members.length === 0) {
+        return (
+            <View style={councilStyles.centered}>
+                <Crown size={36} color={theme.muted} />
+                <Text style={[councilStyles.emptyTitle, cts.emptyTitle]}>No council members yet</Text>
+                <Text style={[councilStyles.emptySubtitle, cts.emptySubtitle]}>
+                    Earn cred in {nodeName} to become a council member
+                </Text>
+            </View>
+        );
+    }
+
+    return (
+        <FlatList
+            data={council.members}
+            renderItem={renderMember}
+            keyExtractor={keyExtractor}
+            style={councilStyles.container}
+            contentContainerStyle={councilStyles.listContent}
+            ListHeaderComponent={ListHeader}
+            initialNumToRender={15}
+            maxToRenderPerBatch={10}
+            windowSize={7}
+        />
+    );
+});
+
 // ── Component ──────────────────────────────────────────────────
 
 export const GovernanceScreen = ({
     onBack,
     initialTab = 'moderation',
-    nodeId: _nodeId,
-    nodeName: _nodeName,
+    nodeId,
+    nodeName,
     userId: _userId,
     onUserClick: _onUserClick,
 }: GovernanceScreenProps) => {
@@ -774,6 +1215,8 @@ export const GovernanceScreen = ({
             {/* Tab Content */}
             {activeTab === 'moderation' ? (
                 <ModerationTab />
+            ) : activeTab === 'council' ? (
+                <CouncilTab nodeId={nodeId ?? ''} nodeName={nodeName ?? 'this node'} />
             ) : (
                 <View style={styles.content}>
                     <Text style={[styles.placeholderText, ts.placeholderText]}>
