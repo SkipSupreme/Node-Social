@@ -323,7 +323,7 @@ export function interleaveExplorationSlots<T extends { id: string }>(
   explorationPosts: T[],
   explorationRate: number = DEFAULT_EXPLORATION_RATE
 ): T[] {
-  if (explorationPosts.length === 0) {
+  if (explorationPosts.length === 0 || explorationRate <= 0) {
     return mainFeed;
   }
 

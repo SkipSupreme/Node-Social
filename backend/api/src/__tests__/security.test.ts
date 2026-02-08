@@ -37,6 +37,7 @@ import {
   generateTestToken,
   generateExpiredToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 import type { createMockRedis } from './helpers.js';
@@ -62,13 +63,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
   redis._store.clear();
 });
 
@@ -116,8 +111,11 @@ describe('CSRF Protection', () => {
   });
 
   it('should allow requests when CSRF cookie and header match', async () => {
-    // Even though the user may not be authenticated via JWT, the CSRF hook
-    // should pass when the tokens match.
+    // The CSRF hook should pass when cookie and header tokens match.
+    // We also supply a Bearer token for authentication because the test helper's
+    // @fastify/jwt is not configured with the cookie option, so cookie-based JWT
+    // verification doesn't work in tests. The important thing is that the CSRF
+    // hook itself passes (it would return 403 if it didn't).
     prisma.refreshToken.updateMany.mockResolvedValue({ count: 0 });
 
     const res = await app.inject({
@@ -129,13 +127,14 @@ describe('CSRF Protection', () => {
         csrfToken: 'matching-csrf-token',
       },
       headers: {
+        authorization: authHeader(validToken),
         'x-csrf-token': 'matching-csrf-token',
       },
       payload: {},
     });
 
     // The CSRF check passes; the request proceeds to the authenticate hook.
-    // With a valid accessToken cookie, it should succeed.
+    // With a valid Bearer token, the request succeeds.
     expect(res.statusCode).toBe(200);
   });
 
@@ -149,6 +148,12 @@ describe('CSRF Protection', () => {
         accessToken: validToken,
         refreshToken: 'some-refresh',
         // No CSRF tokens
+      },
+      headers: {
+        // Bearer header needed because test helper's @fastify/jwt isn't configured
+        // with the cookie option. The key assertion is that no CSRF token is needed
+        // for GET requests (a POST with these cookies but no CSRF would get 403).
+        authorization: authHeader(validToken),
       },
     });
 
@@ -177,16 +182,15 @@ describe('CSRF Protection', () => {
 // 2. Authentication Enforcement
 // =========================================================================
 describe('Authentication Enforcement', () => {
+  // Note: GET /posts, GET /posts/:id, and GET /search/posts use optionalAuthenticate
+  // (anonymous access allowed for public browsing). They are NOT in this list.
   const protectedEndpoints = [
-    { method: 'GET' as const, url: '/posts' },
     { method: 'POST' as const, url: '/posts', payload: { content: 'test' } },
-    { method: 'GET' as const, url: '/posts/some-id' },
     { method: 'DELETE' as const, url: '/posts/some-id' },
     { method: 'GET' as const, url: '/users/me' },
     { method: 'PUT' as const, url: '/users/me', payload: { bio: 'test' } },
     { method: 'GET' as const, url: '/reactions/vectors' },
     { method: 'GET' as const, url: '/feed-preferences' },
-    { method: 'GET' as const, url: '/search/posts?q=test' },
   ];
 
   for (const endpoint of protectedEndpoints) {
@@ -208,11 +212,8 @@ describe('Authentication Enforcement', () => {
 // =========================================================================
 describe('Token Expiry', () => {
   it('should reject an expired JWT access token', async () => {
-    // Generate a token that expires immediately (0 seconds)
+    // generateExpiredToken uses expiresIn: '-1s' so the token is already expired
     const expiredToken = generateExpiredToken(app, USER_ID);
-
-    // Wait a small moment to ensure the token is expired
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const res = await app.inject({
       method: 'GET',
@@ -225,7 +226,6 @@ describe('Token Expiry', () => {
 
   it('should reject an expired access token in cookie', async () => {
     const expiredToken = generateExpiredToken(app, USER_ID);
-    await new Promise((resolve) => setTimeout(resolve, 50));
 
     const res = await app.inject({
       method: 'GET',
@@ -304,10 +304,9 @@ describe('Auth Bypass Attempts', () => {
 // =========================================================================
 // 5. SSRF in Metadata Endpoint
 // =========================================================================
-describe('SSRF Vulnerability in /metadata/preview', () => {
-  // NOTE: The current implementation does NOT validate the URL against internal
-  // IP ranges. These tests document the vulnerability for future remediation.
-  // In production, the fetch should block requests to private IPs (10.x, 172.16-31.x,
+describe('SSRF Protection in /metadata/preview', () => {
+  // The metadata route uses validateUrlForSSRF() to resolve DNS and reject
+  // URLs that point to private/reserved IP ranges (10.x, 172.16-31.x,
   // 192.168.x, 169.254.x, localhost, and cloud metadata endpoints).
 
   it('should reject invalid URL format', async () => {
@@ -355,13 +354,9 @@ describe('SSRF Vulnerability in /metadata/preview', () => {
     expect(res.json().title).toBe('Cached Title');
   });
 
-  // The following test documents that internal URLs are NOT blocked.
-  // This is a known vulnerability that should be fixed.
-  it('[VULNERABILITY] does not block cloud metadata URLs (169.254.169.254)', async () => {
-    // In a real security test, we would verify that the server rejects
-    // fetches to 169.254.169.254. Since our test mocks do not actually
-    // perform network requests, we verify that the URL passes Zod validation
-    // (which it should NOT in a properly hardened implementation).
+  it('should block cloud metadata URLs (169.254.169.254)', async () => {
+    // The validateUrlForSSRF() function resolves DNS and checks for private IPs.
+    // 169.254.169.254 resolves to a link-local address that isPrivateIP() blocks.
     prisma.linkMetadata.findUnique.mockResolvedValue(null);
 
     const res = await app.inject({
@@ -371,15 +366,12 @@ describe('SSRF Vulnerability in /metadata/preview', () => {
       payload: { url: 'http://169.254.169.254/latest/meta-data/' },
     });
 
-    // Currently: the URL passes Zod's z.string().url() validation.
-    // The fetch will fail in tests (no network) but the validation passes.
-    // EXPECTED (after fix): 400 with "URL not allowed" or similar.
-    // For now, we just verify it does not return 400 with "Invalid URL"
-    // which would mean the schema blocked it (it does not).
-    expect(res.statusCode).not.toBe(400);
+    // SSRF protection blocks the request before any fetch occurs.
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('URL not allowed');
   });
 
-  it('[VULNERABILITY] does not block localhost URLs', async () => {
+  it('should block localhost URLs', async () => {
     prisma.linkMetadata.findUnique.mockResolvedValue(null);
 
     const res = await app.inject({
@@ -389,8 +381,9 @@ describe('SSRF Vulnerability in /metadata/preview', () => {
       payload: { url: 'http://localhost:3000/health' },
     });
 
-    // Localhost URLs pass Zod validation -- this is a vulnerability.
-    expect(res.statusCode).not.toBe(400);
+    // SSRF protection blocks localhost (127.0.0.1) after DNS resolution.
+    expect(res.statusCode).toBe(400);
+    expect(res.json().error).toBe('URL not allowed');
   });
 });
 
@@ -494,8 +487,11 @@ describe('Cookie Security Attributes', () => {
     expect(accessCookie?.httpOnly).toBe(true);
     expect(refreshCookie?.httpOnly).toBe(true);
 
-    // csrfToken must NOT be httpOnly (JS needs to read it for the header)
-    expect(csrfCookie?.httpOnly).toBe(false);
+    // csrfToken must NOT be httpOnly (JS needs to read it for the header).
+    // When httpOnly is false, Fastify omits it from the parsed cookie object
+    // (the HttpOnly flag is simply absent from the Set-Cookie header), so the
+    // property is undefined rather than false.
+    expect(csrfCookie?.httpOnly).toBeFalsy();
 
     // All session cookies should use sameSite: lax
     expect(accessCookie?.sameSite).toBe('Lax');

@@ -15,6 +15,7 @@ import {
   createTestUser,
   generateTestToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 
@@ -36,13 +37,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
 });
 
 // =========================================================================

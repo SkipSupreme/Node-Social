@@ -17,6 +17,7 @@ import {
   createTestNode,
   generateTestToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 import type { createMockRedis } from './helpers.js';
@@ -25,8 +26,8 @@ let app: FastifyInstance;
 let prisma: MockPrismaClient;
 let redis: ReturnType<typeof createMockRedis>;
 
-const USER_ID = 'post-test-user-1';
-const OTHER_USER_ID = 'post-test-user-2';
+const USER_ID = '11111111-1111-1111-1111-111111111111';
+const OTHER_USER_ID = '22222222-2222-2222-2222-222222222222';
 let token: string;
 
 beforeAll(async () => {
@@ -42,13 +43,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
 });
 
 // =========================================================================
@@ -64,7 +59,7 @@ describe('POST /posts', () => {
       method: 'POST',
       url: '/posts',
       headers: { authorization: authHeader(token) },
-      payload: { content: 'Hello, world!' },
+      payload: { content: 'Hello, world!', title: 'Test Post' },
     });
 
     expect(res.statusCode).toBe(201);
@@ -72,18 +67,17 @@ describe('POST /posts', () => {
   });
 
   it('should create a post linked to a node', async () => {
-    const node = createTestNode(USER_ID, { id: 'node-1' });
+    const node = createTestNode(USER_ID);
     prisma.node.findUnique.mockResolvedValue(node);
     prisma.post.create.mockResolvedValue(
       createTestPost(USER_ID, { nodeId: node.id })
     );
-    prisma.linkMetadata.findUnique.mockResolvedValue(null);
 
     const res = await app.inject({
       method: 'POST',
       url: '/posts',
       headers: { authorization: authHeader(token) },
-      payload: { content: 'Node post!', nodeId: node.id },
+      payload: { content: 'Node post!', title: 'Node Post', nodeId: node.id },
     });
 
     expect(res.statusCode).toBe(201);
@@ -96,7 +90,7 @@ describe('POST /posts', () => {
       method: 'POST',
       url: '/posts',
       headers: { authorization: authHeader(token) },
-      payload: { content: 'Node post!', nodeId: '00000000-0000-0000-0000-000000000000' },
+      payload: { content: 'Node post!', title: 'Node Post', nodeId: '00000000-0000-0000-0000-000000000000' },
     });
 
     expect(res.statusCode).toBe(404);
@@ -223,13 +217,16 @@ describe('GET /posts (feed)', () => {
     );
   });
 
-  it('should require authentication', async () => {
+  it('should allow anonymous access (optionalAuthenticate)', async () => {
+    prisma.post.findMany.mockResolvedValue([]);
+    prisma.userFeedPreference.findUnique.mockResolvedValue(null);
+
     const res = await app.inject({
       method: 'GET',
       url: '/posts',
     });
 
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(200);
   });
 
   it('should reject invalid limit parameter', async () => {
@@ -293,13 +290,16 @@ describe('GET /posts/:id', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('should require authentication', async () => {
+  it('should allow anonymous access (optionalAuthenticate)', async () => {
+    prisma.post.findUnique.mockResolvedValue(null);
+
     const res = await app.inject({
       method: 'GET',
       url: '/posts/some-id',
     });
 
-    expect(res.statusCode).toBe(401);
+    // Anonymous users can access the endpoint, post just not found
+    expect(res.statusCode).toBe(404);
   });
 });
 

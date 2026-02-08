@@ -145,7 +145,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryS
         setUserHasMore(true);
     };
 
-    const renderUserItem = ({ item }: { item: SearchUser }) => (
+    const renderUserItem = useCallback(({ item }: { item: SearchUser }) => (
         <TouchableOpacity
             style={[styles.userItem, { backgroundColor: theme.panel, borderColor: theme.border }]}
             onPress={() => onUserClick?.(item.id)}
@@ -185,7 +185,14 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryS
                 </View>
             </View>
         </TouchableOpacity>
-    );
+    ), [theme, onUserClick]);
+
+    const renderPostItem = useCallback(({ item }: { item: Post }) => (
+        <PostCard
+            post={item}
+            onPress={() => onPostClick?.(item)}
+        />
+    ), [onPostClick]);
 
     const displayPosts = searched ? postResults : trending;
     const hasResults = activeTab === 'posts' ? postResults.length > 0 : userResults.length > 0;
@@ -268,12 +275,7 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryS
                 <FlatList
                     data={displayPosts}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <PostCard
-                            post={item}
-                            onPress={() => onPostClick?.(item)}
-                        />
-                    )}
+                    renderItem={renderPostItem}
                     contentContainerStyle={styles.listContent}
                     onEndReached={searched ? loadMorePosts : undefined}
                     onEndReachedThreshold={0.3}

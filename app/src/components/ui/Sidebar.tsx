@@ -2,7 +2,7 @@
 import React, { ComponentType, useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, TextInput, StyleSheet, Platform, Image, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Hexagon, Zap, Flame, Users, Search, Palette, X, Shield, Bookmark, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
+import { Hexagon, Zap, Flame, Users, Search, Settings, X, Shield, Bookmark, Bell, MessageSquare, Plus, HelpCircle } from './Icons';
 import { ERAS } from '../../constants/theme';
 import { useAppTheme } from '../../hooks/useTheme';
 import type { Node } from '../../lib/api';
@@ -21,7 +21,7 @@ interface SidebarProps {
     onNodeInfo?: (nodeId: string) => void;
     feedMode?: 'global' | 'discovery' | 'following';
     onFeedModeSelect?: (mode: 'global' | 'discovery' | 'following') => void;
-    onThemesClick?: () => void;
+    onSettingsClick?: () => void;
     onSavedClick?: () => void;
     onNewPostClick?: () => void;
     onGovernanceClick?: () => void;
@@ -126,7 +126,7 @@ export const Sidebar = ({
     onNodeInfo,
     feedMode = 'global',
     onFeedModeSelect,
-    onThemesClick,
+    onSettingsClick,
     onSavedClick,
     onNewPostClick,
     onGovernanceClick,
@@ -143,12 +143,16 @@ export const Sidebar = ({
 }: SidebarProps) => {
     const theme = useAppTheme();
     const [searchQuery, setSearchQuery] = useState('');
+    const [searchDropdownOpen, setSearchDropdownOpen] = useState(false);
+    const searchInputRef = useRef<TextInput>(null);
 
     const handleSearchSubmit = () => {
         const trimmed = searchQuery.trim();
         if (trimmed && onSearch) {
             onSearch(trimmed);
             setSearchQuery('');
+            setSearchDropdownOpen(false);
+            searchInputRef.current?.blur();
             if (onClose && !isDesktop) {
                 onClose();
             }
@@ -206,11 +210,6 @@ export const Sidebar = ({
                         onPress={() => handleModeClick('following')}
                     />
                     <CollapsedNavItem
-                        icon={Palette}
-                        active={currentView === 'themes'}
-                        onPress={onThemesClick}
-                    />
-                    <CollapsedNavItem
                         icon={Bookmark}
                         active={currentView === 'saved'}
                         onPress={onSavedClick}
@@ -220,11 +219,20 @@ export const Sidebar = ({
                         active={currentView === 'governance' || currentView === 'moderation' || currentView === 'appeals' || currentView === 'council' || currentView === 'vouches' || currentView === 'trust-graph' || currentView === 'blocked-muted'}
                         onPress={onGovernanceClick}
                     />
-                    {/* Node avatars - right after nav items */}
+                    <CollapsedNavItem
+                        icon={Settings}
+                        active={currentView === 'settings'}
+                        onPress={onSettingsClick}
+                    />
+                    {/* Node avatars - scrollable, all nodes shown */}
                     {nodes.length > 0 && (
-                        <View style={styles.collapsedNodes}>
+                        <ScrollView
+                            style={styles.collapsedNodesScroll}
+                            contentContainerStyle={styles.collapsedNodes}
+                            showsVerticalScrollIndicator={false}
+                        >
                             <View style={styles.collapsedDivider} />
-                            {nodes.slice(0, 5).map(node => (
+                            {nodes.map(node => (
                                 <TouchableOpacity
                                     key={node.id}
                                     style={[
@@ -244,22 +252,31 @@ export const Sidebar = ({
                                     </View>
                                 </TouchableOpacity>
                             ))}
-                        </View>
+                        </ScrollView>
                     )}
                 </View>
 
-                {/* User avatar at bottom */}
-                <TouchableOpacity style={[styles.collapsedFooter, { borderTopColor: theme.border }]} onPress={onProfileClick}>
-                    <View style={[styles.collapsedAvatar, { backgroundColor: theme.border }]}>
-                        {user?.avatar ? (
-                            <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.collapsedAvatarImage} />
-                        ) : (
-                            <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
-                                {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
-                            </Text>
+                {/* User avatar at bottom with badges */}
+                <View style={[styles.collapsedFooter, { borderTopColor: theme.border }]}>
+                    <TouchableOpacity onPress={onProfileClick} style={{ position: 'relative' }}>
+                        <View style={[styles.collapsedAvatar, { backgroundColor: theme.border }]}>
+                            {user?.avatar ? (
+                                <Image key={user.avatar} source={{ uri: user.avatar, cache: 'reload' }} style={styles.collapsedAvatarImage} />
+                            ) : (
+                                <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 12 }}>
+                                    {user?.username?.[0]?.toUpperCase() || user?.firstName?.[0] || 'U'}
+                                </Text>
+                            )}
+                        </View>
+                        {(unreadNotifications + unreadMessages) > 0 && (
+                            <View style={styles.collapsedBadge}>
+                                <Text style={styles.collapsedBadgeText}>
+                                    {(unreadNotifications + unreadMessages) > 99 ? '99+' : unreadNotifications + unreadMessages}
+                                </Text>
+                            </View>
                         )}
-                    </View>
-                </TouchableOpacity>
+                    </TouchableOpacity>
+                </View>
             </SafeAreaView>
         );
     }
@@ -270,7 +287,7 @@ export const Sidebar = ({
             <View style={styles.header}>
                 <View style={styles.logoRow}>
                     <PulsingLogo />
-                    <Text style={styles.logoText}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
+                    <Text style={styles.logoText}>NODE</Text>
                 </View>
 
                 {/* Desktop: Collapse button */}
@@ -291,23 +308,58 @@ export const Sidebar = ({
             {/* Search - Only show on Mobile/Tablet (not Desktop) */}
             {!isDesktop && (
                 <View style={styles.searchContainer}>
-                    <Search size={16} color={theme.muted} style={{ position: 'absolute', left: 12, top: 10 }} />
-                    <TextInput
-                        style={[styles.input, { backgroundColor: theme.bg, borderColor: theme.border }]}
-                        placeholder="Search posts, users, nodes..."
-                        placeholderTextColor={theme.muted}
-                        value={searchQuery}
-                        onChangeText={setSearchQuery}
-                        onSubmitEditing={handleSearchSubmit}
-                        returnKeyType="search"
-                    />
-                    {searchQuery.length > 0 && (
-                        <TouchableOpacity
-                            onPress={() => setSearchQuery('')}
-                            style={{ position: 'absolute', right: 12, top: 8 }}
-                        >
-                            <X size={16} color={theme.muted} />
-                        </TouchableOpacity>
+                    <View style={[styles.searchInputRow, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                        <Search size={16} color={theme.muted} />
+                        <TextInput
+                            ref={searchInputRef}
+                            style={[styles.searchInput, { color: theme.text }]}
+                            placeholder="Search posts, users, nodes..."
+                            placeholderTextColor={theme.muted}
+                            value={searchQuery}
+                            onChangeText={setSearchQuery}
+                            onFocus={() => setSearchDropdownOpen(true)}
+                            onSubmitEditing={handleSearchSubmit}
+                            returnKeyType="search"
+                        />
+                        {searchQuery.length > 0 && (
+                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                                <X size={16} color={theme.muted} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                    {searchDropdownOpen && (
+                        <View style={[styles.searchDropdown, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+                            {searchQuery.trim().length > 0 && (
+                                <TouchableOpacity
+                                    style={styles.searchDropdownOption}
+                                    onPress={handleSearchSubmit}
+                                >
+                                    <Search size={14} color={theme.accent} />
+                                    <Text style={[styles.searchDropdownText, { color: theme.accent }]}>Search: {searchQuery}</Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                                style={[styles.searchDropdownOption, feedMode === 'global' && currentView === 'feed' && { backgroundColor: `${theme.accent}15` }]}
+                                onPress={() => { handleModeClick('global'); setSearchDropdownOpen(false); searchInputRef.current?.blur(); }}
+                            >
+                                <Flame size={14} color={feedMode === 'global' && currentView === 'feed' ? theme.accent : theme.muted} />
+                                <Text style={[styles.searchDropdownText, { color: theme.text }, feedMode === 'global' && currentView === 'feed' && { color: theme.accent, fontWeight: '600' }]}>Your Feed</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.searchDropdownOption, feedMode === 'discovery' && currentView === 'discovery' && { backgroundColor: `${theme.accent}15` }]}
+                                onPress={() => { handleModeClick('discovery'); setSearchDropdownOpen(false); searchInputRef.current?.blur(); }}
+                            >
+                                <Search size={14} color={feedMode === 'discovery' && currentView === 'discovery' ? theme.accent : theme.muted} />
+                                <Text style={[styles.searchDropdownText, { color: theme.text }, feedMode === 'discovery' && currentView === 'discovery' && { color: theme.accent, fontWeight: '600' }]}>Discovery</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.searchDropdownOption, feedMode === 'following' && currentView === 'following' && { backgroundColor: `${theme.accent}15` }]}
+                                onPress={() => { handleModeClick('following'); setSearchDropdownOpen(false); searchInputRef.current?.blur(); }}
+                            >
+                                <Users size={14} color={feedMode === 'following' && currentView === 'following' ? theme.accent : theme.muted} />
+                                <Text style={[styles.searchDropdownText, { color: theme.text }, feedMode === 'following' && currentView === 'following' && { color: theme.accent, fontWeight: '600' }]}>Following</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
             )}
@@ -354,12 +406,6 @@ export const Sidebar = ({
                         onPress={() => handleModeClick('following')}
                     />
                     <NavItem
-                        icon={Palette}
-                        label="Themes"
-                        active={currentView === 'themes'}
-                        onPress={onThemesClick}
-                    />
-                    <NavItem
                         icon={Bookmark}
                         label="Saved Posts"
                         active={currentView === 'saved'}
@@ -373,6 +419,12 @@ export const Sidebar = ({
                             if (onClose && !isDesktop) onClose();
                             if (onGovernanceClick) onGovernanceClick();
                         }}
+                    />
+                    <NavItem
+                        icon={Settings}
+                        label="Settings"
+                        active={currentView === 'settings'}
+                        onPress={onSettingsClick}
                     />
                 </View>
 
@@ -532,10 +584,43 @@ const styles = StyleSheet.create({
     },
     logoText: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
     closeBtn: { padding: 8 },
-    searchContainer: { marginHorizontal: 16, marginBottom: 24, position: 'relative' },
-    input: {
-        borderRadius: 8, borderWidth: 1,
-        paddingVertical: 8, paddingLeft: 36, paddingRight: 12, color: '#fff'
+    searchContainer: { marginHorizontal: 16, marginBottom: 24, position: 'relative', zIndex: 10 },
+    searchInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderRadius: 8,
+        borderWidth: 1,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        gap: 8,
+    },
+    searchInput: {
+        flex: 1,
+        fontSize: 13,
+        padding: 0,
+    },
+    searchDropdown: {
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
+        marginTop: 4,
+        borderRadius: 10,
+        borderWidth: 1,
+        padding: 6,
+        zIndex: 99,
+        boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)',
+    },
+    searchDropdownOption: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRadius: 6,
+    },
+    searchDropdownText: {
+        fontSize: 13,
     },
     navSection: { paddingHorizontal: 8, marginBottom: 24 },
     navItem: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 8 },
@@ -654,6 +739,10 @@ const styles = StyleSheet.create({
     collapsedNavItemActive: {
         backgroundColor: 'rgba(99, 102, 241, 0.1)',
     },
+    collapsedNodesScroll: {
+        flex: 1,
+        marginTop: 4,
+    },
     collapsedNodes: {
         alignItems: 'center',
         paddingTop: 8,
@@ -709,5 +798,22 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         borderRadius: 8,
+    },
+    collapsedBadge: {
+        position: 'absolute',
+        top: -4,
+        right: -4,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#ef4444',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 4,
+    },
+    collapsedBadgeText: {
+        fontSize: 9,
+        fontWeight: 'bold',
+        color: '#fff',
     },
 });

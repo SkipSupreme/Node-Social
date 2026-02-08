@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Image, StyleSheet, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, MessageSquarePlus } from 'lucide-react-native';
@@ -53,7 +53,7 @@ export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
         }
     };
 
-    const renderItem = ({ item }: { item: Conversation }) => {
+    const renderItem = useCallback(({ item }: { item: Conversation }) => {
         const otherParticipant = item.participants[0]?.user;
         const lastMessage = item.messages?.[0];
 
@@ -74,7 +74,7 @@ export const MessagesScreen = ({ onBack, onNavigate }: MessagesScreenProps) => {
                 </View>
             </TouchableOpacity>
         );
-    };
+    }, [theme, onNavigate]);
 
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>

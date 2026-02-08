@@ -1420,26 +1420,26 @@ export type MutedWord = {
 };
 
 export function getMutedWords() {
-  return request<{ mutedWords: MutedWord[] }>("/feed-preferences/muted-words", {
+  return request<{ mutedWords: MutedWord[] }>("/muted-words", {
     method: "GET",
   });
 }
 
 export function addMutedWord(word: string, isRegex: boolean = false) {
-  return request<{ mutedWord: MutedWord }>("/feed-preferences/muted-words", {
+  return request<{ mutedWord: MutedWord }>("/muted-words", {
     method: "POST",
     body: JSON.stringify({ word, isRegex }),
   });
 }
 
 export function removeMutedWord(id: string) {
-  return request<{ message: string }>(`/feed-preferences/muted-words/${id}`, {
+  return request<{ message: string }>(`/muted-words/${id}`, {
     method: "DELETE",
   });
 }
 
 export function clearAllMutedWords() {
-  return request<{ message: string }>("/feed-preferences/muted-words", {
+  return request<{ message: string }>("/muted-words", {
     method: "DELETE",
     body: JSON.stringify({ all: true }),
   });
@@ -1448,14 +1448,14 @@ export function clearAllMutedWords() {
 // --- Post View Tracking (Tier 3) ---
 
 export function trackPostView(postId: string, dwellTimeMs?: number, scrollDepth?: number) {
-  return request<{ view: { id: string; postId: string; viewedAt: string } }>("/feed-preferences/post-views", {
+  return request<{ view: { id: string; postId: string; viewedAt: string } }>("/post-views", {
     method: "POST",
     body: JSON.stringify({ postId, dwellTimeMs, scrollDepth }),
   });
 }
 
 export function trackPostViewsBatch(postIds: string[]) {
-  return request<{ message: string }>("/feed-preferences/post-views/batch", {
+  return request<{ message: string }>("/post-views/batch", {
     method: "POST",
     body: JSON.stringify({ postIds }),
   });

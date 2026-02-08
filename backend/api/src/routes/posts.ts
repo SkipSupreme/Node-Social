@@ -812,7 +812,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         where,
         orderBy: { createdAt: 'desc' },
         include: postInclude,
-        ...(cursor ? { cursor: { id: cursor } } : {}),
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
       };
 
       type PostWithCounts = Prisma.PostGetPayload<{

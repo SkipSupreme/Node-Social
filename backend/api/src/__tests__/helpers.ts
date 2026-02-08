@@ -20,23 +20,64 @@ import { vi } from 'vitest';
 // Type helpers
 // ---------------------------------------------------------------------------
 
+/** Mock method set for each Prisma model. */
+interface MockModelMethods {
+  findUnique: ReturnType<typeof vi.fn>;
+  findFirst: ReturnType<typeof vi.fn>;
+  findMany: ReturnType<typeof vi.fn>;
+  create: ReturnType<typeof vi.fn>;
+  update: ReturnType<typeof vi.fn>;
+  updateMany: ReturnType<typeof vi.fn>;
+  delete: ReturnType<typeof vi.fn>;
+  deleteMany: ReturnType<typeof vi.fn>;
+  upsert: ReturnType<typeof vi.fn>;
+  count: ReturnType<typeof vi.fn>;
+  [key: string]: any;
+}
+
 /** Minimal shape that satisfies the PrismaClient contract used by route handlers. */
-export type MockPrismaClient = {
-  user: Record<string, any>;
-  post: Record<string, any>;
-  comment: Record<string, any>;
-  node: Record<string, any>;
-  refreshToken: Record<string, any>;
-  federatedIdentity: Record<string, any>;
-  userFeedPreference: Record<string, any>;
-  modActionLog: Record<string, any>;
-  linkMetadata: Record<string, any>;
-  postMetric: Record<string, any>;
-  emailJob: Record<string, any>;
-  vibeReaction: Record<string, any>;
-  vibeVector: Record<string, any>;
-  nodeVibeWeight: Record<string, any>;
-};
+export interface MockPrismaClient {
+  user: MockModelMethods;
+  post: MockModelMethods;
+  comment: MockModelMethods;
+  node: MockModelMethods;
+  refreshToken: MockModelMethods;
+  federatedIdentity: MockModelMethods;
+  userFeedPreference: MockModelMethods;
+  modActionLog: MockModelMethods;
+  linkMetadata: MockModelMethods;
+  postMetric: MockModelMethods;
+  emailJob: MockModelMethods;
+  vibeReaction: MockModelMethods;
+  vibeVector: MockModelMethods;
+  nodeVibeWeight: MockModelMethods;
+  notification: MockModelMethods;
+  poll: MockModelMethods;
+  pollVote: MockModelMethods;
+  postVibeAggregate: MockModelMethods;
+  credTransaction: MockModelMethods;
+  nodeVectorConfig: MockModelMethods;
+  userFollow: MockModelMethods;
+  userBlock: MockModelMethods;
+  userMute: MockModelMethods;
+  nodeMute: MockModelMethods;
+  savedPost: MockModelMethods;
+  userPostView: MockModelMethods;
+  userMutedWord: MockModelMethods;
+  vouch: MockModelMethods;
+  feedPreset: MockModelMethods;
+  appeal: MockModelMethods;
+  councilVote: MockModelMethods;
+  externalPost: MockModelMethods;
+  externalSource: MockModelMethods;
+  message: MockModelMethods;
+  conversation: MockModelMethods;
+  conversationParticipant: MockModelMethods;
+  nodeSubscription: MockModelMethods;
+  externalPostVibeAggregate: MockModelMethods;
+  $transaction: ReturnType<typeof vi.fn>;
+  [key: string]: any;
+}
 
 // ---------------------------------------------------------------------------
 // Mock Redis: thin wrapper around a JS Map that exposes the subset of the
@@ -83,6 +124,19 @@ export function createMockRedis() {
       const prefix = pattern.replace(/\*$/, '');
       return Array.from(store.keys()).filter((k) => k.startsWith(prefix));
     },
+
+    /** Simulate Redis SCAN: returns all matching keys in a single pass (cursor '0' = done). */
+    async scan(cursor: string, ...args: any[]): Promise<[string, string[]]> {
+      let pattern = '*';
+      for (let i = 0; i < args.length; i++) {
+        if (String(args[i]).toUpperCase() === 'MATCH' && i + 1 < args.length) {
+          pattern = args[i + 1] as string;
+        }
+      }
+      const prefix = pattern.replace(/\*$/, '');
+      const matched = Array.from(store.keys()).filter((k) => k.startsWith(prefix));
+      return ['0', matched]; // '0' cursor means scan complete
+    },
   };
 }
 
@@ -93,34 +147,85 @@ export function createMockRedis() {
 
 export function createMockPrisma(): MockPrismaClient {
   const makeMethods = () => ({
-    findUnique: vi.fn(),
-    findFirst: vi.fn(),
-    findMany: vi.fn(),
-    create: vi.fn(),
-    update: vi.fn(),
-    updateMany: vi.fn(),
-    delete: vi.fn(),
-    deleteMany: vi.fn(),
-    upsert: vi.fn(),
-    count: vi.fn(),
+    findUnique: vi.fn().mockResolvedValue(null),
+    findFirst: vi.fn().mockResolvedValue(null),
+    findMany: vi.fn().mockResolvedValue([]),
+    create: vi.fn().mockResolvedValue({}),
+    update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+    delete: vi.fn().mockResolvedValue({}),
+    deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+    upsert: vi.fn().mockResolvedValue({}),
+    count: vi.fn().mockResolvedValue(0),
   });
 
-  return {
-    user: makeMethods(),
-    post: makeMethods(),
-    comment: makeMethods(),
-    node: makeMethods(),
-    refreshToken: makeMethods(),
-    federatedIdentity: makeMethods(),
-    userFeedPreference: makeMethods(),
-    modActionLog: makeMethods(),
-    linkMetadata: makeMethods(),
-    postMetric: makeMethods(),
-    emailJob: makeMethods(),
-    vibeReaction: makeMethods(),
-    vibeVector: makeMethods(),
-    nodeVibeWeight: makeMethods(),
-  };
+  // All known Prisma models — any accessed model returns safe defaults
+  const models = [
+    'user', 'post', 'comment', 'node', 'refreshToken',
+    'federatedIdentity', 'userFeedPreference', 'modActionLog',
+    'linkMetadata', 'postMetric', 'emailJob', 'vibeReaction',
+    'vibeVector', 'nodeVibeWeight', 'notification', 'poll',
+    'pollVote', 'postVibeAggregate', 'credTransaction',
+    'nodeVectorConfig', 'userFollow', 'userBlock', 'userMute',
+    'nodeMute', 'savedPost', 'userPostView', 'userMutedWord',
+    'vouch', 'feedPreset', 'appeal', 'councilVote', 'externalPost',
+    'externalSource', 'message', 'conversation', 'conversationParticipant',
+    'nodeSubscription', 'externalPostVibeAggregate',
+  ];
+
+  const prisma = {} as MockPrismaClient;
+  for (const model of models) {
+    prisma[model] = makeMethods();
+  }
+
+  // $transaction: execute the callback passing prisma itself as the transaction client
+  prisma.$transaction = vi.fn().mockImplementation(async (fn: any) => {
+    if (typeof fn === 'function') {
+      return await fn(prisma);
+    }
+    // Array-style transactions: resolve all promises
+    return await Promise.all(fn);
+  });
+
+  return prisma;
+}
+
+/**
+ * Reset all prisma mock methods and re-apply safe defaults.
+ * Use this in beforeEach instead of manual mockReset loops.
+ */
+export function resetMockPrisma(prisma: MockPrismaClient): void {
+  for (const [key, model] of Object.entries(prisma)) {
+    // Skip $transaction -- it's a top-level mock function, not a model
+    if (key === '$transaction') continue;
+    for (const [_methodName, fn] of Object.entries(model)) {
+      if (typeof fn === 'function' && 'mockReset' in fn) {
+        (fn as any).mockReset();
+      }
+    }
+    // Re-apply safe defaults after reset
+    model.findUnique?.mockResolvedValue(null);
+    model.findFirst?.mockResolvedValue(null);
+    model.findMany?.mockResolvedValue([]);
+    model.create?.mockResolvedValue({});
+    model.update?.mockResolvedValue({});
+    model.updateMany?.mockResolvedValue({ count: 0 });
+    model.delete?.mockResolvedValue({});
+    model.deleteMany?.mockResolvedValue({ count: 0 });
+    model.upsert?.mockResolvedValue({});
+    model.count?.mockResolvedValue(0);
+  }
+
+  // Re-apply $transaction mock after reset
+  if (prisma.$transaction && typeof prisma.$transaction.mockReset === 'function') {
+    prisma.$transaction.mockReset();
+    prisma.$transaction.mockImplementation(async (fn: any) => {
+      if (typeof fn === 'function') {
+        return await fn(prisma);
+      }
+      return await Promise.all(fn);
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,6 +290,25 @@ export async function buildTestApp(): Promise<{
         }
       }
       reply.status(401).send({ error: 'Unauthorized' });
+    }
+  });
+
+  // Replicate the optionalAuthenticate decorator from src/index.ts
+  // Sets request.user if token valid, but doesn't fail if not
+  app.decorate('optionalAuthenticate', async function (request: any, _reply: any) {
+    try {
+      await request.jwtVerify();
+    } catch (_err) {
+      const cookieToken = request.cookies?.accessToken;
+      if (cookieToken) {
+        try {
+          await request.jwtVerify({ token: cookieToken });
+          return;
+        } catch (_cookieErr) {
+          // Silent fail - user stays anonymous
+        }
+      }
+      // Don't set request.user - they're anonymous
     }
   });
 
@@ -257,7 +381,9 @@ export function generateExpiredToken(
   userId: string,
   email: string = 'test@example.com'
 ): string {
-  return app.jwt.sign({ sub: userId, email }, { expiresIn: '0s' });
+  // Use '-1s' to create a token that's already 1 second past expiry.
+  // '0s' converts to 0ms which fast-jwt interprets as "no expiry" (no exp claim set).
+  return app.jwt.sign({ sub: userId, email }, { expiresIn: '-1s' });
 }
 
 /** A standard test user object matching the User model shape. */
@@ -300,7 +426,9 @@ export function createTestPost(authorId: string, overrides: Record<string, any> 
     linkMetaId: null,
     postType: 'text',
     visibility: 'public',
-    author: { id: authorId, email: 'testuser@example.com' },
+    expertGateCred: null,
+    contentJson: null,
+    author: { id: authorId, username: 'testuser', avatar: null },
     node: null,
     _count: { comments: 0 },
     metrics: null,
@@ -325,8 +453,9 @@ export function createTestComment(
     authorId,
     postId,
     parentId: null,
-    author: { id: authorId, email: 'testuser@example.com' },
+    author: { id: authorId, username: 'testuser', avatar: null, era: 'Mastermind Era', cred: 0 },
     _count: { replies: 0 },
+    reactions: [],
     ...overrides,
   };
 }

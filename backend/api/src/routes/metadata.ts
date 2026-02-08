@@ -112,7 +112,8 @@ const metadataRoutes: FastifyPluginAsync = async (fastify) => {
 
                 // Check Content-Length header for size limit
                 const contentLength = response.headers.get('content-length');
-                if (contentLength && parseInt(contentLength, 10) > MAX_RESPONSE_SIZE) {
+                const parsedLength = contentLength ? parseInt(contentLength, 10) : 0;
+                if (!Number.isNaN(parsedLength) && parsedLength > MAX_RESPONSE_SIZE) {
                     return reply.status(400).send({ error: 'Response too large' });
                 }
 

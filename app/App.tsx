@@ -39,6 +39,7 @@ import { DiscoveryScreen } from './src/screens/DiscoveryScreen';
 import { FollowingScreen } from './src/screens/FollowingScreen';
 import { PostDetailScreen } from './src/screens/PostDetailScreen';
 import { GovernanceScreen } from './src/screens/GovernanceScreen';
+import { SettingsScreen } from './src/screens/SettingsScreen';
 import { NodeSettingsScreen } from './src/screens/NodeSettingsScreen';
 import { ModLogScreen } from './src/screens/ModLogScreen';
 import { useSocket, SocketProvider } from './src/context/SocketContext';
@@ -194,7 +195,7 @@ const MainApp = () => {
   const [menuVisible, setMenuVisible] = useState(false);
   const [vibeVisible, setVibeVisible] = useState(false); // For Vibe Validator Modal
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false); // Left sidebar collapse state
-  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'theme-editor' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'governance' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted'>('feed');
+  const [currentView, setCurrentView] = useState<'feed' | 'profile' | 'notifications' | 'saved' | 'cred-history' | 'themes' | 'theme-editor' | 'messages' | 'chat' | 'discovery' | 'following' | 'post-detail' | 'governance' | 'moderation' | 'appeals' | 'council' | 'vouches' | 'trust-graph' | 'nodeSettings' | 'modLog' | 'blocked-muted' | 'settings'>('feed');
   const [viewParams, setViewParams] = useState<any>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ view: string; params: any }>>([]);
 
@@ -1208,7 +1209,7 @@ const MainApp = () => {
               }}
               feedMode={feedMode}
               onFeedModeSelect={handleFeedModeSelect}
-              onThemesClick={() => navigateTo('themes')}
+              onSettingsClick={() => navigateTo('settings')}
               onSavedClick={() => requireAuth('Sign in to see your saved posts') && navigateTo('saved')}
               onNewPostClick={() => requireAuth('Sign in to create posts') && setIsCreatePostOpen(true)}
               onGovernanceClick={() => requireAuth('Sign in to access governance') && navigateTo('governance')}
@@ -1392,6 +1393,15 @@ const MainApp = () => {
               />
             ) : currentView === 'cred-history' ? (
               <CredHistoryScreen onBack={goBack} />
+            ) : currentView === 'settings' ? (
+              <SettingsScreen
+                onBack={goBack}
+                onNavigate={(screen) => navigateTo(screen as typeof currentView)}
+                user={user ?? undefined}
+                onUserUpdate={(updatedUser) => {
+                  useAuthStore.getState().updateUser(updatedUser);
+                }}
+              />
             ) : currentView === 'themes' ? (
               <ThemesScreen
                 onBack={goBack}
@@ -1507,6 +1517,7 @@ const MainApp = () => {
             currentView={currentView}
             onNavigate={handleBottomNavigation}
             unreadNotifications={0}
+            unreadMessages={0}
           />
         )}
 
@@ -1536,9 +1547,9 @@ const MainApp = () => {
                 }}
                 feedMode={feedMode}
                 onFeedModeSelect={handleFeedModeSelect}
-                onThemesClick={() => {
+                onSettingsClick={() => {
                   setMenuVisible(false);
-                  navigateTo('themes');
+                  navigateTo('settings');
                 }}
                 onSavedClick={() => {
                   setMenuVisible(false);
@@ -1599,11 +1610,21 @@ const MainApp = () => {
           setIsEditPostOpen(false);
           setEditingPost(null);
         }}
-        onSuccess={(updatedPostId) => {
+        onSuccess={(updatedPost) => {
           setIsEditPostOpen(false);
           setEditingPost(null);
+          // Update post in-place instead of re-fetching to avoid losing the post
+          setPosts(prev => prev.map(p =>
+            p.id === updatedPost.id
+              ? {
+                  ...p,
+                  title: updatedPost.title,
+                  content: updatedPost.content,
+                  ...(updatedPost.contentJson ? { contentJson: updatedPost.contentJson } : {}),
+                }
+              : p
+          ));
           queryClient.invalidateQueries({ queryKey: ['posts'] });
-          fetchFeed(selectedNodeId, feedMode); // Refresh feed after editing
         }}
       />
 

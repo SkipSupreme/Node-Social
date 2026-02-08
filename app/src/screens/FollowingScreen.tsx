@@ -45,6 +45,13 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
         loadPosts();
     };
 
+    const renderPostItem = useCallback(({ item }: { item: Post }) => (
+        <PostCard
+            post={item}
+            onPress={() => onPostClick?.(item)}
+        />
+    ), [onPostClick]);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
             {/* Header */}
@@ -69,12 +76,7 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
                 <FlatList
                     data={posts}
                     keyExtractor={(item) => item.id}
-                    renderItem={({ item }) => (
-                        <PostCard
-                            post={item}
-                            onPress={() => onPostClick?.(item)}
-                        />
-                    )}
+                    renderItem={renderPostItem}
                     contentContainerStyle={styles.listContent}
                     refreshControl={
                         <RefreshControl

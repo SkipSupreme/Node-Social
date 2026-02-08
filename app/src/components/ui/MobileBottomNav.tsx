@@ -9,12 +9,14 @@ interface MobileBottomNavProps {
   currentView: string;
   onNavigate: (view: NavItem) => void;
   unreadNotifications?: number;
+  unreadMessages?: number;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onNavigate,
   unreadNotifications = 0,
+  unreadMessages = 0,
 }) => {
   const theme = useAppTheme();
 
@@ -69,7 +71,29 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       </TouchableOpacity>
 
       <NavButton view="notifications" icon={Bell} label="Alerts" />
-      <NavButton view="profile" icon={User} label="Profile" />
+      <TouchableOpacity
+        style={styles.navButton}
+        onPress={() => onNavigate('profile')}
+        activeOpacity={0.7}
+      >
+        <View style={styles.iconContainer}>
+          <User
+            size={24}
+            color={isActive('profile') ? theme.accent : theme.muted}
+            strokeWidth={isActive('profile') ? 2.5 : 2}
+          />
+          {unreadMessages > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>
+                {unreadMessages > 99 ? '99+' : unreadMessages}
+              </Text>
+            </View>
+          )}
+        </View>
+        <Text style={[styles.navLabel, { color: theme.muted }, isActive('profile') && { color: theme.accent, fontWeight: '600' }]}>
+          Profile
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };

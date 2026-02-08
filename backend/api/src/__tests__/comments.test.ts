@@ -18,6 +18,7 @@ import {
   createTestComment,
   generateTestToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 
@@ -41,13 +42,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
 });
 
 // =========================================================================
@@ -71,10 +66,7 @@ describe('POST /posts/:postId/comments', () => {
   });
 
   it('should create a threaded reply to an existing comment', async () => {
-    const parentComment = createTestComment(OTHER_USER_ID, POST_ID, {
-      id: 'parent-comment-1',
-      postId: POST_ID,
-    });
+    const parentComment = createTestComment(OTHER_USER_ID, POST_ID);
 
     prisma.post.findUnique.mockResolvedValue(createTestPost(USER_ID, { id: POST_ID }));
     prisma.comment.findUnique.mockResolvedValue(parentComment);
@@ -115,10 +107,7 @@ describe('POST /posts/:postId/comments', () => {
 
   it('should return 400 if parent comment belongs to a different post', async () => {
     // WHY: Threading integrity -- a reply's parent must be on the same post.
-    const wrongPostParent = createTestComment(OTHER_USER_ID, 'different-post-id', {
-      id: 'wrong-parent',
-      postId: 'different-post-id',
-    });
+    const wrongPostParent = createTestComment(OTHER_USER_ID, 'different-post-id');
 
     prisma.post.findUnique.mockResolvedValue(createTestPost(USER_ID, { id: POST_ID }));
     prisma.comment.findUnique.mockResolvedValue(wrongPostParent);
@@ -205,7 +194,7 @@ describe('GET /posts/:postId/comments', () => {
   });
 
   it('should filter by parentId to fetch threaded replies', async () => {
-    const parentId = 'parent-comment-for-replies';
+    const parentId = '00000000-0000-0000-0000-000000000001';
     prisma.comment.findMany.mockResolvedValue([]);
 
     const res = await app.inject({
@@ -243,13 +232,15 @@ describe('GET /posts/:postId/comments', () => {
     );
   });
 
-  it('should require authentication', async () => {
+  it('should allow anonymous access (optionalAuthenticate)', async () => {
+    prisma.comment.findMany.mockResolvedValue([]);
+
     const res = await app.inject({
       method: 'GET',
       url: `/posts/${POST_ID}/comments`,
     });
 
-    expect(res.statusCode).toBe(401);
+    expect(res.statusCode).toBe(200);
   });
 });
 

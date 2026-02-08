@@ -33,15 +33,15 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
       const { content, parentId } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
-      // Check if post exists
+      // Check if post exists and is not soft-deleted
       const post = await fastify.prisma.post.findUnique({ where: { id: postId } });
-      if (!post) {
+      if (!post || post.deletedAt) {
         return reply.status(404).send({ error: 'Post not found' });
       }
 
       // Expert Gate enforcement: Check if user has enough cred for top-level comments
       // Replies to existing comments are always allowed (enables discussion)
-      if (post.expertGateCred !== null && !parentId) {
+      if (post.expertGateCred != null && !parentId) {
         const user = await fastify.prisma.user.findUnique({
           where: { id: userId },
           select: { cred: true },
@@ -57,10 +57,10 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // Check if parent comment exists if provided
+      // Check if parent comment exists and is not deleted
       if (parentId) {
         const parent = await fastify.prisma.comment.findUnique({ where: { id: parentId } });
-        if (!parent) {
+        if (!parent || parent.deletedAt) {
           return reply.status(404).send({ error: 'Parent comment not found' });
         }
         if (parent.postId !== postId) {

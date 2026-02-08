@@ -177,7 +177,7 @@ describe('createOrUpdateReaction', () => {
         nodeId: 'node-1',
         intensities: { funny: 0.5 },
       })
-    ).rejects.toThrow('Must provide either postId or commentId, not both');
+    ).rejects.toThrow('Must provide exactly one of postId, commentId, or externalPostId');
   });
 
   it('should throw when both postId and commentId are provided', async () => {
@@ -190,7 +190,7 @@ describe('createOrUpdateReaction', () => {
         nodeId: 'node-1',
         intensities: { funny: 0.5 },
       })
-    ).rejects.toThrow('Must provide either postId or commentId, not both');
+    ).rejects.toThrow('Must provide exactly one of postId, commentId, or externalPostId');
   });
 
   it('should throw for invalid intensities', async () => {

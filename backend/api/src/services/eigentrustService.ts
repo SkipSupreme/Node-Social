@@ -317,21 +317,23 @@ export async function runEigentrust(prisma: PrismaClient): Promise<EigentrustRes
       });
     }
 
-    // Batch upsert trust scores
-    for (const data of trustScoreUpserts) {
-      await prisma.trustScore.upsert({
-        where: { userId: data.userId },
-        update: {
-          rawScore: data.rawScore,
-          decayedScore: data.decayedScore,
-          tier: data.tier,
-          seedDistance: data.seedDistance,
-          computedAt: data.computedAt,
-          lastActiveAt: data.lastActiveAt,
-        },
-        create: data,
-      });
-    }
+    // Batch upsert trust scores in a transaction for atomicity
+    await prisma.$transaction(
+      trustScoreUpserts.map((data) =>
+        prisma.trustScore.upsert({
+          where: { userId: data.userId },
+          update: {
+            rawScore: data.rawScore,
+            decayedScore: data.decayedScore,
+            tier: data.tier,
+            seedDistance: data.seedDistance,
+            computedAt: data.computedAt,
+            lastActiveAt: data.lastActiveAt,
+          },
+          create: data,
+        })
+      )
+    );
 
     // Update computation log
     await prisma.trustComputationLog.update({

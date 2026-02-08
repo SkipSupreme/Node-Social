@@ -37,10 +37,16 @@ vi.mock('../lib/metrics.js', () => ({
   updatePostMetrics: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock searchSync (fire-and-forget calls from post routes).
+// Mock searchSync (fire-and-forget calls from post routes + retry processor from index.ts).
 vi.mock('../lib/searchSync.js', () => ({
   syncPostToMeili: vi.fn().mockResolvedValue(undefined),
   removePostFromMeili: vi.fn().mockResolvedValue(undefined),
+  startRetryProcessor: vi.fn(),
+  stopRetryProcessor: vi.fn(),
+  isMeiliAvailable: vi.fn().mockResolvedValue(false),
+  getSyncHealth: vi.fn().mockResolvedValue({ healthy: true }),
+  triggerRetryProcessing: vi.fn().mockResolvedValue(0),
+  ensurePostsIndex: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock moderation logging (fire-and-forget).
@@ -49,8 +55,10 @@ vi.mock('../lib/moderation.js', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Reset all mocks between tests so state does not leak across test cases.
+// Clear mock call history between tests so state does not leak across test cases.
+// Use clearAllMocks (not restoreAllMocks) to preserve mock implementations
+// set up in vi.mock() factories above (e.g. mockResolvedValue on module mocks).
 // ---------------------------------------------------------------------------
 afterEach(() => {
-  vi.restoreAllMocks();
+  vi.clearAllMocks();
 });

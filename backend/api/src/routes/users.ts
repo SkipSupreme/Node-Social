@@ -383,7 +383,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         const { limit = '10' } = request.query as { limit?: string };
 
         const posts = await fastify.prisma.post.findMany({
-            where: { authorId: userId },
+            where: { authorId: userId, deletedAt: null },
             orderBy: { createdAt: 'desc' },
             take: Math.min(parseInt(limit) || 10, 50),
             include: {

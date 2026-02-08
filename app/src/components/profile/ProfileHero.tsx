@@ -28,7 +28,6 @@ import {
     Pencil,
     Check,
     X,
-    Link2,
 } from 'lucide-react-native';
 import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
 import { useAppTheme } from '../../hooks/useTheme';
@@ -67,7 +66,6 @@ interface ProfileHeroProps {
     onMore?: () => void;
     onSaveBio?: (bio: string) => void;
     onSaveMeta?: (location: string, website: string) => void;
-    onLinkedAccounts?: () => void;
     isFollowLoading?: boolean;
     showBannerEditor: boolean;
     onToggleBannerEditor: () => void;
@@ -116,7 +114,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
     onMore,
     onSaveBio,
     onSaveMeta,
-    onLinkedAccounts,
     isFollowLoading,
     showBannerEditor,
     onToggleBannerEditor,
@@ -272,11 +269,6 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
 
                     {/* Action buttons - right aligned */}
                     <View style={styles.actionButtons}>
-                        {isOwnProfile && onLinkedAccounts && (
-                            <TouchableOpacity style={[styles.iconButton, { borderColor: theme.border, backgroundColor: theme.panel }]} onPress={onLinkedAccounts}>
-                                <Link2 size={20} color={theme.text} />
-                            </TouchableOpacity>
-                        )}
                         {onMore && (
                             <TouchableOpacity style={[styles.iconButton, { borderColor: theme.border, backgroundColor: theme.panel }]} onPress={onMore}>
                                 <MoreHorizontal size={20} color={theme.text} />

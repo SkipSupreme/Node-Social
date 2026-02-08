@@ -17,6 +17,7 @@ import {
   generateTestToken,
   hashToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 import type { createMockRedis } from './helpers.js';
@@ -39,13 +40,7 @@ afterAll(async () => {
 
 // Reset mock return values between tests to prevent state leakage.
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
   redis._store.clear();
 });
 
@@ -272,7 +267,7 @@ describe('POST /auth/login', () => {
 // POST /auth/refresh -- Token Rotation + Reuse Detection
 // =========================================================================
 describe('POST /auth/refresh', () => {
-  it('should rotate tokens: revoke old, issue new pair in same family', async () => {
+  it('should reuse refresh token and issue new access token', async () => {
     const userId = 'user-refresh-1';
     const oldRefreshToken = 'old-refresh-token-hex';
     const tokenHash = hashToken(oldRefreshToken);
@@ -290,14 +285,8 @@ describe('POST /auth/refresh', () => {
       user: { id: userId, email: 'refresh@example.com' },
     });
 
-    // update (revoke old token)
-    prisma.refreshToken.update.mockResolvedValue({ id: 'rt-old-id', revoked: true });
-
-    // create (new rotated token)
-    prisma.refreshToken.create.mockResolvedValue({
-      id: 'rt-new-id',
-      familyId,
-    });
+    // update (lastUsedAt timestamp)
+    prisma.refreshToken.update.mockResolvedValue({ id: 'rt-old-id' });
 
     const res = await app.inject({
       method: 'POST',
@@ -309,14 +298,14 @@ describe('POST /auth/refresh', () => {
     const body = res.json();
     expect(body.token).toBeDefined();
     expect(body.refreshToken).toBeDefined();
-    // Old token should have been different from new one
-    expect(body.refreshToken).not.toBe(oldRefreshToken);
+    // Refresh token is reused (not rotated) — same token comes back
+    expect(body.refreshToken).toBe(oldRefreshToken);
 
-    // Verify the old token was revoked in Prisma
+    // Verify lastUsedAt was updated (no revocation)
     expect(prisma.refreshToken.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: 'rt-old-id' },
-        data: { revoked: true },
+        data: { lastUsedAt: expect.any(Date) },
       })
     );
   });
@@ -390,6 +379,7 @@ describe('POST /auth/refresh', () => {
     const cookieToken = 'cookie-refresh-token';
     const tokenHash = hashToken(cookieToken);
     const userId = 'cookie-user-1';
+    const csrfToken = 'test-csrf-token';
 
     prisma.refreshToken.findFirst.mockResolvedValueOnce({
       id: 'rt-cookie-id',
@@ -400,14 +390,14 @@ describe('POST /auth/refresh', () => {
       revoked: false,
       user: { id: userId, email: 'cookie@example.com' },
     });
-    prisma.refreshToken.update.mockResolvedValue({ id: 'rt-cookie-id', revoked: true });
-    prisma.refreshToken.create.mockResolvedValue({ id: 'rt-cookie-new', familyId: 'fam-cookie' });
+    prisma.refreshToken.update.mockResolvedValue({ id: 'rt-cookie-id' });
 
     const res = await app.inject({
       method: 'POST',
       url: '/auth/refresh',
       payload: {},
-      cookies: { refreshToken: cookieToken },
+      cookies: { refreshToken: cookieToken, csrfToken },
+      headers: { 'x-csrf-token': csrfToken },
     });
 
     expect(res.statusCode).toBe(200);
@@ -570,7 +560,7 @@ describe('POST /auth/reset-password', () => {
     const res = await app.inject({
       method: 'POST',
       url: '/auth/reset-password',
-      payload: { token: 'expired-token', password: 'newpass12345' },
+      payload: { token: 'expired-token', password: 'newPass12345' },
     });
 
     expect(res.statusCode).toBe(400);
@@ -660,7 +650,7 @@ describe('POST /auth/resend-verification', () => {
     expect(res.json().message).toContain('If that email exists');
   });
 
-  it('should reject if email is already verified', async () => {
+  it('should return generic message if email is already verified (anti-enumeration)', async () => {
     prisma.user.findUnique.mockResolvedValue({
       id: 'some-id',
       emailVerified: true,
@@ -672,8 +662,10 @@ describe('POST /auth/resend-verification', () => {
       payload: { email: 'verified@example.com' },
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Email already verified');
+    // WHY 200: Hardened endpoint returns generic message to prevent email enumeration.
+    // Previously returned 400 "Email already verified" which leaked account existence.
+    expect(res.statusCode).toBe(200);
+    expect(res.json().message).toContain('If that email exists');
   });
 
   it('should return generic message for non-existent email (anti-enumeration)', async () => {

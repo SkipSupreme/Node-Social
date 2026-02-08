@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ArrowLeft, TrendingUp } from 'lucide-react-native';
 import { useAppTheme } from '../hooks/useTheme';
@@ -39,7 +39,7 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
         }
     };
 
-    const renderItem = ({ item }: { item: CredTransaction }) => (
+    const renderItem = useCallback(({ item }: { item: CredTransaction }) => (
         <View style={[styles.transactionItem, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <View style={styles.iconContainer}>
                 <TrendingUp size={20} color={theme.accent} />
@@ -52,7 +52,7 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
                 {item.amount > 0 ? '+' : ''}{item.amount}
             </Text>
         </View>
-    );
+    ), [theme]);
 
     const formatReason = (reason: string) => {
         return reason.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');

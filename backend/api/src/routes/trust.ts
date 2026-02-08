@@ -120,7 +120,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     '/tier/:tier',
     async (request, reply) => {
       const { tier } = request.params;
-      const limit = parseInt(request.query.limit || '50', 10);
+      const limit = parseInt(request.query.limit || '50', 10) || 50;
 
       if (!['gold', 'silver', 'bronze', 'shadow'].includes(tier)) {
         return reply.status(400).send({ error: 'Invalid tier. Must be gold, silver, bronze, or shadow.' });
@@ -164,7 +164,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = (request.user as { sub: string }).sub;
-      const maxHops = parseInt(request.query.maxHops || '3', 10);
+      const maxHops = parseInt(request.query.maxHops || '3', 10) || 3;
 
       const network = await getTrustNetworkForUser(
         fastify.prisma,
@@ -318,7 +318,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: 'Admin access required' });
       }
 
-      const limit = parseInt(request.query.limit || '10', 10);
+      const limit = parseInt(request.query.limit || '10', 10) || 10;
 
       const logs = await fastify.prisma.trustComputationLog.findMany({
         orderBy: { startedAt: 'desc' },

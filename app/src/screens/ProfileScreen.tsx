@@ -293,7 +293,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     onFollow={authUser?.id !== user.id ? handleFollow : undefined}
                     onSaveBio={canEdit ? handleSaveBio : undefined}
                     onSaveMeta={canEdit ? handleSaveMeta : undefined}
-                    onLinkedAccounts={authUser?.id === user.id ? () => setLinkedAccountsVisible(true) : undefined}
                     isFollowLoading={followLoading}
                     isOwnProfile={authUser?.id === user.id}
                     showBannerEditor={showBannerEditor}

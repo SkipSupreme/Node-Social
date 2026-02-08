@@ -68,6 +68,7 @@ export async function selectJury(
 
   for (let i = 0; i < JURY_SIZE && pool.length > 0; i++) {
     const totalWeight = pool.reduce((sum, u) => sum + u.weight, 0);
+    if (totalWeight === 0) break; // No eligible jurors with weight
     let random = Math.random() * totalWeight;
 
     for (let j = 0; j < pool.length; j++) {
@@ -122,6 +123,9 @@ export async function tallyVotes(
   }
 
   const totalWeight = upholdWeight + overturnWeight;
+  if (totalWeight === 0) {
+    return { verdict: 'upheld', reason: 'No weighted votes - original decision stands' };
+  }
   const overturnPercent = (overturnWeight / totalWeight) * 100;
 
   // Need >60% weighted vote to overturn

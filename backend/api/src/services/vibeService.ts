@@ -144,9 +144,13 @@ export async function createOrUpdateReaction(
 
   // Update metrics (fire-and-forget, don't block)
   if (postId) {
-    updatePostMetricsFromReactions(prisma, postId).catch(() => {});
+    updatePostMetricsFromReactions(prisma, postId).catch((err) => {
+      console.error('Failed to update post metrics:', err);
+    });
   } else if (externalPostId) {
-    updateExternalPostMetrics(prisma, externalPostId).catch(() => {});
+    updateExternalPostMetrics(prisma, externalPostId).catch((err) => {
+      console.error('Failed to update external post metrics:', err);
+    });
   }
 
   return reaction;
@@ -306,7 +310,9 @@ export async function deleteReaction(
   // Update PostMetric if postId exists
   if (postId) {
     // Fire-and-forget: metrics update failure is non-critical
-    updatePostMetricsFromReactions(prisma, postId).catch(() => {});
+    updatePostMetricsFromReactions(prisma, postId).catch((err) => {
+      console.error('Failed to update post metrics:', err);
+    });
   }
 
   return { message: 'Reaction deleted' };
@@ -646,7 +652,9 @@ export async function deleteExternalReaction(
   await prisma.vibeReaction.delete({ where: { id: reaction.id } });
 
   // Re-aggregate (fire-and-forget)
-  updateExternalPostMetrics(prisma, externalPostId).catch(() => {});
+  updateExternalPostMetrics(prisma, externalPostId).catch((err) => {
+    console.error('Failed to update external post metrics:', err);
+  });
 
   return { message: 'Reaction deleted' };
 }

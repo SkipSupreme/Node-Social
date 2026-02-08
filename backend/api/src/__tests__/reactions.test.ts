@@ -21,6 +21,7 @@ import {
   createTestNode,
   generateTestToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 
@@ -45,13 +46,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
 });
 
 // =========================================================================
@@ -210,7 +205,13 @@ describe('POST /reactions/posts/:postId', () => {
     expect(res.statusCode).toBe(400);
   });
 
-  it('should reject missing nodeId', async () => {
+  it('should reject missing nodeId when no global node is configured', async () => {
+    // nodeId is optional in the schema -- when omitted, the route falls back to
+    // the global node.  If no global node exists, the route returns 500.
+    prisma.post.findUnique.mockResolvedValue(createTestPost(USER_ID, { id: POST_ID }));
+    // node.findUnique for slug:'global' returns null (default), simulating
+    // a missing global node configuration.
+
     const res = await app.inject({
       method: 'POST',
       url: `/reactions/posts/${POST_ID}`,
@@ -220,7 +221,8 @@ describe('POST /reactions/posts/:postId', () => {
       },
     });
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(500);
+    expect(res.json().error).toBe('Global node not configured');
   });
 
   it('should require authentication', async () => {

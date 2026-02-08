@@ -97,6 +97,8 @@ const YouTubeEmbed = ({ videoId }: { videoId: string }) => {
 };
 
 // Helper to check if URL is an image
+import { formatTimeAgo } from '../lib/formatTime';
+
 const isImageUrl = (url: string): boolean => {
   return /\.(jpg|jpeg|png|gif|webp)(\?.*)?$/i.test(url);
 };
@@ -163,23 +165,6 @@ interface CommentWithThread extends Comment {
   hasRepliesBelow?: boolean;
   threadDepth?: number;
 }
-
-// Helper to format relative time
-const formatTimeAgo = (dateString: string) => {
-  const now = new Date();
-  const date = new Date(dateString);
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 7) return `${days}d`;
-
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
 
 // Sort comments so replies appear directly after their parent
 const sortCommentsThreaded = (comments: Comment[]): CommentWithThread[] => {

@@ -3,6 +3,16 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 
+/** Safely parse vectorMultipliers from JSON string, returning null on failure. */
+function parseVectorMultipliers(value: unknown): Record<string, number> | null {
+  if (typeof value !== 'string') return value as Record<string, number> | null;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return null;
+  }
+}
+
 // Preset configurations from weighted_parameters_starter.md
 const PRESETS = {
   latest: {
@@ -199,9 +209,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       // Parse vectorMultipliers from JSON if stored as string
       const result = {
         ...preferences,
-        vectorMultipliers: typeof preferences.vectorMultipliers === 'string'
-          ? JSON.parse(preferences.vectorMultipliers)
-          : preferences.vectorMultipliers,
+        vectorMultipliers: parseVectorMultipliers(preferences.vectorMultipliers),
       };
 
       return reply.send(result);
@@ -384,9 +392,7 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
 
       return reply.send({
         ...preferences,
-        vectorMultipliers: typeof preferences.vectorMultipliers === 'string'
-          ? JSON.parse(preferences.vectorMultipliers)
-          : preferences.vectorMultipliers,
+        vectorMultipliers: parseVectorMultipliers(preferences.vectorMultipliers),
       });
     }
   );

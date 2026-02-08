@@ -77,26 +77,4 @@ export async function checkAppleCredentialState(
   }
 }
 
-/**
- * Get a human-readable message for credential state
- */
-export function getCredentialStateMessage(
-  state: AppleAuthentication.AppleAuthenticationCredentialState | null
-): string {
-  if (!state) return "Unknown state";
-
-  switch (state) {
-    case AppleAuthentication.AppleAuthenticationCredentialState.AUTHORIZED:
-      return "Credentials are valid";
-    // REVOKED is not in the enum's comparison set, but exists at runtime
-    case AppleAuthentication.AppleAuthenticationCredentialState.REVOKED as AppleAuthentication.AppleAuthenticationCredentialState:
-      return "Apple Sign-In has been revoked. Please sign in again.";
-    case AppleAuthentication.AppleAuthenticationCredentialState.NOT_FOUND:
-      return "Apple Sign-In credentials not found. Please sign in again.";
-    case AppleAuthentication.AppleAuthenticationCredentialState.TRANSFERRED:
-      return "Apple Sign-In was transferred to another device. Please sign in again.";
-    default:
-      return "Unknown credential state";
-  }
-}
 

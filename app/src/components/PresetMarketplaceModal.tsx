@@ -39,7 +39,7 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
     const fetchMarketplace = async () => {
         setLoading(true);
         try {
-            const response = await api.get<{ presets: Preset[] }>('/presets/marketplace');
+            const response = await api.get<{ presets: Preset[] }>('/api/v1/presets/marketplace');
             setPresets(response.presets);
         } catch (error) {
             console.error('Failed to fetch marketplace:', error);
@@ -52,7 +52,7 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
     const handleInstall = async (preset: Preset) => {
         setInstalling(preset.id);
         try {
-            await api.post(`/presets/${preset.id}/install`, {});
+            await api.post(`/api/v1/presets/${preset.id}/install`, {});
             showAlert('Success', `Installed "${preset.name}"`);
             onInstall(preset);
             onClose();

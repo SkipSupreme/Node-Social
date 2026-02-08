@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell, Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2 } from 'lucide-react-native';
@@ -95,6 +95,55 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
         return (item.postId && onNavigateToPost) || (item.actor?.id && onNavigateToUser);
     };
 
+    const renderItem = useCallback(({ item }: { item: NotificationItem }) => {
+        const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
+        const clickable = isClickable(item);
+
+        return (
+            <TouchableOpacity
+                style={[
+                    styles.item,
+                    isModNotification && styles.modItem,
+                    clickable && styles.clickableItem,
+                , { backgroundColor: theme.panel, borderColor: theme.border }]}
+                onPress={() => handleNotificationPress(item)}
+                disabled={!clickable}
+            >
+                <View style={[
+                    styles.iconContainer,
+                    isModNotification && styles.modIconContainer,
+                ]}>
+                    {getIcon(item.type)}
+                </View>
+                <View style={{ flex: 1 }}>
+                    <Text style={[styles.itemText, isModNotification && styles.modItemText, { color: theme.text }]}>
+                        {isModNotification ? (
+                            <>
+                                <Text style={{ fontWeight: 'bold' }}>{getNotificationPrefix(item)}</Text>
+                                {getNotificationContent(item)}
+                            </>
+                        ) : (
+                            <>
+                                <Text style={{ fontWeight: 'bold' }}>@{item.actor?.username}</Text> {item.content}
+                            </>
+                        )}
+                    </Text>
+                    <View style={styles.metaRow}>
+                        <Text style={[styles.time, { color: theme.muted }]}>
+                            {new Date(item.createdAt).toLocaleDateString()}
+                        </Text>
+                        {clickable && (
+                            <Text style={[styles.viewLink, { color: theme.accent }]}>
+                                {item.postId ? 'View post →' : 'View profile →'}
+                            </Text>
+                        )}
+                    </View>
+                </View>
+                {!item.read && <View style={[styles.dot, { backgroundColor: theme.accent }]} />}
+            </TouchableOpacity>
+        );
+    }, [theme, onNavigateToPost, onNavigateToUser]);
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
             <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
@@ -112,54 +161,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
                 <FlatList
                     data={notifications}
                     keyExtractor={item => item.id}
-                    renderItem={({ item }) => {
-                        const isModNotification = ['warning', 'mod_removed', 'banned'].includes(item.type);
-                        const clickable = isClickable(item);
-
-                        return (
-                            <TouchableOpacity
-                                style={[
-                                    styles.item,
-                                    isModNotification && styles.modItem,
-                                    clickable && styles.clickableItem,
-                                , { backgroundColor: theme.panel, borderColor: theme.border }]}
-                                onPress={() => handleNotificationPress(item)}
-                                disabled={!clickable}
-                            >
-                                <View style={[
-                                    styles.iconContainer,
-                                    isModNotification && styles.modIconContainer,
-                                ]}>
-                                    {getIcon(item.type)}
-                                </View>
-                                <View style={{ flex: 1 }}>
-                                    <Text style={[styles.itemText, isModNotification && styles.modItemText, { color: theme.text }]}>
-                                        {isModNotification ? (
-                                            <>
-                                                <Text style={{ fontWeight: 'bold' }}>{getNotificationPrefix(item)}</Text>
-                                                {getNotificationContent(item)}
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Text style={{ fontWeight: 'bold' }}>@{item.actor?.username}</Text> {item.content}
-                                            </>
-                                        )}
-                                    </Text>
-                                    <View style={styles.metaRow}>
-                                        <Text style={[styles.time, { color: theme.muted }]}>
-                                            {new Date(item.createdAt).toLocaleDateString()}
-                                        </Text>
-                                        {clickable && (
-                                            <Text style={[styles.viewLink, { color: theme.accent }]}>
-                                                {item.postId ? 'View post →' : 'View profile →'}
-                                            </Text>
-                                        )}
-                                    </View>
-                                </View>
-                                {!item.read && <View style={[styles.dot, { backgroundColor: theme.accent }]} />}
-                            </TouchableOpacity>
-                        );
-                    }}
+                    renderItem={renderItem}
                     contentContainerStyle={{ padding: 16 }}
                     ListEmptyComponent={
                         <View style={{ padding: 20, alignItems: 'center' }}>

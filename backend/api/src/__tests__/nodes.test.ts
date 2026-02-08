@@ -17,6 +17,7 @@ import {
   createTestNode,
   generateTestToken,
   authHeader,
+  resetMockPrisma,
   type MockPrismaClient,
 } from './helpers.js';
 
@@ -38,13 +39,7 @@ afterAll(async () => {
 });
 
 beforeEach(() => {
-  for (const model of Object.values(prisma)) {
-    for (const fn of Object.values(model)) {
-      if (typeof fn === 'function' && 'mockReset' in fn) {
-        (fn as any).mockReset();
-      }
-    }
-  }
+  resetMockPrisma(prisma);
 });
 
 // =========================================================================
@@ -171,9 +166,11 @@ describe('POST /nodes', () => {
 describe('GET /nodes', () => {
   it('should list nodes without requiring authentication', async () => {
     // WHY: Node listing is a public endpoint -- anyone can browse communities.
+    // The route includes _count.subscriptions for subscriber counts, so mock
+    // data must include the _count shape that Prisma would normally return.
     prisma.node.findMany.mockResolvedValue([
-      createTestNode(USER_ID, { slug: 'node-a' }),
-      createTestNode(USER_ID, { slug: 'node-b' }),
+      createTestNode(USER_ID, { slug: 'node-a', _count: { subscriptions: 3 } }),
+      createTestNode(USER_ID, { slug: 'node-b', _count: { subscriptions: 1 } }),
     ]);
 
     const res = await app.inject({
