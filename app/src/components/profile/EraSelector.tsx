@@ -14,7 +14,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Hexagon, X, Check, Sparkles, Info } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { updateProfile } from '../../lib/api';
 
 interface EraSelectorProps {
@@ -45,6 +46,7 @@ const EraCard: React.FC<{
     onSelect: () => void;
     index: number;
 }> = ({ era, isSelected, onSelect, index }) => {
+    const theme = useAppTheme();
     const eraStyle = ERAS[era.key] || ERAS['Default'];
     const scaleAnim = useRef(new Animated.Value(0.9)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -115,7 +117,7 @@ const EraCard: React.FC<{
                         <Text style={[styles.eraName, { color: eraStyle.text }]}>
                             {era.key}
                         </Text>
-                        <Text style={styles.eraDescription}>
+                        <Text style={[styles.eraDescription, { color: theme.muted }]}>
                             {era.description}
                         </Text>
                     </View>
@@ -146,6 +148,7 @@ export const EraSelector: React.FC<EraSelectorProps> = ({
     onClose,
     onEraChange,
 }) => {
+    const theme = useAppTheme();
     const { width, height } = useWindowDimensions();
     const isDesktop = width >= BREAKPOINTS.desktop;
 
@@ -218,23 +221,23 @@ export const EraSelector: React.FC<EraSelectorProps> = ({
                 >
                     <Pressable onPress={(e) => e.stopPropagation()}>
                         {/* Glass background */}
-                        <View style={styles.glassBackground} />
+                        <View style={[styles.glassBackground, { backgroundColor: theme.panel, borderColor: theme.border }]} />
 
                         {/* Header */}
-                        <View style={styles.header}>
+                        <View style={[styles.header, { borderBottomColor: theme.border }]}>
                             <View style={styles.headerTitle}>
                                 <Hexagon size={24} color={selectedEraStyle.text} fill={selectedEraStyle.text} />
-                                <Text style={styles.title}>Choose Your Era</Text>
+                                <Text style={[styles.title, { color: theme.text }]}>Choose Your Era</Text>
                             </View>
-                            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                                <X size={20} color={COLORS.node.muted} />
+                            <TouchableOpacity style={[styles.closeButton, { backgroundColor: theme.bg }]} onPress={onClose}>
+                                <X size={20} color={theme.muted} />
                             </TouchableOpacity>
                         </View>
 
                         {/* Description */}
-                        <View style={styles.descriptionBox}>
-                            <Info size={14} color={COLORS.node.muted} />
-                            <Text style={styles.descriptionText}>
+                        <View style={[styles.descriptionBox, { backgroundColor: theme.bg }]}>
+                            <Info size={14} color={theme.muted} />
+                            <Text style={[styles.descriptionText, { color: theme.muted }]}>
                                 Your Era reflects your current vibe. It changes your profile's look and feel.
                             </Text>
                         </View>
@@ -257,13 +260,13 @@ export const EraSelector: React.FC<EraSelectorProps> = ({
                         </ScrollView>
 
                         {/* Footer */}
-                        <View style={styles.footer}>
+                        <View style={[styles.footer, { borderTopColor: theme.border }]}>
                             <TouchableOpacity
-                                style={styles.cancelButton}
+                                style={[styles.cancelButton, { backgroundColor: theme.bg }]}
                                 onPress={onClose}
                                 disabled={saving}
                             >
-                                <Text style={styles.cancelText}>Cancel</Text>
+                                <Text style={[styles.cancelText, { color: theme.muted }]}>Cancel</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity
@@ -306,9 +309,7 @@ const styles = StyleSheet.create({
     },
     glassBackground: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: COLORS.node.panel,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: RADIUS.xl,
         ...Platform.select({
             web: {
@@ -322,7 +323,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: SPACING.xl,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     headerTitle: {
         flexDirection: 'row',
@@ -332,13 +332,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: TYPOGRAPHY.sizes.h3,
         fontWeight: '700',
-        color: COLORS.node.text,
     },
     closeButton: {
         width: 36,
         height: 36,
         borderRadius: 18,
-        backgroundColor: COLORS.node.bg,
         alignItems: 'center',
         justifyContent: 'center',
         ...Platform.select({
@@ -352,13 +350,11 @@ const styles = StyleSheet.create({
         marginHorizontal: SPACING.xl,
         marginTop: SPACING.lg,
         padding: SPACING.md,
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.md,
     },
     descriptionText: {
         flex: 1,
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
         lineHeight: TYPOGRAPHY.sizes.small * TYPOGRAPHY.lineHeights.relaxed,
     },
     scrollContainer: {
@@ -407,7 +403,6 @@ const styles = StyleSheet.create({
     },
     eraDescription: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     checkBadge: {
@@ -438,14 +433,12 @@ const styles = StyleSheet.create({
         gap: SPACING.md,
         padding: SPACING.xl,
         borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
     },
     cancelButton: {
         flex: 1,
         paddingVertical: SPACING.md,
         borderRadius: RADIUS.md,
         alignItems: 'center',
-        backgroundColor: COLORS.node.bg,
         ...Platform.select({
             web: { cursor: 'pointer' },
         }),
@@ -453,7 +446,6 @@ const styles = StyleSheet.create({
     cancelText: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '600',
-        color: COLORS.node.muted,
     },
     saveButton: {
         flex: 1,

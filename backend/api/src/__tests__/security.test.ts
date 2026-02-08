@@ -30,7 +30,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, InjectOptions } from 'fastify';
 import {
   buildTestApp,
   createTestUser,
@@ -194,8 +194,8 @@ describe('Authentication Enforcement', () => {
       const res = await app.inject({
         method: endpoint.method,
         url: endpoint.url,
-        payload: endpoint.payload,
-      });
+        ...(endpoint.payload ? { payload: endpoint.payload } : {}),
+      } as InjectOptions);
 
       expect(res.statusCode).toBe(401);
       expect(res.json().error).toBe('Unauthorized');

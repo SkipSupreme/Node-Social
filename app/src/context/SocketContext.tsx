@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { Platform } from 'react-native';
 import { useAuthStore } from '../store/auth';
@@ -122,8 +122,15 @@ export const SocketProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         };
     }, []); // Empty deps - uses refs internally
 
+    // Memoize context value so consumers (PostCardInner) don't re-render
+    // when this provider re-renders for unrelated reasons
+    const contextValue = useMemo(
+        () => ({ socket, isConnected, subscribeToPost }),
+        [socket, isConnected, subscribeToPost]
+    );
+
     return (
-        <SocketContext.Provider value={{ socket, isConnected, subscribeToPost }}>
+        <SocketContext.Provider value={contextValue}>
             {children}
         </SocketContext.Provider>
     );

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, ActivityIndicator, RefreshControl, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Users, UserPlus } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { getFeed, Post } from '../lib/api';
 import { PostCard } from '../components/PostCard';
 
@@ -12,6 +12,7 @@ interface FollowingScreenProps {
 }
 
 export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) => {
+    const theme = useAppTheme();
     const [posts, setPosts] = useState<Post[]>([]);
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
@@ -45,15 +46,15 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-                    <ArrowLeft size={24} color={COLORS.node.text} />
+                    <ArrowLeft size={24} color={theme.text} />
                 </TouchableOpacity>
                 <View style={styles.headerCenter}>
-                    <Users size={20} color={COLORS.node.accent} />
-                    <Text style={styles.title}>Following</Text>
+                    <Users size={20} color={theme.accent} />
+                    <Text style={[styles.title, { color: theme.text }]}>Following</Text>
                 </View>
                 <View style={{ width: 40 }} />
             </View>
@@ -61,8 +62,8 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
             {/* Content */}
             {loading ? (
                 <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={COLORS.node.accent} />
-                    <Text style={styles.loadingText}>Loading your feed...</Text>
+                    <ActivityIndicator size="large" color={theme.accent} />
+                    <Text style={[styles.loadingText, { color: theme.muted }]}>Loading your feed...</Text>
                 </View>
             ) : (
                 <FlatList
@@ -79,14 +80,14 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
                         <RefreshControl
                             refreshing={refreshing}
                             onRefresh={handleRefresh}
-                            tintColor={COLORS.node.accent}
+                            tintColor={theme.accent}
                         />
                     }
                     ListEmptyComponent={
                         <View style={styles.emptyContainer}>
-                            <UserPlus size={64} color={COLORS.node.muted} />
-                            <Text style={styles.emptyTitle}>No posts yet</Text>
-                            <Text style={styles.emptyText}>
+                            <UserPlus size={64} color={theme.muted} />
+                            <Text style={[styles.emptyTitle, { color: theme.text }]}>No posts yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>
                                 Follow some users to see their posts here.
                                 {'\n'}Discover new people in the Discovery tab!
                             </Text>
@@ -101,7 +102,6 @@ export const FollowingScreen = ({ onBack, onPostClick }: FollowingScreenProps) =
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     header: {
         flexDirection: 'row',
@@ -109,7 +109,6 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     backBtn: {
         padding: 8,
@@ -122,7 +121,6 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     listContent: {
         padding: 16,
@@ -134,7 +132,6 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     loadingText: {
-        color: COLORS.node.muted,
         fontSize: 14,
     },
     emptyContainer: {
@@ -148,10 +145,8 @@ const styles = StyleSheet.create({
     emptyTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     emptyText: {
-        color: COLORS.node.muted,
         fontSize: 14,
         textAlign: 'center',
         lineHeight: 22,

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { api } from '../lib/api';
 
 interface ScoreBreakdown {
@@ -23,6 +23,7 @@ interface ScoreDebuggerProps {
 }
 
 export const ScoreDebugger: React.FC<ScoreDebuggerProps> = ({ visible, postId, onClose }) => {
+    const theme = useAppTheme();
     const [breakdown, setBreakdown] = useState<ScoreBreakdown | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -47,24 +48,24 @@ export const ScoreDebugger: React.FC<ScoreDebuggerProps> = ({ visible, postId, o
     if (!visible) return null;
 
     const renderRow = (label: string, data: { raw: number; weight: number; contribution: number }, icon: string, color: string) => (
-        <View style={styles.row}>
+        <View style={[styles.row, { backgroundColor: theme.panel }]}>
             <View style={styles.labelContainer}>
                 <Text style={styles.icon}>{icon}</Text>
                 <Text style={[styles.label, { color }]}>{label}</Text>
             </View>
             <View style={styles.values}>
                 <View style={styles.valueBox}>
-                    <Text style={styles.valueLabel}>Raw</Text>
-                    <Text style={styles.value}>{data.raw.toFixed(1)}</Text>
+                    <Text style={[styles.valueLabel, { color: theme.muted }]}>Raw</Text>
+                    <Text style={[styles.value, { color: theme.text }]}>{data.raw.toFixed(1)}</Text>
                 </View>
-                <Text style={styles.x}>×</Text>
+                <Text style={[styles.x, { color: theme.muted }]}>×</Text>
                 <View style={styles.valueBox}>
-                    <Text style={styles.valueLabel}>Weight</Text>
-                    <Text style={styles.value}>{data.weight.toFixed(1)}</Text>
+                    <Text style={[styles.valueLabel, { color: theme.muted }]}>Weight</Text>
+                    <Text style={[styles.value, { color: theme.text }]}>{data.weight.toFixed(1)}</Text>
                 </View>
-                <Text style={styles.equals}>=</Text>
+                <Text style={[styles.equals, { color: theme.muted }]}>=</Text>
                 <View style={[styles.valueBox, styles.contributionBox]}>
-                    <Text style={styles.valueLabel}>Score</Text>
+                    <Text style={[styles.valueLabel, { color: theme.muted }]}>Score</Text>
                     <Text style={[styles.value, { color }]}>{data.contribution.toFixed(1)}</Text>
                 </View>
             </View>
@@ -74,16 +75,16 @@ export const ScoreDebugger: React.FC<ScoreDebuggerProps> = ({ visible, postId, o
     return (
         <Modal visible={visible} transparent animationType="fade">
             <View style={styles.overlay}>
-                <View style={styles.container}>
+                <View style={[styles.container, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Score Breakdown</Text>
+                        <Text style={[styles.title, { color: theme.text }]}>Score Breakdown</Text>
                         <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={24} color={COLORS.node.text} />
+                            <Ionicons name="close" size={24} color={theme.text} />
                         </TouchableOpacity>
                     </View>
 
                     {loading ? (
-                        <ActivityIndicator size="large" color={COLORS.node.accent} style={{ margin: 20 }} />
+                        <ActivityIndicator size="large" color={theme.accent} style={{ margin: 20 }} />
                     ) : breakdown ? (
                         <ScrollView contentContainerStyle={styles.content}>
                             {renderRow('Recency', breakdown.components.recency, '⏰', '#60a5fa')}
@@ -91,23 +92,23 @@ export const ScoreDebugger: React.FC<ScoreDebuggerProps> = ({ visible, postId, o
                             {renderRow('Engagement', breakdown.components.engagement, '🔥', '#f87171')}
                             {renderRow('Personal', breakdown.components.personalization, '👤', '#34d399')}
 
-                            <View style={styles.divider} />
+                            <View style={[styles.divider, { backgroundColor: theme.border }]} />
 
                             <View style={styles.totalRow}>
-                                <Text style={styles.totalLabel}>Raw Score</Text>
-                                <Text style={styles.totalValue}>{breakdown.rawScore.toFixed(1)}</Text>
+                                <Text style={[styles.totalLabel, { color: theme.muted }]}>Raw Score</Text>
+                                <Text style={[styles.totalValue, { color: theme.text }]}>{breakdown.rawScore.toFixed(1)}</Text>
                             </View>
 
                             {breakdown.boostMultiplier !== 1 && (
                                 <View style={styles.totalRow}>
-                                    <Text style={styles.totalLabel}>Boost Multiplier</Text>
+                                    <Text style={[styles.totalLabel, { color: theme.muted }]}>Boost Multiplier</Text>
                                     <Text style={[styles.totalValue, { color: '#fbbf24' }]}>x{breakdown.boostMultiplier.toFixed(2)}</Text>
                                 </View>
                             )}
 
-                            <View style={[styles.totalRow, styles.finalRow]}>
-                                <Text style={styles.finalLabel}>Final Score</Text>
-                                <Text style={styles.finalValue}>{breakdown.finalScore.toFixed(1)}</Text>
+                            <View style={[styles.totalRow, styles.finalRow, { backgroundColor: theme.panel, borderColor: theme.accent }]}>
+                                <Text style={[styles.finalLabel, { color: theme.accent }]}>Final Score</Text>
+                                <Text style={[styles.finalValue, { color: theme.accent }]}>{breakdown.finalScore.toFixed(1)}</Text>
                             </View>
                         </ScrollView>
                     ) : (
@@ -127,10 +128,8 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     container: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         padding: 20,
         maxHeight: '80%',
     },
@@ -143,13 +142,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     content: {
         gap: 16,
     },
     row: {
-        backgroundColor: COLORS.node.panel,
         padding: 12,
         borderRadius: 12,
     },
@@ -176,20 +173,16 @@ const styles = StyleSheet.create({
     },
     valueLabel: {
         fontSize: 10,
-        color: COLORS.node.muted,
         marginBottom: 2,
     },
     value: {
-        color: COLORS.node.text,
         fontWeight: '600',
         fontSize: 14,
     },
     x: {
-        color: COLORS.node.muted,
         fontSize: 12,
     },
     equals: {
-        color: COLORS.node.muted,
         fontSize: 12,
     },
     contributionBox: {
@@ -198,7 +191,6 @@ const styles = StyleSheet.create({
     },
     divider: {
         height: 1,
-        backgroundColor: COLORS.node.border,
         marginVertical: 8,
     },
     totalRow: {
@@ -207,29 +199,23 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     totalLabel: {
-        color: COLORS.node.muted,
         fontSize: 14,
     },
     totalValue: {
-        color: COLORS.node.text,
         fontSize: 16,
         fontWeight: '600',
     },
     finalRow: {
         marginTop: 8,
-        backgroundColor: COLORS.node.panel,
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.accent,
     },
     finalLabel: {
-        color: COLORS.node.accent,
         fontSize: 18,
         fontWeight: 'bold',
     },
     finalValue: {
-        color: COLORS.node.accent,
         fontSize: 24,
         fontWeight: 'bold',
     },

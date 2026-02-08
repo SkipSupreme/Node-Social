@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from "react-native";
-import { MessageSquare, BarChart2, Hexagon, Zap } from "lucide-react-native";
+import { MessageSquare, BarChart2, Hexagon, Zap, ExternalLink } from "lucide-react-native";
 import { Post, votePoll } from "../lib/api";
 import { useAuthStore } from "../store/auth";
-import { COLORS, ERAS, SPACING, RADIUS } from "../constants/theme";
+import { ERAS, SPACING, RADIUS } from "../constants/theme";
+import { useAppTheme } from "../hooks/useTheme";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 
 // Helper to format relative time (e.g., "2h ago")
@@ -30,7 +31,21 @@ type PostCardProps = {
 };
 
 export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCardProps) => {
+  const theme = useAppTheme();
   const { user } = useAuthStore();
+
+  // Memoize themed style overrides — stable identity unless theme changes
+  const ts = useMemo(() => StyleSheet.create({
+    container: { backgroundColor: theme.panel, borderBottomColor: theme.border },
+    avatarBorder: { borderColor: theme.accent },
+    textColor: { color: theme.text },
+    mutedColor: { color: theme.muted },
+    accentColor: { color: theme.accent },
+    pollOption: { borderColor: theme.border, backgroundColor: theme.bg },
+    pollOptionVoted: { borderColor: 'transparent', backgroundColor: theme.bg },
+    pollOptionSelected: { borderColor: theme.accent },
+    optionSelected: { color: theme.accent, fontWeight: 'bold' as const },
+  }), [theme]);
   const [post, setPost] = useState(initialPost);
   const [voting, setVoting] = useState(false);
 
@@ -114,14 +129,14 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
 
   return (
     <TouchableOpacity
-      style={styles.container}
+      style={[styles.container, ts.container]}
       onPress={() => onPress?.(post)}
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={styles.header}>
         <TouchableOpacity style={styles.authorSection} onPress={() => onAuthorClick?.(post.author.id)}>
           {/* Avatar with purple border */}
-          <View style={[styles.avatarContainer, { borderColor: COLORS.node.accent }]}>
+          <View style={[styles.avatarContainer, ts.avatarBorder]}>
             {post.author.avatar ? (
               <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
             ) : (
@@ -136,7 +151,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
           {/* Author info */}
           <View style={styles.authorInfo}>
             <View style={styles.authorRow}>
-              <Text style={styles.author}>@{post.author.username || 'User'}</Text>
+              <Text style={[styles.author, ts.textColor]}>@{post.author.username || 'User'}</Text>
               {/* Cred badge */}
               {post.author.cred !== undefined && post.author.cred > 0 && (
                 <View style={styles.credBadge}>
@@ -152,16 +167,16 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
                 <Text style={[styles.eraText, { color: eraStyle.text }]}>{authorEra.replace(' Era', '')}</Text>
               </View>
               {post.node && (
-                <Text style={styles.nodeName}>n/{post.node.slug}</Text>
+                <Text style={[styles.nodeName, ts.accentColor]}>n/{post.node.slug}</Text>
               )}
             </View>
           </View>
         </TouchableOpacity>
-        <Text style={styles.time}>{formatTimeAgo(post.createdAt)}</Text>
+        <Text style={[styles.time, ts.mutedColor]}>{formatTimeAgo(post.createdAt)}</Text>
       </View>
 
       {post.title && (
-        <Text style={styles.title}>{post.title}</Text>
+        <Text style={[styles.title, ts.textColor]}>{post.title}</Text>
       )}
 
       {post.content && (
@@ -173,7 +188,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
       {post.poll && (
         <View style={styles.pollContainer}>
           {post.poll.question && post.poll.question !== post.title && (
-            <Text style={styles.pollQuestion}>{post.poll.question}</Text>
+            <Text style={[styles.pollQuestion, ts.textColor]}>{post.poll.question}</Text>
           )}
 
           {post.poll.options.map(option => {
@@ -186,8 +201,9 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
                 key={option.id}
                 style={[
                   styles.pollOption,
-                  hasVoted && styles.pollOptionResult,
-                  isSelected && styles.pollOptionSelected
+                  ts.pollOption,
+                  hasVoted && ts.pollOptionVoted,
+                  isSelected && ts.pollOptionSelected,
                 ]}
                 onPress={() => !hasVoted && handleVote(option.id)}
                 disabled={hasVoted || voting}
@@ -198,36 +214,50 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
                 <View style={styles.optionContent}>
                   <Text style={[
                     styles.optionText,
-                    isSelected && styles.optionTextSelected
+                    ts.textColor,
+                    isSelected && ts.optionSelected,
                   ]}>
                     {option.text}
                   </Text>
                   {hasVoted && (
-                    <Text style={styles.percentageText}>{percentage}%</Text>
+                    <Text style={[styles.percentageText, ts.mutedColor]}>{percentage}%</Text>
                   )}
                 </View>
               </TouchableOpacity>
             );
           })}
-          <Text style={styles.totalVotes}>{totalVotes} votes</Text>
+          <Text style={[styles.totalVotes, ts.mutedColor]}>{totalVotes} votes</Text>
         </View>
       )}
 
-      {post.linkMeta && (
+      {post.linkMeta ? (
         <View style={styles.linkPreview}>
           <LinkPreviewCard metadata={post.linkMeta} onPress={() => onPress?.(post)} />
         </View>
-      )}
+      ) : post.linkUrl ? (
+        <TouchableOpacity
+          style={[styles.linkFallback, { borderColor: theme.border, backgroundColor: theme.bg }]}
+          onPress={() => {
+            const Linking = require('react-native').Linking;
+            Linking.openURL(post.linkUrl);
+          }}
+        >
+          <ExternalLink size={14} color={theme.muted} />
+          <Text style={{ color: theme.accent, fontSize: 13 }} numberOfLines={1}>
+            {new URL(post.linkUrl).hostname}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
 
       <View style={styles.footer}>
         <View style={styles.stats}>
-          <MessageSquare size={20} color={COLORS.node.muted} />
-          <Text style={styles.statText}>{post.commentCount}</Text>
+          <MessageSquare size={20} color={theme.muted} />
+          <Text style={[styles.statText, ts.mutedColor]}>{post.commentCount}</Text>
         </View>
         {post.poll && (
           <View style={styles.stats}>
-            <BarChart2 size={20} color={COLORS.node.muted} />
-            <Text style={styles.statText}>Poll</Text>
+            <BarChart2 size={20} color={theme.muted} />
+            <Text style={[styles.statText, ts.mutedColor]}>Poll</Text>
           </View>
         )}
       </View>
@@ -237,11 +267,9 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.node.panel,
     padding: 16,
     marginBottom: 1,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   header: {
     flexDirection: "row",
@@ -295,7 +323,6 @@ const styles = StyleSheet.create({
   author: {
     fontWeight: "600",
     fontSize: 14,
-    color: COLORS.node.text,
   },
   credBadge: {
     flexDirection: 'row',
@@ -326,16 +353,13 @@ const styles = StyleSheet.create({
   },
   nodeName: {
     fontSize: 12,
-    color: COLORS.node.accent,
   },
   time: {
-    color: COLORS.node.muted,
     fontSize: 12,
   },
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
     marginBottom: 8,
   },
   content: {
@@ -351,25 +375,15 @@ const styles = StyleSheet.create({
   pollQuestion: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 12,
   },
   pollOption: {
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 8,
     marginBottom: 8,
     height: 44,
     justifyContent: 'center',
     overflow: 'hidden',
-    backgroundColor: COLORS.node.bg,
-  },
-  pollOptionResult: {
-    borderColor: 'transparent',
-    backgroundColor: COLORS.node.bg,
-  },
-  pollOptionSelected: {
-    borderColor: COLORS.node.accent,
   },
   progressBar: {
     ...StyleSheet.absoluteFillObject,
@@ -382,23 +396,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
   },
   optionText: {
-    color: COLORS.node.text,
     fontWeight: '500',
   },
-  optionTextSelected: {
-    color: COLORS.node.accent,
-    fontWeight: 'bold',
-  },
   percentageText: {
-    color: COLORS.node.muted,
     fontSize: 12,
   },
   totalVotes: {
-    color: COLORS.node.muted,
     fontSize: 12,
     marginTop: 4,
   },
   linkPreview: {
+    marginBottom: 12,
+  },
+  linkFallback: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderRadius: 8,
     marginBottom: 12,
   },
   footer: {
@@ -412,8 +429,6 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   statText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
 });
-

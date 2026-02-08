@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Animated, StyleSheet, Platform } from 'react-native';
 import { subscribeToToasts } from '../../lib/alert';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { CheckCircle, AlertCircle, Info } from 'lucide-react-native';
 
 type ToastType = 'success' | 'error' | 'info';
@@ -42,6 +42,7 @@ export const ToastContainer: React.FC = () => {
 };
 
 const ToastItem: React.FC<{ message: string; type: ToastType }> = ({ message, type }) => {
+  const theme = useAppTheme();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(-20)).current;
 
@@ -72,12 +73,12 @@ const ToastItem: React.FC<{ message: string; type: ToastType }> = ({ message, ty
   }, []);
 
   const Icon = type === 'success' ? CheckCircle : type === 'error' ? AlertCircle : Info;
-  const iconColor = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : COLORS.node.accent;
+  const iconColor = type === 'success' ? '#22c55e' : type === 'error' ? '#ef4444' : theme.accent;
 
   return (
-    <Animated.View style={[styles.toast, { opacity, transform: [{ translateY }] }]}>
+    <Animated.View style={[styles.toast, { opacity, transform: [{ translateY }], backgroundColor: theme.panel, borderColor: theme.border }]}>
       <Icon size={18} color={iconColor} />
-      <Text style={styles.toastText}>{message}</Text>
+      <Text style={[styles.toastText, { color: theme.text }]}>{message}</Text>
     </Animated.View>
   );
 };
@@ -95,9 +96,7 @@ const styles = StyleSheet.create({
   toast: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
@@ -107,7 +106,6 @@ const styles = StyleSheet.create({
     boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.3)',
   },
   toastText: {
-    color: COLORS.node.text,
     fontSize: 14,
     fontWeight: '500',
     flex: 1,

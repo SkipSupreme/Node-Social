@@ -19,7 +19,8 @@ import { showAlert } from "../lib/alert";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, MessageSquare, Share2, Bookmark, X, ImageIcon, Camera, Smile, Play } from "lucide-react-native";
 import { getPost, getComments, createComment, Post, Comment, savePost } from "../lib/api";
-import { COLORS } from "../constants/theme";
+import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { VibeBar, VibeAggregateData } from "../components/VibeBar";
 import { VibeRadialWheel } from "../components/VibeRadialWheel";
 import { TipTapContent } from "../components/ui/TipTapContent";
@@ -102,6 +103,7 @@ const isImageUrl = (url: string): boolean => {
 
 // Auto-sizing image component that maintains aspect ratio
 const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: number }) => {
+  const theme = useAppTheme();
   const [aspectRatio, setAspectRatio] = useState(16 / 9);
 
   useEffect(() => {
@@ -125,7 +127,7 @@ const AutoSizeImage = ({ uri, maxHeight = 400 }: { uri: string; maxHeight?: numb
           aspectRatio,
           maxHeight,
         }
-      ]}
+      , { backgroundColor: theme.bg }]}
       resizeMode="contain"
     />
   );
@@ -239,6 +241,7 @@ const sortCommentsThreaded = (comments: Comment[]): CommentWithThread[] => {
 };
 
 export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded }: PostDetailScreenProps) => {
+  const theme = useAppTheme();
   const [post, setPost] = useState<PostWithVibes | null>(null);
   const [comments, setComments] = useState<CommentWithThread[]>([]);
   const [loading, setLoading] = useState(true);
@@ -418,10 +421,10 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
     }
 
     return (
-      <View style={styles.commentWrapper}>
+      <View style={[styles.commentWrapper, { backgroundColor: theme.panel }]}>
         {/* Connecting line from previous comment to this avatar - uses PARENT's color */}
         {isReply && (
-          <View style={[styles.connectingLineTop, { backgroundColor: parentLineColor }]} />
+          <View style={[styles.connectingLineTop, { backgroundColor: parentLineColor }, { backgroundColor: theme.border }]} />
         )}
 
         {/* Connecting line going down from this avatar to next comment */}
@@ -438,7 +441,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
               {item.author.avatar ? (
                 <Image source={{ uri: item.author.avatar }} style={styles.avatar} />
               ) : (
-                <View style={styles.avatarPlaceholder}>
+                <View style={[styles.avatarPlaceholder, { backgroundColor: theme.accent }]}>
                   <Text style={styles.avatarText}>
                     {item.author.username?.[0]?.toUpperCase() || item.author.email?.[0]?.toUpperCase() || '?'}
                   </Text>
@@ -452,26 +455,26 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
             {/* Header row */}
             <View style={styles.commentHeader}>
               <TouchableOpacity onPress={() => onAuthorClick?.(item.author.id)}>
-                <Text style={styles.commentAuthor}>
+                <Text style={[styles.commentAuthor, { color: theme.text }]}>
                   {item.author.username || item.author.email.split("@")[0]}
                 </Text>
               </TouchableOpacity>
-              <Text style={styles.commentDot}> · </Text>
-              <Text style={styles.commentTime}>{formatTimeAgo(item.createdAt)}</Text>
+              <Text style={[styles.commentDot, { color: theme.muted }]}> · </Text>
+              <Text style={[styles.commentTime, { color: theme.muted }]}>{formatTimeAgo(item.createdAt)}</Text>
             </View>
 
             {/* Comment text */}
-            <Text style={styles.commentText}>{item.content}</Text>
+            <Text style={[styles.commentText, { color: theme.text }]}>{item.content}</Text>
 
             {/* Action bar */}
             <View style={styles.commentActions}>
               <TouchableOpacity
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
                 onPress={() => handleOpenReplyModal(item)}
               >
-                <MessageSquare size={16} color={COLORS.node.muted} />
+                <MessageSquare size={16} color={theme.muted} />
                 {item.replyCount > 0 && (
-                  <Text style={styles.actionCount}>{item.replyCount}</Text>
+                  <Text style={[styles.actionCount, { color: theme.muted }]}>{item.replyCount}</Text>
                 )}
               </TouchableOpacity>
 
@@ -485,8 +488,8 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
                 contentType="comment"
               />
 
-              <TouchableOpacity style={styles.actionButton}>
-                <Share2 size={16} color={COLORS.node.muted} />
+              <TouchableOpacity style={[styles.actionButton, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+                <Share2 size={16} color={theme.muted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -499,18 +502,18 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
     if (!post) return null;
 
     return (
-      <View style={styles.postContainer}>
+      <View style={[styles.postContainer, { borderBottomColor: theme.border }]}>
         {error && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>{error}</Text>
             <TouchableOpacity onPress={loadData}>
-              <Text style={styles.errorBannerRetry}>Retry</Text>
+              <Text style={[styles.errorBannerRetry, { color: theme.accent }]}>Retry</Text>
             </TouchableOpacity>
           </View>
         )}
 
         {/* Main Post */}
-        <View style={styles.postCard}>
+        <View style={[styles.postCard, { backgroundColor: theme.panel }]}>
           {/* Author row */}
           <View style={styles.postAuthorRow}>
             <TouchableOpacity
@@ -520,7 +523,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
               {post.author.avatar ? (
                 <Image source={{ uri: post.author.avatar }} style={styles.postAvatar} />
               ) : (
-                <View style={styles.postAvatarPlaceholder}>
+                <View style={[styles.postAvatarPlaceholder, { backgroundColor: theme.accent }]}>
                   <Text style={styles.postAvatarText}>
                     {post.author.username?.[0]?.toUpperCase() || post.author.email?.[0]?.toUpperCase() || '?'}
                   </Text>
@@ -529,23 +532,23 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
             </TouchableOpacity>
             <View style={styles.postAuthorInfo}>
               <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
-                <Text style={styles.postAuthorName}>
+                <Text style={[styles.postAuthorName, { color: theme.text }]}>
                   {post.author.username || post.author.email.split("@")[0]}
                 </Text>
               </TouchableOpacity>
               {post.node && (
-                <Text style={styles.postNode}>n/{post.node.slug}</Text>
+                <Text style={[styles.postNode, { color: theme.muted }]}>n/{post.node.slug}</Text>
               )}
             </View>
           </View>
 
           {/* Post content */}
-          {post.title && <Text style={styles.postTitle}>{post.title}</Text>}
+          {post.title && <Text style={[styles.postTitle, { color: theme.text }]}>{post.title}</Text>}
           {(post.content || post.contentJson) && (
             post.contentFormat === 'tiptap' && post.contentJson ? (
               <TipTapContent content={post.contentJson} />
             ) : post.content ? (
-              <Text style={styles.postContent}>{post.content}</Text>
+              <Text style={[styles.postContent, { color: theme.text }]}>{post.content}</Text>
             ) : null
           )}
 
@@ -559,10 +562,10 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
                   <YouTubeEmbed videoId={getYouTubeVideoId(post.linkUrl)!} />
                 ) : (
                   <TouchableOpacity
-                    style={styles.videoPreview}
+                    style={[styles.videoPreview, { backgroundColor: theme.bg }]}
                     onPress={() => Linking.openURL(post.linkUrl!)}
                   >
-                    <View style={styles.videoPlaceholder} />
+                    <View style={[styles.videoPlaceholder, { backgroundColor: theme.panel }]} />
                     <View style={styles.playButtonOverlay}>
                       <View style={styles.playButton}>
                         <Play size={32} color="#fff" fill="#fff" />
@@ -577,28 +580,50 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
                   </TouchableOpacity>
                 )
               ) : post.linkMeta?.image ? (
-                <TouchableOpacity
-                  style={styles.linkPreview}
-                  onPress={() => Linking.openURL(post.linkUrl!)}
-                >
+                <View style={[styles.linkPreview, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                   <Image
                     source={{ uri: post.linkMeta.image }}
-                    style={styles.linkPreviewImage}
-                    resizeMode="cover"
+                    style={[styles.linkPreviewImage, { backgroundColor: theme.panel }]}
+                    resizeMode="contain"
                   />
+                  <TouchableOpacity onPress={() => Linking.openURL(post.linkUrl!)}>
+                    <View style={styles.linkPreviewContent}>
+                      {post.linkMeta.title && (
+                        <Text style={[styles.linkPreviewTitle, { color: theme.text }]} numberOfLines={2}>
+                          {post.linkMeta.title}
+                        </Text>
+                      )}
+                      {post.linkMeta.description && (
+                        <Text style={[styles.linkPreviewDescription, { color: theme.muted }]} numberOfLines={2}>
+                          {post.linkMeta.description}
+                        </Text>
+                      )}
+                      {post.linkMeta.domain && (
+                        <Text style={[styles.linkPreviewDomain, { color: theme.accent }]}>
+                          {post.linkMeta.domain}
+                        </Text>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              ) : post.linkMeta && (post.linkMeta.title || post.linkMeta.description) ? (
+                <TouchableOpacity
+                  style={[styles.linkPreview, { backgroundColor: theme.bg, borderColor: theme.border }]}
+                  onPress={() => Linking.openURL(post.linkUrl!)}
+                >
                   <View style={styles.linkPreviewContent}>
                     {post.linkMeta.title && (
-                      <Text style={styles.linkPreviewTitle} numberOfLines={2}>
+                      <Text style={[styles.linkPreviewTitle, { color: theme.text }]} numberOfLines={2}>
                         {post.linkMeta.title}
                       </Text>
                     )}
                     {post.linkMeta.description && (
-                      <Text style={styles.linkPreviewDescription} numberOfLines={2}>
+                      <Text style={[styles.linkPreviewDescription, { color: theme.muted }]} numberOfLines={3}>
                         {post.linkMeta.description}
                       </Text>
                     )}
                     {post.linkMeta.domain && (
-                      <Text style={styles.linkPreviewDomain}>
+                      <Text style={[styles.linkPreviewDomain, { color: theme.accent }]}>
                         {post.linkMeta.domain}
                       </Text>
                     )}
@@ -606,10 +631,10 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity
-                  style={styles.plainLink}
+                  style={[styles.plainLink, { backgroundColor: theme.bg, borderColor: theme.border }]}
                   onPress={() => Linking.openURL(post.linkUrl!)}
                 >
-                  <Text style={styles.plainLinkText} numberOfLines={1}>
+                  <Text style={[styles.plainLinkText, { color: theme.accent }]} numberOfLines={1}>
                     {post.linkUrl}
                   </Text>
                 </TouchableOpacity>
@@ -618,7 +643,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
           )}
 
           {/* Timestamp */}
-          <Text style={styles.postTimestamp}>
+          <Text style={[styles.postTimestamp, { color: theme.muted, borderTopColor: theme.border }]}>
             {new Date(post.createdAt).toLocaleString('en-US', {
               hour: 'numeric',
               minute: '2-digit',
@@ -630,9 +655,9 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
           </Text>
 
           {/* Engagement stats */}
-          <View style={styles.postStats}>
-            <Text style={styles.postStatText}>
-              <Text style={styles.postStatNumber}>{post.commentCount}</Text> Comments
+          <View style={[styles.postStats, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.postStatText, { color: theme.muted }]}>
+              <Text style={[styles.postStatNumber, { color: theme.text }]}>{post.commentCount}</Text> Comments
             </Text>
           </View>
 
@@ -667,21 +692,21 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
               }}
             />
 
-            <TouchableOpacity style={styles.postActionButton}>
-              <MessageSquare size={20} color={COLORS.node.muted} />
-              <Text style={styles.actionText}>{post.commentCount}</Text>
+            <TouchableOpacity style={[styles.postActionButton, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+              <MessageSquare size={20} color={theme.muted} />
+              <Text style={[styles.actionText, { color: theme.muted }]}>{post.commentCount}</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.postActionButton} onPress={handleSave}>
+            <TouchableOpacity style={[styles.postActionButton, { backgroundColor: theme.bg, borderColor: theme.border }]} onPress={handleSave}>
               <Bookmark
                 size={20}
-                color={isSaved ? COLORS.node.accent : COLORS.node.muted}
-                fill={isSaved ? COLORS.node.accent : 'none'}
+                color={isSaved ? theme.accent : theme.muted}
+                fill={isSaved ? theme.accent : 'none'}
               />
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.postActionButton} onPress={handleShare}>
-              <Share2 size={20} color={COLORS.node.muted} />
+            <TouchableOpacity style={[styles.postActionButton, { backgroundColor: theme.bg, borderColor: theme.border }]} onPress={handleShare}>
+              <Share2 size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -699,16 +724,16 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
       transparent={false}
       onRequestClose={() => setReplyModalVisible(false)}
     >
-      <SafeAreaView style={styles.modalContainer} edges={['top', 'bottom']}>
+      <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.bg }]} edges={['top', 'bottom']}>
         {/* Modal Header */}
-        <View style={styles.modalHeader}>
+        <View style={[styles.modalHeader, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
           <TouchableOpacity
             onPress={() => setReplyModalVisible(false)}
             style={styles.modalCloseButton}
           >
-            <X size={24} color={COLORS.node.text} />
+            <X size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.modalTitle}>Reply</Text>
+          <Text style={[styles.modalTitle, { color: theme.text }]}>Reply</Text>
           <TouchableOpacity
             style={[
               styles.modalPostButton,
@@ -728,24 +753,24 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
         {/* Replying to preview */}
         {replyingTo && (
           <View style={styles.replyingToContainer}>
-            <View style={styles.replyingToLine} />
+            <View style={[styles.replyingToLine, { backgroundColor: theme.border }]} />
             <View style={styles.replyingToContent}>
               <View style={styles.replyingToHeader}>
                 {replyingTo.author.avatar ? (
                   <Image source={{ uri: replyingTo.author.avatar }} style={styles.replyingToAvatar} />
                 ) : (
-                  <View style={styles.replyingToAvatarPlaceholder}>
+                  <View style={[styles.replyingToAvatarPlaceholder, { backgroundColor: theme.accent }]}>
                     <Text style={styles.replyingToAvatarText}>
                       {replyingTo.author.username?.[0]?.toUpperCase() || '?'}
                     </Text>
                   </View>
                 )}
-                <Text style={styles.replyingToAuthor}>
+                <Text style={[styles.replyingToAuthor, { color: theme.text }]}>
                   {replyingTo.author.username || replyingTo.author.email.split("@")[0]}
                 </Text>
-                <Text style={styles.replyingToTime}> · {formatTimeAgo(replyingTo.createdAt)}</Text>
+                <Text style={[styles.replyingToTime, { color: theme.muted }]}> · {formatTimeAgo(replyingTo.createdAt)}</Text>
               </View>
-              <Text style={styles.replyingToText} numberOfLines={3}>
+              <Text style={[styles.replyingToText, { color: theme.muted }]} numberOfLines={3}>
                 {replyingTo.content}
               </Text>
             </View>
@@ -755,9 +780,9 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
         {/* Reply input area */}
         <View style={styles.modalInputContainer}>
           <TextInput
-            style={styles.modalInput}
+            style={[styles.modalInput, { color: theme.text }]}
             placeholder="Post your reply..."
-            placeholderTextColor={COLORS.node.muted}
+            placeholderTextColor={theme.muted}
             value={modalReplyText}
             onChangeText={(text) => {
               if (text.length <= MAX_REPLY_LENGTH) {
@@ -770,16 +795,16 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
         </View>
 
         {/* Bottom toolbar */}
-        <View style={styles.modalToolbar}>
+        <View style={[styles.modalToolbar, { borderTopColor: theme.border, backgroundColor: theme.panel }]}>
           <View style={styles.modalToolbarIcons}>
             <TouchableOpacity style={styles.toolbarIcon}>
-              <ImageIcon size={22} color={COLORS.node.accent} />
+              <ImageIcon size={22} color={theme.accent} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.toolbarIcon}>
-              <Camera size={22} color={COLORS.node.accent} />
+              <Camera size={22} color={theme.accent} />
             </TouchableOpacity>
             <TouchableOpacity style={styles.toolbarIcon}>
-              <Smile size={22} color={COLORS.node.accent} />
+              <Smile size={22} color={theme.accent} />
             </TouchableOpacity>
           </View>
           <Text style={[
@@ -796,16 +821,16 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
+        <View style={[styles.header, { backgroundColor: theme.panel, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.node.text} />
+            <ArrowLeft size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Post</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.centerLoader}>
-          <ActivityIndicator size="large" color={COLORS.node.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       </SafeAreaView>
     );
@@ -813,17 +838,17 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
 
   if (error && !post) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
+        <View style={[styles.header, { backgroundColor: theme.panel, borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.node.text} />
+            <ArrowLeft size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Post</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Post</Text>
           <View style={{ width: 40 }} />
         </View>
         <View style={styles.errorContainer}>
           <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadData}>
+          <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.accent }]} onPress={loadData}>
             <Text style={styles.retryButtonText}>Retry</Text>
           </TouchableOpacity>
         </View>
@@ -834,12 +859,12 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
   if (!post) return null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: theme.panel, borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.node.text} />
+          <ArrowLeft size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Post</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Post</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -856,7 +881,7 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
           ListEmptyComponent={
             !loading ? (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No comments yet. Be the first to comment!</Text>
+                <Text style={[styles.emptyText, { color: theme.muted }]}>No comments yet. Be the first to comment!</Text>
               </View>
             ) : null
           }
@@ -864,11 +889,11 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
         />
 
         {/* Comment input */}
-        <View style={styles.inputContainer}>
+        <View style={[styles.inputContainer, { backgroundColor: theme.panel, borderTopColor: theme.border }]}>
           <TextInput
-            style={styles.input}
+            style={[styles.input, { backgroundColor: theme.bg, color: theme.text }]}
             placeholder="Post your reply..."
-            placeholderTextColor={COLORS.node.muted}
+            placeholderTextColor={theme.muted}
             value={replyText}
             onChangeText={setReplyText}
             multiline
@@ -895,7 +920,6 @@ export const PostDetailScreen = ({ postId, onBack, onAuthorClick, onCommentAdded
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   centerLoader: {
     flex: 1,
@@ -908,14 +932,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: COLORS.node.panel,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   headerTitle: {
     fontSize: 17,
     fontWeight: "600",
-    color: COLORS.node.text,
   },
   backButton: {
     width: 40,
@@ -931,10 +952,8 @@ const styles = StyleSheet.create({
   // Post styles
   postContainer: {
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   postCard: {
-    backgroundColor: COLORS.node.panel,
     padding: 16,
   },
   postAuthorRow: {
@@ -952,7 +971,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: COLORS.node.accent,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -967,22 +985,18 @@ const styles = StyleSheet.create({
   postAuthorName: {
     fontWeight: "700",
     fontSize: 16,
-    color: COLORS.node.text,
   },
   postNode: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   postTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    color: COLORS.node.text,
     marginBottom: 8,
   },
   postContent: {
     fontSize: 17,
-    color: COLORS.node.text,
     lineHeight: 24,
   },
   // Media styles
@@ -994,7 +1008,6 @@ const styles = StyleSheet.create({
   postMediaImage: {
     width: '100%',
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
   },
   youtubeContainer: {
     borderRadius: 12,
@@ -1006,7 +1019,6 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 16 / 9,
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
     overflow: 'hidden',
     position: 'relative',
   },
@@ -1017,7 +1029,6 @@ const styles = StyleSheet.create({
   videoPlaceholder: {
     width: '100%',
     height: '100%',
-    backgroundColor: COLORS.node.panel,
   },
   playButtonOverlay: {
     position: 'absolute',
@@ -1053,16 +1064,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   linkPreview: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     overflow: 'hidden',
   },
   linkPreviewImage: {
     width: '100%',
-    height: 180,
-    backgroundColor: COLORS.node.panel,
+    maxHeight: 500,
   },
   linkPreviewContent: {
     padding: 12,
@@ -1070,52 +1078,41 @@ const styles = StyleSheet.create({
   linkPreviewTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 4,
   },
   linkPreviewDescription: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginBottom: 6,
     lineHeight: 18,
   },
   linkPreviewDomain: {
     fontSize: 12,
-    color: COLORS.node.accent,
   },
   plainLink: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   plainLinkText: {
     fontSize: 14,
-    color: COLORS.node.accent,
   },
   postTimestamp: {
     fontSize: 14,
-    color: COLORS.node.muted,
     marginTop: 16,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
   },
   postStats: {
     flexDirection: "row",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
     gap: 16,
   },
   postStatText: {
     fontSize: 14,
-    color: COLORS.node.muted,
   },
   postStatNumber: {
     fontWeight: "700",
-    color: COLORS.node.text,
   },
   postActions: {
     flexDirection: "row",
@@ -1129,19 +1126,15 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     paddingHorizontal: 12,
     borderRadius: 20,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     gap: 6,
   },
   actionText: {
     fontSize: 14,
-    color: COLORS.node.muted,
   },
   // Comment styles - Bluesky flat style with connecting lines
   commentWrapper: {
     position: 'relative',
-    backgroundColor: COLORS.node.panel,
   },
   connectingLineTop: {
     position: 'absolute',
@@ -1149,7 +1142,6 @@ const styles = StyleSheet.create({
     top: 0,
     width: 2,
     height: 8, // Connects to top of avatar
-    backgroundColor: COLORS.node.border,
   },
   commentCard: {
     flexDirection: "row",
@@ -1171,7 +1163,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.node.accent,
     justifyContent: "center",
     alignItems: "center",
     zIndex: 1,
@@ -1187,7 +1178,6 @@ const styles = StyleSheet.create({
     top: 48, // Below avatar (8 padding + 40 avatar)
     bottom: 0,
     width: 2,
-    backgroundColor: COLORS.node.border,
   },
   commentContent: {
     flex: 1,
@@ -1201,19 +1191,15 @@ const styles = StyleSheet.create({
   commentAuthor: {
     fontWeight: "700",
     fontSize: 15,
-    color: COLORS.node.text,
   },
   commentDot: {
-    color: COLORS.node.muted,
     fontSize: 15,
   },
   commentTime: {
     fontSize: 14,
-    color: COLORS.node.muted,
   },
   commentText: {
     fontSize: 15,
-    color: COLORS.node.text,
     lineHeight: 21,
   },
   commentActions: {
@@ -1228,14 +1214,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 6,
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   actionCount: {
     fontSize: 13,
-    color: COLORS.node.muted,
   },
   // Error states
   errorContainer: {
@@ -1251,7 +1234,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   retryButton: {
-    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -1278,7 +1260,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   errorBannerRetry: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
     marginLeft: 12,
@@ -1289,7 +1270,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: COLORS.node.muted,
     textAlign: "center",
   },
   // Input styles
@@ -1297,23 +1277,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    backgroundColor: COLORS.node.panel,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 16,
-    color: COLORS.node.text,
     maxHeight: 100,
   },
   sendButton: {
     marginLeft: 12,
-    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 20,
@@ -1329,7 +1304,6 @@ const styles = StyleSheet.create({
   // Reply Modal styles
   modalContainer: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1338,8 +1312,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
-    backgroundColor: COLORS.node.panel,
   },
   modalCloseButton: {
     padding: 4,
@@ -1347,10 +1319,8 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 17,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   modalPostButton: {
-    backgroundColor: COLORS.node.accent,
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 20,
@@ -1370,7 +1340,6 @@ const styles = StyleSheet.create({
   },
   replyingToLine: {
     width: 2,
-    backgroundColor: COLORS.node.border,
     marginLeft: 19, // Center under avatar
     marginRight: 19,
   },
@@ -1392,7 +1361,6 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
@@ -1405,15 +1373,12 @@ const styles = StyleSheet.create({
   replyingToAuthor: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   replyingToTime: {
     fontSize: 13,
-    color: COLORS.node.muted,
   },
   replyingToText: {
     fontSize: 14,
-    color: COLORS.node.muted,
     lineHeight: 20,
   },
   modalInputContainer: {
@@ -1423,7 +1388,6 @@ const styles = StyleSheet.create({
   modalInput: {
     flex: 1,
     fontSize: 17,
-    color: COLORS.node.text,
     textAlignVertical: 'top',
     minHeight: 120,
   },
@@ -1434,8 +1398,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
-    backgroundColor: COLORS.node.panel,
   },
   modalToolbarIcons: {
     flexDirection: 'row',
@@ -1446,7 +1408,6 @@ const styles = StyleSheet.create({
   },
   charCounter: {
     fontSize: 14,
-    color: COLORS.node.muted,
   },
   charCounterWarning: {
     color: '#f59e0b',

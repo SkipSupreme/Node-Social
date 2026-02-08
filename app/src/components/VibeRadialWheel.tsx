@@ -3,8 +3,8 @@ import { View, Text, StyleSheet, PanResponder, TouchableOpacity, Platform, Modal
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Portal } from '@gorhom/portal';
 import { Hexagon, Lightbulb, Smile, Flame, Heart, Zap, HelpCircle } from './ui/Icons';
-import { COLORS } from '../constants/theme';
-import { createPostReaction, createCommentReaction } from '../lib/api';
+import { useAppTheme } from '../hooks/useTheme';
+import { createPostReaction, createCommentReaction, createExternalPostReaction } from '../lib/api';
 import { useAuthPrompt } from '../context/AuthPromptContext';
 
 // --- Config ---
@@ -60,7 +60,7 @@ interface VibeRadialWheelProps {
     onComplete?: (intensities: Record<string, number>) => void;
     buttonLabel?: string;
     compact?: boolean;
-    contentType?: 'post' | 'comment';
+    contentType?: 'post' | 'comment' | 'external';
 }
 
 // Helper function moved outside component to avoid recreation on every render
@@ -90,6 +90,7 @@ export const VibeRadialWheel = ({
     compact = false,
     contentType = 'post'
 }: VibeRadialWheelProps) => {
+    const theme = useAppTheme();
     const { requireAuth } = useAuthPrompt();
     // Support both contentId (new) and postId (deprecated) for backwards compatibility
     const targetId = contentId || postId;
@@ -165,7 +166,9 @@ export const VibeRadialWheel = ({
             }
 
             let result;
-            if (contentType === 'comment') {
+            if (contentType === 'external') {
+                result = await createExternalPostReaction(targetId, intensityData);
+            } else if (contentType === 'comment') {
                 result = await createCommentReaction(targetId, intensityData);
             } else {
                 result = await createPostReaction(targetId, intensityData);
@@ -330,6 +333,7 @@ export const VibeRadialWheel = ({
                     activeOpacity={0.8}
                     style={[
                         styles.triggerBtn,
+                        { backgroundColor: theme.panel, borderColor: theme.border },
                         hasReaction && { borderColor: primaryVibe?.color, backgroundColor: `${primaryVibe?.color}20` }
                     ]}
                 >
@@ -340,8 +344,8 @@ export const VibeRadialWheel = ({
                         </>
                     ) : (
                         <>
-                            <Hexagon size={compact ? 16 : 20} color={COLORS.node.muted} />
-                            {!compact && <Text style={styles.triggerText}>{buttonLabel}</Text>}
+                            <Hexagon size={compact ? 16 : 20} color={theme.muted} />
+                            {!compact && <Text style={[styles.triggerText, { color: theme.muted }]}>{buttonLabel}</Text>}
                         </>
                     )}
                 </TouchableOpacity>
@@ -587,15 +591,12 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingHorizontal: 14,
         paddingVertical: 8,
-        backgroundColor: COLORS.node.panel,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: 8,
     },
     triggerText: {
         fontSize: 14,
         fontWeight: '500',
-        color: COLORS.node.muted,
     },
     webOverlay: {
         position: 'fixed' as 'absolute',

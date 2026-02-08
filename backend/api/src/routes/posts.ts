@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import * as cheerio from 'cheerio';
 import { initializePostMetrics, updatePostMetrics } from '../lib/metrics.js';
 import {
   calculateFeedScore,
@@ -93,6 +94,12 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         nodeId: z.string().uuid().optional(), // Optional node/community
         title: z.string().min(1).max(300),
         linkUrl: z.string().url().optional(),
+        // Pre-populated link metadata (for external reposts where OG scraping may not work)
+        linkMetaData: z.object({
+          title: z.string().max(500).optional(),
+          description: z.string().max(1000).optional(),
+          image: z.string().max(1000).optional(),
+        }).optional(),
         expertGateCred: z.number().int().min(0).max(10000).optional(), // Min cred to comment
         poll: z.object({
           question: z.string().min(1).max(300),
@@ -109,7 +116,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const { content, contentJson, nodeId: providedNodeId, title, linkUrl, poll, expertGateCred } = parsed.data;
+      const { content, contentJson, nodeId: providedNodeId, title, linkUrl, linkMetaData, poll, expertGateCred } = parsed.data;
       const userId = (request.user as { sub: string }).sub;
 
       // Default to global node if no nodeId provided
@@ -131,9 +138,62 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       let linkMetaId: string | undefined;
       if (linkUrl) {
-        const meta = await fastify.prisma.linkMetadata.findUnique({ where: { url: linkUrl } });
-        if (meta) {
+        const domain = new URL(linkUrl).hostname;
+
+        // If frontend provided metadata (external reposts), upsert it — always wins over stale scraped data
+        if (linkMetaData && (linkMetaData.title || linkMetaData.description || linkMetaData.image)) {
+          const meta = await fastify.prisma.linkMetadata.upsert({
+            where: { url: linkUrl },
+            update: {
+              title: linkMetaData.title || '',
+              description: linkMetaData.description || '',
+              image: linkMetaData.image || '',
+              domain,
+            },
+            create: {
+              url: linkUrl,
+              title: linkMetaData.title || '',
+              description: linkMetaData.description || '',
+              image: linkMetaData.image || '',
+              domain,
+            },
+          });
           linkMetaId = meta.id;
+        } else {
+          // No pre-populated data — look up cached or scrape
+          let meta = await fastify.prisma.linkMetadata.findUnique({ where: { url: linkUrl } });
+          if (!meta) {
+            try {
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 5000);
+              const res = await fetch(linkUrl, {
+                headers: { 'User-Agent': 'NodeSocialBot/1.0 (+https://node-social.com)' },
+                signal: controller.signal,
+              });
+              clearTimeout(timeout);
+              if (res.ok) {
+                const html = await res.text();
+                const $ = cheerio.load(html);
+                const ogTitle = $('meta[property="og:title"]').attr('content') || $('title').text() || '';
+                const ogDesc = $('meta[property="og:description"]').attr('content') || $('meta[name="description"]').attr('content') || '';
+                const ogImage = $('meta[property="og:image"]').attr('content') || '';
+                meta = await fastify.prisma.linkMetadata.create({
+                  data: {
+                    url: linkUrl,
+                    title: ogTitle.substring(0, 500),
+                    description: ogDesc.substring(0, 1000),
+                    image: ogImage.substring(0, 1000),
+                    domain,
+                  },
+                });
+              }
+            } catch (err) {
+              fastify.log.warn({ err, linkUrl }, 'Failed to fetch link metadata during post creation');
+            }
+          }
+          if (meta) {
+            linkMetaId = meta.id;
+          }
         }
       }
 
@@ -153,8 +213,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
 
       // Content Intelligence: analyze text and media
       const { textLength, textDensity, mediaType } = analyzePost({
-        content: plainTextContent,
-        mediaUrl: undefined, // User-created posts don't have mediaUrl yet
+        content: plainTextContent ?? null,
         postType,
       });
 
@@ -162,7 +221,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
       const contentFormat = contentJson ? 'tiptap' : 'markdown';
 
       const postData: Prisma.PostCreateInput = {
-        content: content ?? (contentJson ? plainTextContent : null), // Store plain text for search/fallback
+        content: content ?? (contentJson ? plainTextContent : null) ?? null, // Store plain text for search/fallback
         contentJson: contentJson ?? Prisma.JsonNull,
         contentFormat,
         title: title ?? null,

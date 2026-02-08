@@ -10,7 +10,8 @@ import {
     ScrollView,
 } from 'react-native';
 import { MessageSquare, TrendingUp } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { getUserPosts, getUserComments, getUserCredHistory, type UserComment, type Post } from '../../lib/api';
 import { PostCard } from '../PostCard';
 
@@ -60,54 +61,60 @@ const timeAgo = (date: string): string => {
 const ReplyCard: React.FC<{
     comment: UserComment;
     onPress?: () => void;
-}> = ({ comment, onPress }) => (
-    <TouchableOpacity
-        style={styles.replyCard}
-        onPress={onPress}
-        activeOpacity={0.8}
-    >
-        <View style={styles.replyHeader}>
-            <MessageSquare size={14} color={COLORS.node.muted} />
-            <Text style={styles.replyTime}>{timeAgo(comment.createdAt)}</Text>
-        </View>
-
-        <Text style={styles.replyContent} numberOfLines={3}>
-            {comment.content}
-        </Text>
-
-        {comment.post && (
-            <View style={styles.replyContext}>
-                <Text style={styles.replyLabel}>on</Text>
-                <Text style={styles.replyPostTitle} numberOfLines={1}>
-                    {comment.post.title || comment.post.content?.slice(0, 50) || 'a post'}
-                </Text>
-                {comment.post.node && (
-                    <Text style={styles.replyNode}>in n/{comment.post.node.slug}</Text>
-                )}
+}> = ({ comment, onPress }) => {
+    const theme = useAppTheme();
+    return (
+        <TouchableOpacity
+            style={[styles.replyCard, { backgroundColor: theme.panel, borderColor: theme.border }]}
+            onPress={onPress}
+            activeOpacity={0.8}
+        >
+            <View style={styles.replyHeader}>
+                <MessageSquare size={14} color={theme.muted} />
+                <Text style={[styles.replyTime, { color: theme.muted }]}>{timeAgo(comment.createdAt)}</Text>
             </View>
-        )}
-    </TouchableOpacity>
-);
+
+            <Text style={[styles.replyContent, { color: theme.text }]} numberOfLines={3}>
+                {comment.content}
+            </Text>
+
+            {comment.post && (
+                <View style={[styles.replyContext, { borderTopColor: theme.border }]}>
+                    <Text style={[styles.replyLabel, { color: theme.muted }]}>on</Text>
+                    <Text style={[styles.replyPostTitle, { color: theme.text }]} numberOfLines={1}>
+                        {comment.post.title || comment.post.content?.slice(0, 50) || 'a post'}
+                    </Text>
+                    {comment.post.node && (
+                        <Text style={[styles.replyNode, { color: theme.accent }]}>in n/{comment.post.node.slug}</Text>
+                    )}
+                </View>
+            )}
+        </TouchableOpacity>
+    );
+};
 
 // Cred transaction card
 const CredCard: React.FC<{
     transaction: CredTransaction;
-}> = ({ transaction }) => (
-    <View style={styles.credCard}>
-        <View style={styles.credLeft}>
-            <View style={[styles.credIcon, { backgroundColor: transaction.amount > 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
-                <TrendingUp size={14} color={transaction.amount > 0 ? '#22c55e' : '#ef4444'} />
+}> = ({ transaction }) => {
+    const theme = useAppTheme();
+    return (
+        <View style={[styles.credCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+            <View style={styles.credLeft}>
+                <View style={[styles.credIcon, { backgroundColor: transaction.amount > 0 ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)' }]}>
+                    <TrendingUp size={14} color={transaction.amount > 0 ? '#22c55e' : '#ef4444'} />
+                </View>
+                <View style={styles.credInfo}>
+                    <Text style={[styles.credReason, { color: theme.text }]}>{transaction.reason || 'Cred transaction'}</Text>
+                    <Text style={[styles.credTime, { color: theme.muted }]}>{timeAgo(transaction.createdAt)}</Text>
+                </View>
             </View>
-            <View style={styles.credInfo}>
-                <Text style={styles.credReason}>{transaction.reason || 'Cred transaction'}</Text>
-                <Text style={styles.credTime}>{timeAgo(transaction.createdAt)}</Text>
-            </View>
+            <Text style={[styles.credAmount, { color: transaction.amount > 0 ? '#22c55e' : '#ef4444' }]}>
+                {transaction.amount > 0 ? '+' : ''}{transaction.amount}
+            </Text>
         </View>
-        <Text style={[styles.credAmount, { color: transaction.amount > 0 ? '#22c55e' : '#ef4444' }]}>
-            {transaction.amount > 0 ? '+' : ''}{transaction.amount}
-        </Text>
-    </View>
-);
+    );
+};
 
 // Aggregate vibes from posts
 interface AggregatedVibes {
@@ -120,6 +127,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
     onPostPress,
     onAuthorClick,
 }) => {
+    const theme = useAppTheme();
     const [activeTab, setActiveTab] = useState<TabType>('posts');
     const [posts, setPosts] = useState<Post[]>([]);
     const [replies, setReplies] = useState<UserComment[]>([]);
@@ -203,7 +211,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 if (posts.length === 0) {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No posts yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No posts yet</Text>
                         </View>
                     );
                 }
@@ -224,7 +232,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 if (replies.length === 0) {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No replies yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No replies yet</Text>
                         </View>
                     );
                 }
@@ -244,7 +252,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 if (mediaPosts.length === 0) {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No media yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No media yet</Text>
                         </View>
                     );
                 }
@@ -253,7 +261,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                         {mediaPosts.map((post) => (
                             <TouchableOpacity
                                 key={post.id}
-                                style={styles.mediaCard}
+                                style={[styles.mediaCard, { backgroundColor: theme.border }]}
                                 onPress={() => onPostPress?.(post.id)}
                                 activeOpacity={0.85}
                             >
@@ -270,7 +278,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 if (totalVibes === 0) {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No vibe reactions yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No vibe reactions yet</Text>
                         </View>
                     );
                 }
@@ -280,13 +288,13 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                             const data = aggregatedVibes[vibe.key];
                             if (!data || data.count === 0) return null;
                             return (
-                                <View key={vibe.key} style={styles.vibeCard}>
+                                <View key={vibe.key} style={[styles.vibeCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                                     <Text style={styles.vibeEmoji}>{vibe.emoji}</Text>
                                     <Text style={[styles.vibeCount, { color: vibe.color }]}>
                                         {data.count}
                                     </Text>
-                                    <Text style={styles.vibeLabel}>{vibe.label}</Text>
-                                    <Text style={styles.vibeIntensity}>
+                                    <Text style={[styles.vibeLabel, { color: theme.text }]}>{vibe.label}</Text>
+                                    <Text style={[styles.vibeIntensity, { color: theme.muted }]}>
                                         {Math.round(data.sum / data.count * 10) / 10} avg
                                     </Text>
                                 </View>
@@ -299,7 +307,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                 if (credHistory.length === 0) {
                     return (
                         <View style={styles.emptyContainer}>
-                            <Text style={styles.emptyText}>No cred history yet</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No cred history yet</Text>
                         </View>
                     );
                 }
@@ -322,7 +330,7 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                style={styles.tabScrollView}
+                style={[styles.tabScrollView, { borderBottomColor: theme.border }]}
                 contentContainerStyle={styles.tabBar}
             >
                 {tabs.map((tab) => {
@@ -335,12 +343,13 @@ export const ProfileContent: React.FC<ProfileContentProps> = ({
                         >
                             <Text style={[
                                 styles.tabText,
-                                isActive && styles.tabTextActive
+                                { color: theme.muted },
+                                isActive && [styles.tabTextActive, { color: theme.text }],
                             ]}>
                                 {tab.label}
                             </Text>
                             {isActive && (
-                                <View style={styles.tabUnderline} />
+                                <View style={[styles.tabUnderline, { backgroundColor: theme.accent }]} />
                             )}
                         </TouchableOpacity>
                     );
@@ -361,7 +370,6 @@ const styles = StyleSheet.create({
     },
     tabScrollView: {
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     tabBar: {
         flexDirection: 'row',
@@ -380,10 +388,8 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '500',
-        color: COLORS.node.muted,
     },
     tabTextActive: {
-        color: COLORS.node.text,
         fontWeight: '700',
     },
     tabUnderline: {
@@ -393,7 +399,6 @@ const styles = StyleSheet.create({
         right: SPACING.lg,
         height: 3,
         borderRadius: 2,
-        backgroundColor: COLORS.node.accent,
     },
     content: {
         paddingTop: SPACING.md,
@@ -408,18 +413,15 @@ const styles = StyleSheet.create({
     },
     emptyText: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.muted,
     },
     contentList: {
         gap: SPACING.md,
     },
     // Reply card
     replyCard: {
-        backgroundColor: COLORS.node.panel,
         borderRadius: RADIUS.lg,
         padding: SPACING.lg,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     replyHeader: {
         flexDirection: 'row',
@@ -429,11 +431,9 @@ const styles = StyleSheet.create({
     },
     replyTime: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.muted,
     },
     replyContent: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.text,
         lineHeight: TYPOGRAPHY.sizes.body * 1.5,
     },
     replyContext: {
@@ -444,21 +444,17 @@ const styles = StyleSheet.create({
         marginTop: SPACING.md,
         paddingTop: SPACING.md,
         borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
     },
     replyLabel: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
     },
     replyPostTitle: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.text,
         fontWeight: '500',
         flex: 1,
     },
     replyNode: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.accent,
     },
     // Media grid
     mediaGrid: {
@@ -471,7 +467,6 @@ const styles = StyleSheet.create({
         aspectRatio: 1,
         borderRadius: RADIUS.md,
         overflow: 'hidden',
-        backgroundColor: COLORS.node.border,
     },
     mediaImage: {
         width: '100%',
@@ -486,12 +481,10 @@ const styles = StyleSheet.create({
     },
     vibeCard: {
         width: '30%',
-        backgroundColor: COLORS.node.panel,
         borderRadius: RADIUS.lg,
         padding: SPACING.lg,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     vibeEmoji: {
         fontSize: 32,
@@ -503,13 +496,11 @@ const styles = StyleSheet.create({
     },
     vibeLabel: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.text,
         fontWeight: '600',
         marginTop: SPACING.xs,
     },
     vibeIntensity: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     // Cred list
@@ -520,11 +511,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        backgroundColor: COLORS.node.panel,
         borderRadius: RADIUS.md,
         padding: SPACING.md,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     credLeft: {
         flexDirection: 'row',
@@ -544,12 +533,10 @@ const styles = StyleSheet.create({
     },
     credReason: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.text,
         fontWeight: '500',
     },
     credTime: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     credAmount: {

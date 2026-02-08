@@ -1,7 +1,7 @@
 import React, { ComponentType } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { Clock, Scale, Flame, Users, Sparkles, Settings, Check, X } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 export type PresetType = 'latest' | 'balanced' | 'trending' | 'expert' | 'network' | 'custom';
 
@@ -66,6 +66,8 @@ export const PresetBottomSheet: React.FC<PresetBottomSheetProps> = ({
   onSelectPreset,
   onOpenAdvanced,
 }) => {
+  const theme = useAppTheme();
+
   const handleSelect = (preset: PresetOption) => {
     onSelectPreset(preset.id, preset.weights);
     onClose();
@@ -74,19 +76,19 @@ export const PresetBottomSheet: React.FC<PresetBottomSheetProps> = ({
   return (
     <Modal visible={visible} transparent animationType="slide">
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { backgroundColor: theme.panel }]} onPress={(e) => e.stopPropagation()}>
           {/* Handle Bar */}
-          <View style={styles.handleBar} />
+          <View style={[styles.handleBar, { backgroundColor: theme.border }]} />
 
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Feed Algorithm</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Feed Algorithm</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.subtitle}>Choose how your feed is sorted</Text>
+          <Text style={[styles.subtitle, { color: theme.muted }]}>Choose how your feed is sorted</Text>
 
           {/* Preset Options */}
           <View style={styles.presetList}>
@@ -97,22 +99,26 @@ export const PresetBottomSheet: React.FC<PresetBottomSheetProps> = ({
               return (
                 <TouchableOpacity
                   key={preset.id}
-                  style={[styles.presetItem, isSelected && styles.presetItemSelected]}
+                  style={[
+                    styles.presetItem,
+                    { backgroundColor: theme.bg, borderColor: theme.border },
+                    isSelected && { borderColor: theme.accent, backgroundColor: `${theme.accent}15` },
+                  ]}
                   onPress={() => handleSelect(preset)}
                   activeOpacity={0.7}
                 >
-                  <View style={[styles.presetIcon, isSelected && styles.presetIconSelected]}>
-                    <Icon size={20} color={isSelected ? '#fff' : COLORS.node.accent} />
+                  <View style={[styles.presetIcon, { backgroundColor: `${theme.accent}20` }, isSelected && { backgroundColor: theme.accent }]}>
+                    <Icon size={20} color={isSelected ? '#fff' : theme.accent} />
                   </View>
                   <View style={styles.presetContent}>
-                    <Text style={[styles.presetName, isSelected && styles.presetNameSelected]}>
+                    <Text style={[styles.presetName, { color: theme.text }, isSelected && { color: theme.accent }]}>
                       {preset.name}
                     </Text>
-                    <Text style={styles.presetDescription}>{preset.description}</Text>
+                    <Text style={[styles.presetDescription, { color: theme.muted }]}>{preset.description}</Text>
                   </View>
                   {isSelected && (
                     <View style={styles.checkMark}>
-                      <Check size={16} color={COLORS.node.accent} />
+                      <Check size={16} color={theme.accent} />
                     </View>
                   )}
                 </TouchableOpacity>
@@ -122,15 +128,15 @@ export const PresetBottomSheet: React.FC<PresetBottomSheetProps> = ({
 
           {/* Advanced Settings Button */}
           <TouchableOpacity
-            style={styles.advancedButton}
+            style={[styles.advancedButton, { borderColor: theme.border }]}
             onPress={() => {
               onClose();
               onOpenAdvanced();
             }}
             activeOpacity={0.7}
           >
-            <Settings size={18} color={COLORS.node.accent} />
-            <Text style={styles.advancedText}>Advanced Settings</Text>
+            <Settings size={18} color={theme.accent} />
+            <Text style={[styles.advancedText, { color: theme.accent }]}>Advanced Settings</Text>
           </TouchableOpacity>
         </Pressable>
       </Pressable>
@@ -151,7 +157,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.node.panel,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 40,
@@ -160,7 +165,6 @@ const styles = StyleSheet.create({
   handleBar: {
     width: 40,
     height: 4,
-    backgroundColor: COLORS.node.border,
     borderRadius: 2,
     alignSelf: 'center',
     marginTop: 12,
@@ -176,14 +180,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.node.text,
   },
   closeButton: {
     padding: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.node.muted,
     paddingHorizontal: 20,
     marginBottom: 16,
   },
@@ -195,26 +197,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  presetItemSelected: {
-    borderColor: COLORS.node.accent,
-    backgroundColor: `${COLORS.node.accent}15`,
   },
   presetIcon: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: `${COLORS.node.accent}20`,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
-  },
-  presetIconSelected: {
-    backgroundColor: COLORS.node.accent,
   },
   presetContent: {
     flex: 1,
@@ -222,15 +214,10 @@ const styles = StyleSheet.create({
   presetName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 2,
-  },
-  presetNameSelected: {
-    color: COLORS.node.accent,
   },
   presetDescription: {
     fontSize: 12,
-    color: COLORS.node.muted,
   },
   checkMark: {
     marginLeft: 8,
@@ -244,13 +231,11 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderStyle: 'dashed',
     gap: 8,
   },
   advancedText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.node.accent,
   },
 });

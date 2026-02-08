@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ActivityIndicator } from 'react-native';
 import { AlertTriangle, X } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
 import { vouchForUser } from '../../lib/api';
 import { getErrorMessage } from '../../lib/errors';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface VouchModalProps {
   visible: boolean;
@@ -22,6 +22,7 @@ export const VouchModal: React.FC<VouchModalProps> = ({
   userId,
   username,
 }) => {
+  const theme = useAppTheme();
   const [selectedStake, setSelectedStake] = useState<number>(100);
   const [customStake, setCustomStake] = useState<string>('');
   const [showCustom, setShowCustom] = useState(false);
@@ -61,18 +62,18 @@ export const VouchModal: React.FC<VouchModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bg, borderColor: theme.border }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>🤝 Vouch for @{username}</Text>
+            <Text style={[styles.title, { color: theme.text }]}>🤝 Vouch for @{username}</Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
           {/* Stake Selection */}
-          <Text style={styles.stakeLabel}>
-            You're staking <Text style={styles.stakeAmount}>{actualStake}</Text> cred
+          <Text style={[styles.stakeLabel, { color: theme.muted }]}>
+            You're staking <Text style={[styles.stakeAmount, { color: theme.accent }]}>{actualStake}</Text> cred
           </Text>
 
           <View style={styles.tierRow}>
@@ -81,7 +82,8 @@ export const VouchModal: React.FC<VouchModalProps> = ({
                 key={tier}
                 style={[
                   styles.tierButton,
-                  !showCustom && selectedStake === tier && styles.tierButtonActive,
+                  { borderColor: theme.border },
+                  !showCustom && selectedStake === tier && [styles.tierButtonActive, { borderColor: theme.accent }],
                 ]}
                 onPress={() => {
                   setSelectedStake(tier);
@@ -91,7 +93,8 @@ export const VouchModal: React.FC<VouchModalProps> = ({
                 <Text
                   style={[
                     styles.tierText,
-                    !showCustom && selectedStake === tier && styles.tierTextActive,
+                    { color: theme.muted },
+                    !showCustom && selectedStake === tier && [styles.tierTextActive, { color: theme.accent }],
                   ]}
                 >
                   {tier}
@@ -101,21 +104,21 @@ export const VouchModal: React.FC<VouchModalProps> = ({
           </View>
 
           <TouchableOpacity
-            style={[styles.customButton, showCustom && styles.customButtonActive]}
+            style={[styles.customButton, { borderColor: theme.border }, showCustom && { borderColor: theme.accent }]}
             onPress={() => setShowCustom(true)}
           >
             {showCustom ? (
               <TextInput
-                style={styles.customInput}
+                style={[styles.customInput, { color: theme.text }]}
                 value={customStake}
                 onChangeText={setCustomStake}
                 keyboardType="numeric"
                 placeholder="Enter amount..."
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 autoFocus
               />
             ) : (
-              <Text style={styles.customText}>Custom amount...</Text>
+              <Text style={[styles.customText, { color: theme.muted }]}>Custom amount...</Text>
             )}
           </TouchableOpacity>
 
@@ -125,16 +128,16 @@ export const VouchModal: React.FC<VouchModalProps> = ({
             <Text style={styles.warningTitle}>What this means:</Text>
           </View>
           <View style={styles.warningList}>
-            <Text style={styles.warningItem}>• If they abuse trust, you lose this cred AND your reputation</Text>
-            <Text style={styles.warningItem}>• Your vouch chain is affected - people you've vouched for may lose trust too</Text>
-            <Text style={styles.warningItem}>• Revoking later costs 50% of stake</Text>
+            <Text style={[styles.warningItem, { color: theme.muted }]}>• If they abuse trust, you lose this cred AND your reputation</Text>
+            <Text style={[styles.warningItem, { color: theme.muted }]}>• Your vouch chain is affected - people you've vouched for may lose trust too</Text>
+            <Text style={[styles.warningItem, { color: theme.muted }]}>• Revoking later costs 50% of stake</Text>
           </View>
 
           {error && <Text style={styles.error}>{error}</Text>}
 
           {/* Actions */}
           <TouchableOpacity
-            style={[styles.confirmButton, loading && styles.confirmButtonDisabled]}
+            style={[styles.confirmButton, { backgroundColor: theme.accent }, loading && styles.confirmButtonDisabled]}
             onPress={handleConfirm}
             disabled={loading || actualStake < 100}
           >
@@ -146,7 +149,7 @@ export const VouchModal: React.FC<VouchModalProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity onPress={handleClose} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: theme.muted }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -162,10 +165,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   container: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     padding: 20,
   },
   header: {
@@ -177,19 +178,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
   },
   closeButton: {
     padding: 4,
   },
   stakeLabel: {
     fontSize: 16,
-    color: COLORS.node.muted,
     textAlign: 'center',
     marginBottom: 16,
   },
   stakeAmount: {
-    color: COLORS.node.accent,
     fontWeight: 'bold',
   },
   tierRow: {
@@ -202,38 +200,27 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     alignItems: 'center',
   },
   tierButtonActive: {
-    borderColor: COLORS.node.accent,
     backgroundColor: 'rgba(99, 102, 241, 0.1)',
   },
   tierText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.node.muted,
   },
-  tierTextActive: {
-    color: COLORS.node.accent,
-  },
+  tierTextActive: {},
   customButton: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     marginBottom: 20,
   },
-  customButtonActive: {
-    borderColor: COLORS.node.accent,
-  },
   customText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
   customInput: {
-    color: COLORS.node.text,
     fontSize: 16,
     padding: 0,
   },
@@ -252,7 +239,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   warningItem: {
-    color: COLORS.node.muted,
     fontSize: 13,
     lineHeight: 20,
   },
@@ -263,7 +249,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   confirmButton: {
-    backgroundColor: COLORS.node.accent,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -282,7 +267,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cancelText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
 });

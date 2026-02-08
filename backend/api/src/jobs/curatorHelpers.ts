@@ -109,13 +109,13 @@ export async function updateQueueItem(
     where: { id },
     data: {
       status,
-      aiScore: data.aiScore,
-      aiReason: data.aiReason,
-      confidence: data.confidence,
-      needsReview: data.needsReview,
-      postId: data.postId,
       curatedAt: new Date(),
-      postedAt: status === 'posted' ? new Date() : undefined,
+      ...(data.aiScore != null && { aiScore: data.aiScore }),
+      ...(data.aiReason != null && { aiReason: data.aiReason }),
+      ...(data.confidence != null && { confidence: data.confidence }),
+      ...(data.needsReview != null && { needsReview: data.needsReview }),
+      ...(data.postId != null && { postId: data.postId }),
+      ...(status === 'posted' && { postedAt: new Date() }),
     },
   });
 }
@@ -164,6 +164,10 @@ async function main() {
     case 'post': {
       // Usage: npx tsx src/jobs/curatorHelpers.ts post <nodeSlug> <title> <content> <linkUrl>
       const [, , , nodeSlug, title, content, linkUrl] = process.argv;
+      if (!nodeSlug || !title || !content || !linkUrl) {
+        console.error('Usage: post <nodeSlug> <title> <content> <linkUrl>');
+        break;
+      }
       const postId = await postAsBot(nodeSlug, title, content, linkUrl);
       console.log(JSON.stringify({ postId }));
       break;
@@ -171,9 +175,13 @@ async function main() {
     case 'update': {
       // Usage: npx tsx src/jobs/curatorHelpers.ts update <id> <status> <aiScore> <aiReason>
       const [, , , id, status, aiScore, aiReason] = process.argv;
+      if (!id || !status) {
+        console.error('Usage: update <id> <status> [aiScore] [aiReason]');
+        break;
+      }
       await updateQueueItem(id, status as 'pending' | 'approved' | 'rejected' | 'posted', {
-        aiScore: aiScore ? parseInt(aiScore) : undefined,
-        aiReason,
+        ...(aiScore ? { aiScore: parseInt(aiScore) } : {}),
+        ...(aiReason != null && { aiReason }),
       });
       console.log('Updated');
       break;

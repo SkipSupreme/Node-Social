@@ -76,7 +76,8 @@ async function backfillContentIntelligence() {
       processed++;
     }
 
-    cursor = posts[posts.length - 1].id;
+    const lastPost = posts[posts.length - 1];
+    if (lastPost) cursor = lastPost.id;
     console.log(`Processed ${processed}/${totalPosts} posts (${Math.round(processed / totalPosts * 100)}%)`);
   }
 

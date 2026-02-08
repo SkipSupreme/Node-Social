@@ -16,7 +16,7 @@ import { Lock, X } from "lucide-react-native";
 import { resetPassword } from "../lib/api";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/auth";
-import { COLORS } from "../constants/theme";
+import { useAppTheme } from '../hooks/useTheme';
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
@@ -25,6 +25,7 @@ export const ResetPasswordScreen: React.FC<{
   onSuccess: () => void;
   onClose?: () => void;
 }> = ({ token, onSuccess, onClose }) => {
+  const theme = useAppTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -61,11 +62,11 @@ export const ResetPasswordScreen: React.FC<{
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <NodeNetworkBackground />
       {onClose && (
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <X size={24} color={COLORS.node.muted} />
+          <X size={24} color={theme.muted} />
         </TouchableOpacity>
       )}
       <KeyboardAvoidingView
@@ -82,33 +83,33 @@ export const ResetPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
-            <View style={styles.iconWrapper}>
-              <Lock size={28} color={COLORS.node.accent} />
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
+            <View style={[styles.iconWrapper, { backgroundColor: `${theme.accent}15` }]}>
+              <Lock size={28} color={theme.accent} />
             </View>
-            <Text style={styles.title}>Reset password</Text>
-            <Text style={styles.subtitle}>Enter your new password</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Reset password</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>Enter your new password</Text>
           </View>
 
           <View style={styles.form}>
             <TextInput
               placeholder="New password (min. 8 characters)"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               secureTextEntry
               autoComplete="password-new"
               value={password}
               onChangeText={setPassword}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             <TextInput
               placeholder="Confirm password"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               secureTextEntry
               autoComplete="password-new"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             {error && (
@@ -118,7 +119,7 @@ export const ResetPasswordScreen: React.FC<{
             )}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: theme.accent }]}
               onPress={onSubmit}
               disabled={loading}
             >
@@ -138,7 +139,6 @@ export const ResetPasswordScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   closeButton: {
     position: 'absolute',
@@ -179,7 +179,6 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: `${COLORS.node.accent}15`,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -187,27 +186,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "600",
-    color: COLORS.node.text,
     marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.node.muted,
     textAlign: 'center',
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.node.text,
   },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -222,7 +216,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",

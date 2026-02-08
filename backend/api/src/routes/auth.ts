@@ -889,15 +889,10 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         { expiresIn: '1h' }
       );
 
-      // Update cookies with new access token (keep same refresh token)
-      reply.setCookie('accessToken', accessToken, {
-        httpOnly: true,
-        sameSite: 'lax' as const,
-        secure: isProd,
-        path: '/',
-        ...domainOption,
-        maxAge: 24 * 60 * 60,
-      });
+      // Update cookies with new access token and fresh CSRF token (keep same refresh token)
+      reply.setCookie('accessToken', accessToken, accessCookieOptions);
+      const newCsrfToken = randomBytes(24).toString('hex');
+      reply.setCookie('csrfToken', newCsrfToken, csrfCookieOptions);
 
       return reply.send({
         token: accessToken,

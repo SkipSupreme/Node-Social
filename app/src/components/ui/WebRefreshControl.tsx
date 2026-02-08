@@ -3,7 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Animated, StyleSheet, Platform, PanResponder } from 'react-native';
 import { RefreshCw } from './Icons';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface WebRefreshControlProps {
   refreshing: boolean;
@@ -19,6 +19,7 @@ export const WebRefreshControl: React.FC<WebRefreshControlProps> = ({
   onRefresh,
   children,
 }) => {
+  const theme = useAppTheme();
   const [isPulling, setIsPulling] = useState(false);
   const pullDistance = useRef(new Animated.Value(0)).current;
   const scrollRef = useRef<View>(null);
@@ -114,7 +115,7 @@ export const WebRefreshControl: React.FC<WebRefreshControlProps> = ({
         ]}
       >
         <Animated.View style={refreshing ? styles.spinning : undefined}>
-          <RefreshCw size={24} color={COLORS.node.accent} />
+          <RefreshCw size={24} color={theme.accent} />
         </Animated.View>
       </Animated.View>
 

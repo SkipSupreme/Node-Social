@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { FileText, ChevronRight, Trash2, Eye, EyeOff, Ban, Shield } from './Icons';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface ModAction {
   id: string;
@@ -33,7 +33,7 @@ function getRelativeTime(dateString: string): string {
 }
 
 // Get icon for action type
-function getActionIcon(action: string) {
+function getActionIcon(action: string, mutedColor: string) {
   switch (action) {
     case 'delete':
       return <Trash2 size={14} color="#ef4444" />;
@@ -44,7 +44,7 @@ function getActionIcon(action: string) {
     case 'ban':
       return <Ban size={14} color="#ef4444" />;
     default:
-      return <FileText size={14} color={COLORS.node.muted} />;
+      return <FileText size={14} color={mutedColor} />;
   }
 }
 
@@ -65,10 +65,12 @@ function getActionLabel(action: string): string {
 }
 
 export function ModLogPreview({ actions, onViewFullLog }: ModLogPreviewProps) {
+  const theme = useAppTheme();
+
   if (actions.length === 0) {
     return (
       <View style={styles.emptyContainer}>
-        <Text style={styles.emptyText}>No recent mod actions</Text>
+        <Text style={[styles.emptyText, { color: theme.muted }]}>No recent mod actions</Text>
       </View>
     );
   }
@@ -76,25 +78,25 @@ export function ModLogPreview({ actions, onViewFullLog }: ModLogPreviewProps) {
   return (
     <View style={styles.container}>
       {actions.map((action) => (
-        <View key={action.id} style={styles.actionItem}>
+        <View key={action.id} style={[styles.actionItem, { backgroundColor: theme.bg, borderColor: theme.border }]}>
           <View style={styles.actionHeader}>
-            {getActionIcon(action.action)}
-            <Text style={styles.actionLabel}>{getActionLabel(action.action)}</Text>
-            <Text style={styles.actionTime}>{getRelativeTime(action.createdAt)}</Text>
+            {getActionIcon(action.action, theme.muted)}
+            <Text style={[styles.actionLabel, { color: theme.text }]}>{getActionLabel(action.action)}</Text>
+            <Text style={[styles.actionTime, { color: theme.muted }]}>{getRelativeTime(action.createdAt)}</Text>
           </View>
           {action.reason && (
-            <Text style={styles.actionReason} numberOfLines={1}>
+            <Text style={[styles.actionReason, { color: theme.muted }]} numberOfLines={1}>
               Reason: {action.reason}
             </Text>
           )}
-          <Text style={styles.actionMod}>by @{action.moderatorUsername}</Text>
+          <Text style={[styles.actionMod, { color: theme.muted }]}>by @{action.moderatorUsername}</Text>
         </View>
       ))}
 
       {onViewFullLog && (
         <TouchableOpacity style={styles.viewAllButton} onPress={onViewFullLog}>
-          <Text style={styles.viewAllText}>View full mod log</Text>
-          <ChevronRight size={14} color={COLORS.node.accent} />
+          <Text style={[styles.viewAllText, { color: theme.accent }]}>View full mod log</Text>
+          <ChevronRight size={14} color={theme.accent} />
         </TouchableOpacity>
       )}
     </View>
@@ -111,15 +113,12 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 13,
-    color: COLORS.node.muted,
     fontStyle: 'italic',
   },
   actionItem: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   actionHeader: {
     flexDirection: 'row',
@@ -129,22 +128,18 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.node.text,
     flex: 1,
   },
   actionTime: {
     fontSize: 12,
-    color: COLORS.node.muted,
   },
   actionReason: {
     fontSize: 12,
-    color: COLORS.node.muted,
     marginTop: 4,
     marginLeft: 22,
   },
   actionMod: {
     fontSize: 11,
-    color: COLORS.node.muted,
     marginTop: 4,
     marginLeft: 22,
   },
@@ -157,7 +152,6 @@ const styles = StyleSheet.create({
   },
   viewAllText: {
     fontSize: 13,
-    color: COLORS.node.accent,
     fontWeight: '500',
   },
 });

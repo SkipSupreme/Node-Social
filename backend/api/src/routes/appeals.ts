@@ -28,7 +28,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       const { targetType, targetId, nodeId, reason, stake } = parsed.data;
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
 
       // Check user has enough cred
       const user = await fastify.prisma.user.findUnique({
@@ -271,7 +271,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { id } = request.params;
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
 
       const schema = z.object({
         vote: z.enum(['uphold', 'overturn']),
@@ -387,7 +387,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
     '/my-duties',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
 
       const duties = await fastify.prisma.appealJuror.findMany({
         where: { userId },
@@ -416,7 +416,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
     '/my-appeals',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
 
       const appeals = await fastify.prisma.appeal.findMany({
         where: { appellantId: userId },

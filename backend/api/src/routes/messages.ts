@@ -9,7 +9,7 @@ interface UserPayload {
 export default async function messagesRoutes(app: FastifyInstance) {
     // Get all conversations for the current user
     app.get('/conversations', { onRequest: [app.authenticate] }, async (req, reply) => {
-        const user = req.user as UserPayload;
+        const user = req.user as unknown as UserPayload;
         const userId = user.id;
 
         const conversations = await app.prisma.conversation.findMany({
@@ -45,7 +45,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
 
     // Get messages for a specific conversation
     app.get('/conversations/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
-        const user = req.user as UserPayload;
+        const user = req.user as unknown as UserPayload;
         const userId = user.id;
         const { id } = req.params as { id: string };
 
@@ -82,7 +82,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
 
     // Start a new conversation
     app.post('/conversations', { onRequest: [app.authenticate] }, async (req, reply) => {
-        const user = req.user as UserPayload;
+        const user = req.user as unknown as UserPayload;
         const userId = user.id;
         const { recipientId } = z.object({ recipientId: z.string() }).parse(req.body);
 
@@ -125,7 +125,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
 
     // Send a message
     app.post('/conversations/:id/messages', { onRequest: [app.authenticate] }, async (req, reply) => {
-        const user = req.user as UserPayload;
+        const user = req.user as unknown as UserPayload;
         const userId = user.id;
         const { id } = req.params as { id: string };
         const { content } = z.object({ content: z.string().min(1) }).parse(req.body);

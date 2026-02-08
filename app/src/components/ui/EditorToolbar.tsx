@@ -17,7 +17,8 @@ import {
   Check,
   BarChart2,
 } from 'lucide-react-native';
-import { COLORS, RADIUS } from '../../constants/theme';
+import { RADIUS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import type { StyleProp, ViewStyle } from 'react-native';
 import type { SelectionState, RichTextEditorRef } from './RichTextEditor';
 
@@ -38,6 +39,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   showPoll,
   style,
 }) => {
+  const theme = useAppTheme();
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [showHeadingMenu, setShowHeadingMenu] = useState(false);
@@ -67,7 +69,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   }> = ({ onPress, isActive, children, label }) => (
     <TouchableOpacity
       onPress={onPress}
-      style={[styles.button, isActive && styles.buttonActive]}
+      style={[styles.button, isActive && { backgroundColor: `${theme.accent}25` }]}
       accessibilityLabel={label}
       accessibilityRole="button"
     >
@@ -76,7 +78,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
   );
 
   return (
-    <View style={[styles.container, style]}>
+    <View style={[styles.container, { backgroundColor: theme.panel, borderTopColor: theme.border }, style]}>
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -90,7 +92,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Bold
             size={18}
-            color={selectionState.isBold ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isBold ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
@@ -101,7 +103,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Italic
             size={18}
-            color={selectionState.isItalic ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isItalic ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
@@ -112,7 +114,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Strikethrough
             size={18}
-            color={selectionState.isStrike ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isStrike ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
@@ -123,11 +125,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Code
             size={18}
-            color={selectionState.isCode ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isCode ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
-        <View style={styles.separator} />
+        <View style={[styles.separator, { backgroundColor: theme.border }]} />
 
         {/* Headings */}
         <ToolbarButton
@@ -136,17 +138,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           label="Heading"
         >
           {selectionState.headingLevel === 1 ? (
-            <Heading1 size={18} color={COLORS.node.accent} />
+            <Heading1 size={18} color={theme.accent} />
           ) : selectionState.headingLevel === 2 ? (
-            <Heading2 size={18} color={COLORS.node.accent} />
+            <Heading2 size={18} color={theme.accent} />
           ) : selectionState.headingLevel === 3 ? (
-            <Heading3 size={18} color={COLORS.node.accent} />
+            <Heading3 size={18} color={theme.accent} />
           ) : (
-            <Heading2 size={18} color={COLORS.node.muted} />
+            <Heading2 size={18} color={theme.muted} />
           )}
         </ToolbarButton>
 
-        <View style={styles.separator} />
+        <View style={[styles.separator, { backgroundColor: theme.border }]} />
 
         {/* Lists */}
         <ToolbarButton
@@ -156,7 +158,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <List
             size={18}
-            color={selectionState.isBulletList ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isBulletList ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
@@ -167,11 +169,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <ListOrdered
             size={18}
-            color={selectionState.isOrderedList ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isOrderedList ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
-        <View style={styles.separator} />
+        <View style={[styles.separator, { backgroundColor: theme.border }]} />
 
         {/* Block elements */}
         <ToolbarButton
@@ -181,7 +183,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <Quote
             size={18}
-            color={selectionState.isBlockquote ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isBlockquote ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
@@ -190,15 +192,15 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           isActive={selectionState.isCodeBlock}
           label="Code block"
         >
-          <View style={styles.codeBlockIcon}>
+          <View style={[styles.codeBlockIcon, { borderColor: theme.muted }]}>
             <Code
               size={14}
-              color={selectionState.isCodeBlock ? COLORS.node.accent : COLORS.node.muted}
+              color={selectionState.isCodeBlock ? theme.accent : theme.muted}
             />
           </View>
         </ToolbarButton>
 
-        <View style={styles.separator} />
+        <View style={[styles.separator, { backgroundColor: theme.border }]} />
 
         {/* Link */}
         <ToolbarButton
@@ -214,21 +216,21 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
         >
           <LinkIcon
             size={18}
-            color={selectionState.isLink ? COLORS.node.accent : COLORS.node.muted}
+            color={selectionState.isLink ? theme.accent : theme.muted}
           />
         </ToolbarButton>
 
         {/* Image */}
         {onImagePress && (
           <ToolbarButton onPress={onImagePress} label="Insert image">
-            <ImageIcon size={18} color={COLORS.node.muted} />
+            <ImageIcon size={18} color={theme.muted} />
           </ToolbarButton>
         )}
 
         {/* Poll */}
         {onPollPress && (
           <ToolbarButton onPress={onPollPress} isActive={showPoll} label="Add poll">
-            <BarChart2 size={18} color={showPoll ? COLORS.node.accent : COLORS.node.muted} />
+            <BarChart2 size={18} color={showPoll ? theme.accent : theme.muted} />
           </ToolbarButton>
         )}
       </ScrollView>
@@ -245,17 +247,17 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           activeOpacity={1}
           onPress={() => setShowLinkModal(false)}
         >
-          <View style={styles.linkModal} onStartShouldSetResponder={() => true}>
+          <View style={[styles.linkModal, { backgroundColor: theme.panel, borderColor: theme.border }]} onStartShouldSetResponder={() => true}>
             <View style={styles.linkModalHeader}>
-              <Text style={styles.linkModalTitle}>Insert Link</Text>
+              <Text style={[styles.linkModalTitle, { color: theme.text }]}>Insert Link</Text>
               <TouchableOpacity onPress={() => setShowLinkModal(false)}>
-                <X size={20} color={COLORS.node.muted} />
+                <X size={20} color={theme.muted} />
               </TouchableOpacity>
             </View>
             <TextInput
-              style={styles.linkInput}
+              style={[styles.linkInput, { backgroundColor: theme.bg, borderColor: theme.border, color: theme.text }]}
               placeholder="https://example.com"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               value={linkUrl}
               onChangeText={setLinkUrl}
               autoCapitalize="none"
@@ -265,12 +267,12 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
               onSubmitEditing={handleLinkSubmit}
             />
             <TouchableOpacity
-              style={[styles.linkSubmitButton, !linkUrl.trim() && styles.linkSubmitButtonDisabled]}
+              style={[styles.linkSubmitButton, { backgroundColor: theme.accent }, !linkUrl.trim() && styles.linkSubmitButtonDisabled]}
               onPress={handleLinkSubmit}
               disabled={!linkUrl.trim()}
             >
-              <Check size={18} color={COLORS.node.bg} />
-              <Text style={styles.linkSubmitText}>Add Link</Text>
+              <Check size={18} color={theme.bg} />
+              <Text style={[styles.linkSubmitText, { color: theme.bg }]}>Add Link</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -288,37 +290,37 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
           activeOpacity={1}
           onPress={() => setShowHeadingMenu(false)}
         >
-          <View style={styles.headingModal} onStartShouldSetResponder={() => true}>
+          <View style={[styles.headingModal, { backgroundColor: theme.panel, borderColor: theme.border }]} onStartShouldSetResponder={() => true}>
             <View style={styles.linkModalHeader}>
-              <Text style={styles.linkModalTitle}>Heading</Text>
+              <Text style={[styles.linkModalTitle, { color: theme.text }]}>Heading</Text>
               <TouchableOpacity onPress={() => setShowHeadingMenu(false)}>
-                <X size={20} color={COLORS.node.muted} />
+                <X size={20} color={theme.muted} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
-              style={[styles.headingOption, selectionState.headingLevel === 1 && styles.headingOptionActive]}
+              style={[styles.headingOption, selectionState.headingLevel === 1 && { backgroundColor: `${theme.accent}20` }]}
               onPress={() => handleHeadingSelect(1)}
             >
-              <Heading1 size={22} color={selectionState.headingLevel === 1 ? COLORS.node.accent : COLORS.node.text} />
-              <Text style={[styles.headingLabel, selectionState.headingLevel === 1 && styles.headingLabelActive]}>
+              <Heading1 size={22} color={selectionState.headingLevel === 1 ? theme.accent : theme.text} />
+              <Text style={[styles.headingLabel, { color: theme.text }, selectionState.headingLevel === 1 && { color: theme.accent, fontWeight: '600' }]}>
                 Heading 1
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headingOption, selectionState.headingLevel === 2 && styles.headingOptionActive]}
+              style={[styles.headingOption, selectionState.headingLevel === 2 && { backgroundColor: `${theme.accent}20` }]}
               onPress={() => handleHeadingSelect(2)}
             >
-              <Heading2 size={20} color={selectionState.headingLevel === 2 ? COLORS.node.accent : COLORS.node.text} />
-              <Text style={[styles.headingLabel, selectionState.headingLevel === 2 && styles.headingLabelActive]}>
+              <Heading2 size={20} color={selectionState.headingLevel === 2 ? theme.accent : theme.text} />
+              <Text style={[styles.headingLabel, { color: theme.text }, selectionState.headingLevel === 2 && { color: theme.accent, fontWeight: '600' }]}>
                 Heading 2
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.headingOption, selectionState.headingLevel === 3 && styles.headingOptionActive]}
+              style={[styles.headingOption, selectionState.headingLevel === 3 && { backgroundColor: `${theme.accent}20` }]}
               onPress={() => handleHeadingSelect(3)}
             >
-              <Heading3 size={18} color={selectionState.headingLevel === 3 ? COLORS.node.accent : COLORS.node.text} />
-              <Text style={[styles.headingLabel, selectionState.headingLevel === 3 && styles.headingLabelActive]}>
+              <Heading3 size={18} color={selectionState.headingLevel === 3 ? theme.accent : theme.text} />
+              <Text style={[styles.headingLabel, { color: theme.text }, selectionState.headingLevel === 3 && { color: theme.accent, fontWeight: '600' }]}>
                 Heading 3
               </Text>
             </TouchableOpacity>
@@ -331,9 +333,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.node.panel,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
     paddingBottom: Platform.OS === 'ios' ? 20 : 0,
   },
   scrollContent: {
@@ -350,29 +350,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  buttonActive: {
-    backgroundColor: `${COLORS.node.accent}25`,
-  },
   separator: {
     width: 1,
     height: 20,
-    backgroundColor: COLORS.node.border,
     marginHorizontal: 6,
   },
   codeBlockIcon: {
     borderWidth: 1,
-    borderColor: COLORS.node.muted,
     borderRadius: 4,
     padding: 2,
   },
   headingModal: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: RADIUS.lg,
     padding: 20,
     width: '100%',
     maxWidth: 300,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   headingOption: {
     flexDirection: 'row',
@@ -383,16 +376,8 @@ const styles = StyleSheet.create({
     borderRadius: RADIUS.md,
     marginBottom: 4,
   },
-  headingOptionActive: {
-    backgroundColor: `${COLORS.node.accent}20`,
-  },
   headingLabel: {
     fontSize: 16,
-    color: COLORS.node.text,
-  },
-  headingLabelActive: {
-    color: COLORS.node.accent,
-    fontWeight: '600',
   },
   modalOverlay: {
     flex: 1,
@@ -402,13 +387,11 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   linkModal: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: RADIUS.lg,
     padding: 20,
     width: '100%',
     maxWidth: 400,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   linkModalHeader: {
     flexDirection: 'row',
@@ -419,21 +402,16 @@ const styles = StyleSheet.create({
   linkModalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   linkInput: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingHorizontal: 14,
     paddingVertical: 12,
     fontSize: 16,
-    color: COLORS.node.text,
     marginBottom: 16,
   },
   linkSubmitButton: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: RADIUS.md,
     paddingVertical: 12,
     flexDirection: 'row',
@@ -445,7 +423,6 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   linkSubmitText: {
-    color: COLORS.node.bg,
     fontSize: 16,
     fontWeight: '600',
   },

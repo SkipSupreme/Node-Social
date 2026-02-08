@@ -127,6 +127,7 @@ async function main() {
     }
 
     // If current node is different from correct node, fix it
+    if (!post.node) continue;
     if (post.node.slug !== correctNodeSlug) {
       changes.push({
         title: post.title?.slice(0, 50) || 'Untitled',

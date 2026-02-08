@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, Image, StyleSheet, TouchableOpacity, Linking } from 'react-native';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { ExternalLink } from 'lucide-react-native';
 
 interface LinkMetadata {
@@ -17,6 +17,8 @@ interface LinkPreviewCardProps {
 }
 
 export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({ metadata, onPress }) => {
+    const theme = useAppTheme();
+
     const handlePress = () => {
         if (onPress) {
             onPress();
@@ -26,20 +28,20 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({ metadata, onPr
     };
 
     return (
-        <TouchableOpacity style={styles.container} onPress={handlePress} activeOpacity={0.9}>
+        <TouchableOpacity style={[styles.container, { backgroundColor: theme.panel, borderColor: theme.border }]} onPress={handlePress} activeOpacity={0.9}>
             {metadata.image ? (
-                <Image source={{ uri: metadata.image }} style={styles.image} resizeMode="cover" />
+                <Image source={{ uri: metadata.image }} style={[styles.image, { backgroundColor: theme.bg }]} resizeMode="cover" />
             ) : null}
             <View style={styles.content}>
                 <View style={styles.domainRow}>
-                    <ExternalLink size={12} color={COLORS.node.muted} />
-                    <Text style={styles.domain}>{metadata.domain || new URL(metadata.url).hostname}</Text>
+                    <ExternalLink size={12} color={theme.muted} />
+                    <Text style={[styles.domain, { color: theme.muted }]}>{metadata.domain || new URL(metadata.url).hostname}</Text>
                 </View>
                 {metadata.title ? (
-                    <Text style={styles.title} numberOfLines={2}>{metadata.title}</Text>
+                    <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{metadata.title}</Text>
                 ) : null}
                 {metadata.description ? (
-                    <Text style={styles.description} numberOfLines={2}>{metadata.description}</Text>
+                    <Text style={[styles.description, { color: theme.muted }]} numberOfLines={2}>{metadata.description}</Text>
                 ) : null}
             </View>
         </TouchableOpacity>
@@ -48,17 +50,14 @@ export const LinkPreviewCard: React.FC<LinkPreviewCardProps> = ({ metadata, onPr
 
 const styles = StyleSheet.create({
     container: {
-        backgroundColor: COLORS.node.panel,
         borderRadius: 12,
         overflow: 'hidden',
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         marginTop: 8,
     },
     image: {
         width: '100%',
         height: 160,
-        backgroundColor: COLORS.node.bg,
     },
     content: {
         padding: 12,
@@ -72,17 +71,14 @@ const styles = StyleSheet.create({
     },
     domain: {
         fontSize: 12,
-        color: COLORS.node.muted,
     },
     title: {
         fontSize: 15,
         fontWeight: '600',
-        color: COLORS.node.text,
         lineHeight: 20,
     },
     description: {
         fontSize: 13,
-        color: COLORS.node.muted,
         lineHeight: 18,
     },
 });

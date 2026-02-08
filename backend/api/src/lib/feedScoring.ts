@@ -848,6 +848,363 @@ export function buildVibeProfileFromReactions(
   return profile;
 }
 
+// ============================================================================
+// External Post Scoring
+// ============================================================================
+
+/**
+ * Score an external post for feed ranking.
+ * Uses vibe aggregate data when available, falls back to platform engagement metrics.
+ */
+export function scoreExternalPost(
+  post: {
+    createdAt: string;
+    likeCount: number;
+    repostCount: number;
+    replyCount: number;
+    vibeAggregate?: {
+      insightfulSum: number;
+      joySum: number;
+      fireSum: number;
+      supportSum: number;
+      shockSum: number;
+      questionableSum: number;
+      totalIntensity: number;
+      totalReactors: number;
+      qualityScore: number;
+      engagementScore: number;
+    } | null;
+  },
+  preferences: FeedPreferences,
+  userVibeProfile?: VibeProfile | null
+): number {
+  const createdAt = new Date(post.createdAt);
+  const vibe = post.vibeAggregate;
+
+  // Quality score (0-100)
+  let qualityScore: number;
+  if (vibe && vibe.totalIntensity > 0) {
+    // Use vibe-derived quality
+    const positiveVibes = vibe.insightfulSum + vibe.supportSum + vibe.joySum;
+    const negativeVibes = vibe.shockSum + vibe.questionableSum;
+    const ratio = positiveVibes / (positiveVibes + negativeVibes + 0.01);
+    qualityScore = ratio * 100;
+  } else {
+    // Fallback: derive quality from platform engagement (log scale)
+    qualityScore = Math.min(100, Math.log2(post.likeCount + 1) * 15);
+  }
+
+  // Recency score (0-100) — use the legacy function for simplicity
+  const recencyScore = calculateRecencyScoreLegacy(createdAt, preferences.recencyHalfLife);
+
+  // Engagement score (0-100)
+  let engagementScore: number;
+  if (vibe && vibe.totalIntensity > 0) {
+    engagementScore = Math.min(100, vibe.totalIntensity);
+  } else {
+    // Fallback: normalize platform metrics
+    const platformEngagement = post.likeCount + (post.repostCount * 2) + (post.replyCount * 3);
+    engagementScore = Math.min(100, Math.log2(platformEngagement + 1) * 12);
+  }
+
+  // Personalization score (0-100)
+  // External posts don't have authors in our system — vibe alignment only
+  let personalizationScore = 50; // Neutral baseline
+  if (userVibeProfile && vibe && vibe.totalIntensity > 0) {
+    const defaultMultipliers: VectorMultipliers = {
+      insightful: 100, joy: 100, fire: 100,
+      support: 100, shock: 100, questionable: 100,
+    };
+    const alignment = calculateVibeAlignment(
+      userVibeProfile,
+      { ...vibe, reactionCount: vibe.totalReactors },
+      defaultMultipliers,
+      0
+    );
+    personalizationScore = (alignment + 1) * 50; // Scale -1..1 to 0..100
+  }
+
+  // Weighted combination
+  const score =
+    (qualityScore * preferences.qualityWeight) +
+    (recencyScore * preferences.recencyWeight) +
+    (engagementScore * preferences.engagementWeight) +
+    (personalizationScore * preferences.personalizationWeight);
+
+  return score;
+}
+
+// ============================================================================
+// External Post Advanced Scoring (Full Vibe Validator Support)
+// ============================================================================
+
+/**
+ * Data shape for an external post to be scored
+ */
+export interface ExternalPostScorable {
+  id: string;
+  createdAt: string;
+  content: string;
+  likeCount: number;
+  repostCount: number;
+  replyCount: number;
+  mediaUrls: string[];
+  author: { id: string; username: string };
+  vibeAggregate?: {
+    insightfulSum: number;
+    joySum: number;
+    fireSum: number;
+    supportSum: number;
+    shockSum: number;
+    questionableSum: number;
+    totalIntensity: number;
+    totalReactors: number;
+    qualityScore: number;
+    engagementScore: number;
+  } | null;
+}
+
+/**
+ * Content filter preferences for external posts
+ */
+export interface ExternalContentFilters {
+  timeRange?: '1h' | '6h' | '24h' | '7d' | 'all';
+  postLength?: 'any' | 'micro' | 'short' | 'medium' | 'long';
+  mediaType?: 'any' | 'photos' | 'videos' | 'gifs';
+  textOnly?: boolean;
+  mediaOnly?: boolean;
+  linksOnly?: boolean;
+  hasDiscussion?: boolean;
+  hideMutedWords?: boolean;
+  mutedWords?: Array<{ word: string; isRegex: boolean }>;
+}
+
+/**
+ * Full scoring context for external posts (mirrors node post scoring)
+ */
+export interface ExternalScoringContext {
+  preferences: FeedPreferences;
+  qualityPrefs: QualityPreferences;
+  recencyPrefs: RecencyPreferences;
+  engagementPrefs: EngagementPreferences;
+  personalizationPrefs: PersonalizationPreferences;
+  vectorMultipliers: VectorMultipliers;
+  antiAlignmentPenalty: number;
+  userVibeProfile: VibeProfile | null;
+  diversityPrefs?: DiversityPreferences;
+  mood?: MoodType;
+  filters?: ExternalContentFilters;
+}
+
+// URL pattern for detecting links in content
+const URL_REGEX = /https?:\/\/[^\s<]+/i;
+
+// Video file extensions for media type detection
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|avi|mkv)(\?|$)/i;
+const GIF_EXTENSION = /\.gif(\?|$)/i;
+
+/**
+ * Filter external posts by content criteria with heuristics.
+ */
+export function filterExternalPosts(
+  posts: ExternalPostScorable[],
+  filters: ExternalContentFilters
+): ExternalPostScorable[] {
+  let result = posts;
+
+  // Time range filter
+  if (filters.timeRange && filters.timeRange !== 'all') {
+    const now = Date.now();
+    const rangeMs: Record<string, number> = {
+      '1h': 60 * 60 * 1000,
+      '6h': 6 * 60 * 60 * 1000,
+      '24h': 24 * 60 * 60 * 1000,
+      '7d': 7 * 24 * 60 * 60 * 1000,
+    };
+    const cutoff = now - (rangeMs[filters.timeRange] ?? 0);
+    result = result.filter(p => new Date(p.createdAt).getTime() >= cutoff);
+  }
+
+  // Post length filter (heuristic based on character count)
+  if (filters.postLength && filters.postLength !== 'any') {
+    result = result.filter(p => {
+      const len = (p.content || '').length;
+      switch (filters.postLength) {
+        case 'micro': return len < 50;
+        case 'short': return len >= 50 && len < 280;
+        case 'medium': return len >= 280 && len < 1000;
+        case 'long': return len >= 1000;
+        default: return true;
+      }
+    });
+  }
+
+  // Media type filter
+  if (filters.mediaType && filters.mediaType !== 'any') {
+    result = result.filter(p => {
+      if (p.mediaUrls.length === 0) return false;
+      switch (filters.mediaType) {
+        case 'photos':
+          return p.mediaUrls.some(u => !VIDEO_EXTENSIONS.test(u) && !GIF_EXTENSION.test(u));
+        case 'videos':
+          return p.mediaUrls.some(u => VIDEO_EXTENSIONS.test(u));
+        case 'gifs':
+          return p.mediaUrls.some(u => GIF_EXTENSION.test(u));
+        default:
+          return true;
+      }
+    });
+  }
+
+  // Text only: no media
+  if (filters.textOnly) {
+    result = result.filter(p => p.mediaUrls.length === 0);
+  }
+
+  // Media only: must have media
+  if (filters.mediaOnly) {
+    result = result.filter(p => p.mediaUrls.length > 0);
+  }
+
+  // Links only: content contains a URL
+  if (filters.linksOnly) {
+    result = result.filter(p => URL_REGEX.test(p.content || ''));
+  }
+
+  // Has discussion: replyCount > 0
+  if (filters.hasDiscussion) {
+    result = result.filter(p => p.replyCount > 0);
+  }
+
+  // Muted words filtering
+  if (filters.hideMutedWords && filters.mutedWords && filters.mutedWords.length > 0) {
+    const regexPatterns: RegExp[] = [];
+    const plainWords: string[] = [];
+
+    for (const mw of filters.mutedWords) {
+      if (mw.isRegex) {
+        try {
+          regexPatterns.push(new RegExp(mw.word, 'i'));
+        } catch {
+          // Invalid regex, skip
+        }
+      } else {
+        plainWords.push(mw.word.toLowerCase());
+      }
+    }
+
+    result = result.filter(p => {
+      const contentLower = (p.content || '').toLowerCase();
+      for (const word of plainWords) {
+        if (contentLower.includes(word)) return false;
+      }
+      for (const pattern of regexPatterns) {
+        if (pattern.test(contentLower)) return false;
+      }
+      return true;
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Score an external post using the full Vibe Validator settings.
+ * Maps sub-signals to external post data with platform metrics as fallback.
+ */
+export function scoreExternalPostAdvanced(
+  post: ExternalPostScorable,
+  ctx: ExternalScoringContext
+): number {
+  const vibe = post.vibeAggregate;
+  const createdAt = new Date(post.createdAt);
+
+  // --- Quality Score ---
+  // External authors have no cred: redistribute authorCredWeight to vectorQuality + confidence
+  const totalOrigQuality = ctx.qualityPrefs.authorCredWeight + ctx.qualityPrefs.vectorQualityWeight + ctx.qualityPrefs.confidenceWeight;
+  const redistributedQuality: QualityPreferences = totalOrigQuality > 0
+    ? {
+        authorCredWeight: 0,
+        vectorQualityWeight: ctx.qualityPrefs.vectorQualityWeight + ctx.qualityPrefs.authorCredWeight * (ctx.qualityPrefs.vectorQualityWeight / (ctx.qualityPrefs.vectorQualityWeight + ctx.qualityPrefs.confidenceWeight || 1)),
+        confidenceWeight: ctx.qualityPrefs.confidenceWeight + ctx.qualityPrefs.authorCredWeight * (ctx.qualityPrefs.confidenceWeight / (ctx.qualityPrefs.vectorQualityWeight + ctx.qualityPrefs.confidenceWeight || 1)),
+      }
+    : { authorCredWeight: 0, vectorQualityWeight: 50, confidenceWeight: 50 };
+
+  let qualityScore: number;
+  if (vibe && vibe.totalIntensity > 0) {
+    // Use vibe-derived quality via sub-signal function (authorCred=0)
+    qualityScore = calculateQualityScore(
+      { vibeAggregate: { ...vibe, reactionCount: vibe.totalReactors } },
+      { cred: 0 },
+      redistributedQuality
+    );
+  } else {
+    // Fallback: platform metrics
+    const likeQuality = Math.min(100, Math.log2(post.likeCount + 1) * 15);
+    const platformConfidence = Math.min(100, Math.log2(post.likeCount + post.repostCount + post.replyCount + 1) * 10);
+    qualityScore = (likeQuality * redistributedQuality.vectorQualityWeight + platformConfidence * redistributedQuality.confidenceWeight)
+      / (redistributedQuality.vectorQualityWeight + redistributedQuality.confidenceWeight || 1);
+  }
+
+  // --- Recency Score --- (identical to node posts)
+  const recencyScore = calculateRecencyScore(
+    vibe
+      ? { createdAt, vibeAggregate: { ...vibe, reactionCount: vibe.totalReactors } }
+      : { createdAt },
+    ctx.recencyPrefs
+  );
+
+  // --- Engagement Score ---
+  // Map platform metrics to engagement sub-signals
+  let intensityScore: number;
+  if (vibe && vibe.totalIntensity > 0) {
+    intensityScore = Math.min(100, vibe.totalIntensity);
+  } else {
+    const platformEngagement = post.likeCount + (post.repostCount * 2) + (post.replyCount * 3);
+    intensityScore = Math.min(100, Math.log2(platformEngagement + 1) * 12);
+  }
+
+  // Discussion depth from platform reply count (20 replies = 100)
+  const discussionScore = Math.min(100, post.replyCount * 5);
+
+  // Share weight from platform repost count (20 reposts = 100)
+  const shareScore = Math.min(100, post.repostCount * 5);
+
+  // Expert comment bonus = 0 for external posts (no internal comments)
+  const expertScore = 0;
+
+  const engagementTotal = ctx.engagementPrefs.intensity + ctx.engagementPrefs.discussionDepth + ctx.engagementPrefs.shareWeight + ctx.engagementPrefs.expertCommentBonus;
+  const engagementScore = engagementTotal > 0
+    ? (intensityScore * ctx.engagementPrefs.intensity +
+       discussionScore * ctx.engagementPrefs.discussionDepth +
+       shareScore * ctx.engagementPrefs.shareWeight +
+       expertScore * ctx.engagementPrefs.expertCommentBonus) / engagementTotal
+    : 50;
+
+  // --- Personalization Score ---
+  // External posts: only vibe alignment works. Following/affinity/trust = 0.
+  // Redistribute those weights to alignment.
+  let personalizationScore = 50;
+  if (ctx.userVibeProfile && vibe && vibe.totalIntensity > 0) {
+    const alignment = calculateVibeAlignment(
+      ctx.userVibeProfile,
+      { ...vibe, reactionCount: vibe.totalReactors },
+      ctx.vectorMultipliers,
+      ctx.antiAlignmentPenalty
+    );
+    personalizationScore = (alignment + 1) * 50; // Scale -1..1 to 0..100
+  }
+
+  // --- Combine with main weights ---
+  const score =
+    (qualityScore * ctx.preferences.qualityWeight / 100) +
+    (recencyScore * ctx.preferences.recencyWeight / 100) +
+    (engagementScore * ctx.preferences.engagementWeight / 100) +
+    (personalizationScore * ctx.preferences.personalizationWeight / 100);
+
+  return score;
+}
+
 /**
  * Build trust network from vouch relationships
  * Returns map of userId -> distance (1 = direct vouch, 2 = friend-of-friend, etc.)

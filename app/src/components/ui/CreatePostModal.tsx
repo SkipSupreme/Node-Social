@@ -13,7 +13,8 @@ import {
     useWindowDimensions
 } from 'react-native';
 import { X, Image as ImageIcon, BarChart2, Trash2, ChevronDown, Check, Search, Hash, ExternalLink } from 'lucide-react-native';
-import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
+import { RADIUS, SHADOWS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { createPost, Node, getLinkPreview, TipTapDoc, ExternalPost } from '../../lib/api';
 import { LinkPreviewCard } from '../LinkPreviewCard';
 import { RichTextEditor, RichTextEditorRef, SelectionState } from './RichTextEditor';
@@ -51,6 +52,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
     initialNodeId,
     quotedExternalPost
 }) => {
+    const theme = useAppTheme();
     const { width } = useWindowDimensions();
     const isDesktop = width >= 768;
 
@@ -235,6 +237,12 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                 nodeId: selectedNodeId || undefined,
                 // If quoting an external post, use its URL; otherwise use linkUrl/imageUrl
                 linkUrl: quotedExternalPost?.externalUrl || linkUrl || imageUrl || undefined,
+                // Pass external post metadata directly (Bluesky is a SPA with no OG tags)
+                linkMetaData: quotedExternalPost ? {
+                    title: `${quotedExternalPost.author.displayName} (@${quotedExternalPost.author.username})`,
+                    description: quotedExternalPost.content?.substring(0, 1000),
+                    image: quotedExternalPost.mediaUrls?.[0] || quotedExternalPost.author.avatar || undefined,
+                } : undefined,
                 poll: pollData
             });
             onSuccess();
@@ -257,11 +265,11 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
             >
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
-                <View style={[styles.container, isDesktop && styles.containerDesktop]}>
+                <View style={[styles.container, { backgroundColor: theme.bg }, isDesktop && styles.containerDesktop]}>
                     {/* Minimal Header */}
-                    <View style={styles.header}>
+                    <View style={[styles.header, { borderBottomColor: theme.border }]}>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                            <X color={COLORS.node.muted} size={22} />
+                            <X color={theme.muted} size={22} />
                         </TouchableOpacity>
 
                         {/* Publishing context - where you're posting */}
@@ -271,16 +279,16 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         >
                             <View style={[
                                 styles.nodeContextDot,
-                                { backgroundColor: selectedNode?.color || COLORS.node.accent }
+                                { backgroundColor: selectedNode?.color || theme.accent }
                             ]} />
-                            <Text style={styles.nodeContextText} numberOfLines={1}>
+                            <Text style={[styles.nodeContextText, { color: theme.textSecondary }]} numberOfLines={1}>
                                 {selectedNode ? `n/${selectedNode.slug}` : 'General'}
                             </Text>
-                            <ChevronDown size={14} color={COLORS.node.muted} />
+                            <ChevronDown size={14} color={theme.muted} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.publishBtn, !canSubmit && styles.publishBtnDisabled]}
+                            style={[styles.publishBtn, { backgroundColor: theme.accent }, !canSubmit && styles.publishBtnDisabled]}
                             onPress={handleSubmit}
                             disabled={!canSubmit || loading}
                         >
@@ -310,9 +318,9 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                     >
                         {/* Large Title Input */}
                         <TextInput
-                            style={[styles.titleInput, isDesktop && styles.titleInputDesktop]}
+                            style={[styles.titleInput, { color: theme.text }, isDesktop && styles.titleInputDesktop]}
                             placeholder="Title"
-                            placeholderTextColor={COLORS.node.muted}
+                            placeholderTextColor={theme.muted}
                             value={title}
                             onChangeText={setTitle}
                             maxLength={300}
@@ -332,18 +340,18 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                         {/* Image/Video URL Input */}
                         {showImageInput && (
-                            <View style={styles.attachmentSection}>
+                            <View style={[styles.attachmentSection, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                                 <View style={styles.attachmentHeader}>
-                                    <ImageIcon size={16} color={COLORS.node.accent} />
-                                    <Text style={styles.attachmentTitle}>Media URL</Text>
+                                    <ImageIcon size={16} color={theme.accent} />
+                                    <Text style={[styles.attachmentTitle, { color: theme.text }]}>Media URL</Text>
                                     <TouchableOpacity onPress={() => setShowImageInput(false)} style={styles.attachmentClose}>
-                                        <X size={16} color={COLORS.node.muted} />
+                                        <X size={16} color={theme.muted} />
                                     </TouchableOpacity>
                                 </View>
                                 <TextInput
-                                    style={styles.attachmentInput}
+                                    style={[styles.attachmentInput, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                                     placeholder="Paste image or video URL"
-                                    placeholderTextColor={COLORS.node.muted}
+                                    placeholderTextColor={theme.muted}
                                     value={imageUrl}
                                     onChangeText={setImageUrl}
                                 />
@@ -352,19 +360,19 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                         {/* Poll Creator */}
                         {showPoll && (
-                            <View style={styles.attachmentSection}>
+                            <View style={[styles.attachmentSection, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                                 <View style={styles.attachmentHeader}>
-                                    <BarChart2 size={16} color={COLORS.node.accent} />
-                                    <Text style={styles.attachmentTitle}>Poll</Text>
+                                    <BarChart2 size={16} color={theme.accent} />
+                                    <Text style={[styles.attachmentTitle, { color: theme.text }]}>Poll</Text>
                                     <TouchableOpacity onPress={() => setShowPoll(false)} style={styles.attachmentClose}>
-                                        <X size={16} color={COLORS.node.muted} />
+                                        <X size={16} color={theme.muted} />
                                     </TouchableOpacity>
                                 </View>
 
                                 <TextInput
-                                    style={styles.pollQuestion}
+                                    style={[styles.pollQuestion, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                                     placeholder="Ask a question..."
-                                    placeholderTextColor={COLORS.node.muted}
+                                    placeholderTextColor={theme.muted}
                                     value={pollQuestion}
                                     onChangeText={setPollQuestion}
                                 />
@@ -372,15 +380,15 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                                 {pollOptions.map((option, index) => (
                                     <View key={index} style={styles.pollOptionRow}>
                                         <TextInput
-                                            style={styles.pollOptionInput}
+                                            style={[styles.pollOptionInput, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                                             placeholder={`Option ${index + 1}`}
-                                            placeholderTextColor={COLORS.node.muted}
+                                            placeholderTextColor={theme.muted}
                                             value={option}
                                             onChangeText={(text) => handleOptionChange(text, index)}
                                         />
                                         {pollOptions.length > 2 && (
                                             <TouchableOpacity onPress={() => handleRemoveOption(index)} style={styles.pollOptionRemove}>
-                                                <Trash2 size={16} color={COLORS.node.muted} />
+                                                <Trash2 size={16} color={theme.muted} />
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -388,7 +396,7 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                                 {pollOptions.length < 4 && (
                                     <TouchableOpacity style={styles.addOptionBtn} onPress={handleAddOption}>
-                                        <Text style={styles.addOptionText}>+ Add option</Text>
+                                        <Text style={[styles.addOptionText, { color: theme.accent }]}>+ Add option</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -396,8 +404,8 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
 
                         {loadingPreview && (
                             <View style={styles.previewLoading}>
-                                <ActivityIndicator color={COLORS.node.accent} size="small" />
-                                <Text style={styles.previewLoadingText}>Loading preview...</Text>
+                                <ActivityIndicator color={theme.accent} size="small" />
+                                <Text style={[styles.previewLoadingText, { color: theme.muted }]}>Loading preview...</Text>
                             </View>
                         )}
 
@@ -411,28 +419,28 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         {quotedExternalPost && (
                             <View style={styles.quotedPostContainer}>
                                 <View style={styles.quotedPostHeader}>
-                                    <Text style={styles.quotedPostLabel}>
+                                    <Text style={[styles.quotedPostLabel, { color: theme.muted }]}>
                                         Quoting from {quotedExternalPost.platform === 'bluesky' ? '🦋 Bluesky' : '🦣 Mastodon'}
                                     </Text>
                                 </View>
-                                <View style={styles.quotedPostCard}>
+                                <View style={[styles.quotedPostCard, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                                     <View style={styles.quotedPostAuthor}>
-                                        <Text style={styles.quotedPostDisplayName}>
+                                        <Text style={[styles.quotedPostDisplayName, { color: theme.text }]}>
                                             {quotedExternalPost.author.displayName}
                                         </Text>
-                                        <Text style={styles.quotedPostUsername}>
+                                        <Text style={[styles.quotedPostUsername, { color: theme.muted }]}>
                                             @{quotedExternalPost.author.username}
                                         </Text>
                                     </View>
-                                    <Text style={styles.quotedPostContent} numberOfLines={3}>
+                                    <Text style={[styles.quotedPostContent, { color: theme.textSecondary }]} numberOfLines={3}>
                                         {quotedExternalPost.content}
                                     </Text>
                                     <TouchableOpacity
                                         style={styles.quotedPostLink}
                                         onPress={() => {/* Could open in browser */}}
                                     >
-                                        <ExternalLink size={12} color={COLORS.node.accent} />
-                                        <Text style={styles.quotedPostLinkText}>View original</Text>
+                                        <ExternalLink size={12} color={theme.accent} />
+                                        <Text style={[styles.quotedPostLinkText, { color: theme.accent }]}>View original</Text>
                                     </TouchableOpacity>
                                 </View>
                             </View>
@@ -464,68 +472,68 @@ export const CreatePostModal: React.FC<CreatePostModalProps> = ({
                         <TouchableOpacity
                             activeOpacity={1}
                             onPress={e => e.stopPropagation()}
-                            style={[styles.pickerContainer, isDesktop && styles.pickerContainerDesktop]}
+                            style={[styles.pickerContainer, { backgroundColor: theme.panel }, isDesktop && styles.pickerContainerDesktop]}
                         >
-                            <View style={styles.pickerHeader}>
-                                <Text style={styles.pickerTitle}>Post to</Text>
+                            <View style={[styles.pickerHeader, { borderBottomColor: theme.border }]}>
+                                <Text style={[styles.pickerTitle, { color: theme.text }]}>Post to</Text>
                                 <TouchableOpacity onPress={() => setShowNodePicker(false)}>
-                                    <X size={20} color={COLORS.node.muted} />
+                                    <X size={20} color={theme.muted} />
                                 </TouchableOpacity>
                             </View>
 
-                            <View style={styles.searchContainer}>
-                                <Search size={18} color={COLORS.node.muted} />
+                            <View style={[styles.searchContainer, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+                                <Search size={18} color={theme.muted} />
                                 <TextInput
-                                    style={styles.searchInput}
+                                    style={[styles.searchInput, { color: theme.text }]}
                                     placeholder="Search communities..."
-                                    placeholderTextColor={COLORS.node.muted}
+                                    placeholderTextColor={theme.muted}
                                     value={nodeSearch}
                                     onChangeText={setNodeSearch}
                                     autoFocus
                                 />
                                 {nodeSearch.length > 0 && (
                                     <TouchableOpacity onPress={() => setNodeSearch('')}>
-                                        <X size={16} color={COLORS.node.muted} />
+                                        <X size={16} color={theme.muted} />
                                     </TouchableOpacity>
                                 )}
                             </View>
 
                             <ScrollView style={styles.nodeList} showsVerticalScrollIndicator={false}>
                                 <TouchableOpacity
-                                    style={[styles.nodeOption, !selectedNodeId && styles.nodeOptionSelected]}
+                                    style={[styles.nodeOption, !selectedNodeId && [styles.nodeOptionSelected, { backgroundColor: `${theme.accent}12` }]]}
                                     onPress={() => handleSelectNode(null)}
                                 >
-                                    <View style={[styles.nodeColorDot, { backgroundColor: COLORS.node.accent }]} />
+                                    <View style={[styles.nodeColorDot, { backgroundColor: theme.accent }]} />
                                     <View style={styles.nodeOptionInfo}>
-                                        <Text style={styles.nodeOptionName}>General</Text>
-                                        <Text style={styles.nodeOptionDesc}>Visible to everyone</Text>
+                                        <Text style={[styles.nodeOptionName, { color: theme.text }]}>General</Text>
+                                        <Text style={[styles.nodeOptionDesc, { color: theme.muted }]}>Visible to everyone</Text>
                                     </View>
-                                    {!selectedNodeId && <Check size={18} color={COLORS.node.accent} />}
+                                    {!selectedNodeId && <Check size={18} color={theme.accent} />}
                                 </TouchableOpacity>
 
-                                <View style={styles.pickerDivider} />
+                                <View style={[styles.pickerDivider, { backgroundColor: theme.border }]} />
 
                                 {filteredNodes.map(node => (
                                     <TouchableOpacity
                                         key={node.id}
-                                        style={[styles.nodeOption, selectedNodeId === node.id && styles.nodeOptionSelected]}
+                                        style={[styles.nodeOption, selectedNodeId === node.id && [styles.nodeOptionSelected, { backgroundColor: `${theme.accent}12` }]]}
                                         onPress={() => handleSelectNode(node.id)}
                                     >
-                                        <View style={[styles.nodeColorDot, { backgroundColor: node.color || COLORS.node.accent }]} />
+                                        <View style={[styles.nodeColorDot, { backgroundColor: node.color || theme.accent }]} />
                                         <View style={styles.nodeOptionInfo}>
-                                            <Text style={styles.nodeOptionName}>n/{node.slug}</Text>
+                                            <Text style={[styles.nodeOptionName, { color: theme.text }]}>n/{node.slug}</Text>
                                             {node.name !== node.slug && (
-                                                <Text style={styles.nodeOptionDesc} numberOfLines={1}>{node.name}</Text>
+                                                <Text style={[styles.nodeOptionDesc, { color: theme.muted }]} numberOfLines={1}>{node.name}</Text>
                                             )}
                                         </View>
-                                        {selectedNodeId === node.id && <Check size={18} color={COLORS.node.accent} />}
+                                        {selectedNodeId === node.id && <Check size={18} color={theme.accent} />}
                                     </TouchableOpacity>
                                 ))}
 
                                 {filteredNodes.length === 0 && nodeSearch.length > 0 && (
                                     <View style={styles.noResults}>
-                                        <Hash size={24} color={COLORS.node.muted} />
-                                        <Text style={styles.noResultsText}>No communities found</Text>
+                                        <Hash size={24} color={theme.muted} />
+                                        <Text style={[styles.noResultsText, { color: theme.muted }]}>No communities found</Text>
                                     </View>
                                 )}
                             </ScrollView>
@@ -547,7 +555,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.7)',
     },
     container: {
-        backgroundColor: COLORS.node.bg,
         borderTopLeftRadius: RADIUS.xl,
         borderTopRightRadius: RADIUS.xl,
         height: '92%',
@@ -563,14 +570,12 @@ const styles = StyleSheet.create({
         marginBottom: '4%',
         ...SHADOWS.lg,
     },
-    // Minimal header
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
         gap: 12,
     },
     closeBtn: {
@@ -588,12 +593,10 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     nodeContextText: {
-        color: COLORS.node.textSecondary,
         fontSize: 14,
         fontWeight: '500',
     },
     publishBtn: {
-        backgroundColor: COLORS.node.accent,
         paddingHorizontal: 18,
         paddingVertical: 9,
         borderRadius: RADIUS.full,
@@ -620,7 +623,6 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         fontSize: 14,
     },
-    // Editor - focused writing space
     editor: {
         flex: 1,
     },
@@ -636,7 +638,6 @@ const styles = StyleSheet.create({
     titleInput: {
         fontSize: 22,
         fontWeight: '600',
-        color: COLORS.node.text,
         marginBottom: 12,
         lineHeight: 28,
     },
@@ -651,14 +652,11 @@ const styles = StyleSheet.create({
     richEditorDesktop: {
         minHeight: 300,
     },
-    // Attachments (image, poll)
     attachmentSection: {
-        backgroundColor: COLORS.node.panel,
         borderRadius: RADIUS.lg,
         padding: 16,
         marginTop: 24,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     attachmentHeader: {
         flexDirection: 'row',
@@ -670,27 +668,20 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     attachmentClose: {
         padding: 4,
     },
     attachmentInput: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.md,
         padding: 14,
-        color: COLORS.node.text,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         fontSize: 15,
     },
     pollQuestion: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.md,
         padding: 14,
-        color: COLORS.node.text,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         marginBottom: 12,
         fontSize: 15,
     },
@@ -702,12 +693,9 @@ const styles = StyleSheet.create({
     },
     pollOptionInput: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.md,
         padding: 12,
-        color: COLORS.node.text,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         fontSize: 15,
     },
     pollOptionRemove: {
@@ -718,7 +706,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     addOptionText: {
-        color: COLORS.node.accent,
         fontWeight: '600',
         fontSize: 14,
     },
@@ -729,13 +716,11 @@ const styles = StyleSheet.create({
         marginTop: 24,
     },
     previewLoadingText: {
-        color: COLORS.node.muted,
         fontSize: 14,
     },
     previewContainer: {
         marginTop: 24,
     },
-    // Node Picker Modal
     pickerOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.7)',
@@ -746,7 +731,6 @@ const styles = StyleSheet.create({
         width: '90%',
         maxWidth: 400,
         maxHeight: '65%',
-        backgroundColor: COLORS.node.panel,
         borderRadius: RADIUS.xl,
         overflow: 'hidden',
         ...SHADOWS.lg,
@@ -761,28 +745,23 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     pickerTitle: {
         fontSize: 17,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     searchContainer: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
         margin: 12,
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.lg,
         paddingHorizontal: 14,
         paddingVertical: 10,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     searchInput: {
         flex: 1,
-        color: COLORS.node.text,
         fontSize: 15,
         padding: 0,
     },
@@ -801,7 +780,6 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     nodeOptionSelected: {
-        backgroundColor: `${COLORS.node.accent}12`,
     },
     nodeColorDot: {
         width: 12,
@@ -814,16 +792,13 @@ const styles = StyleSheet.create({
     nodeOptionName: {
         fontSize: 15,
         fontWeight: '500',
-        color: COLORS.node.text,
     },
     nodeOptionDesc: {
         fontSize: 13,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     pickerDivider: {
         height: 1,
-        backgroundColor: COLORS.node.border,
         marginVertical: 8,
         marginHorizontal: 12,
     },
@@ -833,10 +808,8 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     noResultsText: {
-        color: COLORS.node.muted,
         fontSize: 14,
     },
-    // Quoted External Post styles
     quotedPostContainer: {
         marginTop: 16,
     },
@@ -847,15 +820,12 @@ const styles = StyleSheet.create({
     },
     quotedPostLabel: {
         fontSize: 12,
-        color: COLORS.node.muted,
         fontWeight: '600',
     },
     quotedPostCard: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: RADIUS.lg,
         padding: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     quotedPostAuthor: {
         flexDirection: 'row',
@@ -866,15 +836,12 @@ const styles = StyleSheet.create({
     quotedPostDisplayName: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     quotedPostUsername: {
         fontSize: 13,
-        color: COLORS.node.muted,
     },
     quotedPostContent: {
         fontSize: 14,
-        color: COLORS.node.textSecondary,
         lineHeight: 20,
     },
     quotedPostLink: {
@@ -885,6 +852,5 @@ const styles = StyleSheet.create({
     },
     quotedPostLinkText: {
         fontSize: 12,
-        color: COLORS.node.accent,
     },
 });

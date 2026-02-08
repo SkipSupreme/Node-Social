@@ -1,11 +1,12 @@
 // Multi-column TweetDeck-style feed container for desktop/tablet
 import React from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
-import { COLORS, COLUMNS } from '../../constants/theme';
+import { COLUMNS } from '../../constants/theme';
 import { useColumnsStore, FeedColumn as FeedColumnType } from '../../store/columns';
 import { FeedColumn } from './FeedColumn';
 import { AddColumnModal } from './AddColumnModal';
 import { ExternalPost, Node, AuthResponse } from '../../lib/api';
+import { useAppTheme } from '../../hooks/useTheme';
 
 type CurrentUser = AuthResponse['user'];
 
@@ -42,6 +43,7 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
   onSaveExternalPost,
   onEdit,
 }) => {
+  const theme = useAppTheme();
   const { width } = useWindowDimensions();
   const { columns, addColumn, removeColumn, reorderColumns, updateColumn } = useColumnsStore();
 
@@ -69,7 +71,7 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
   const NARROW_COLUMN_WIDTH = 280;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Columns Row - flex layout, no horizontal scroll */}
       <View style={styles.columnsRow}>
         {columns.map((column, index) => (
@@ -124,7 +126,6 @@ export const MultiColumnContainer: React.FC<MultiColumnContainerProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   columnsRow: {
     flex: 1,

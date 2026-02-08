@@ -550,8 +550,8 @@ const feedPreferenceRoutes: FastifyPluginAsync = async (fastify) => {
       // Upsert - update existing view or create new one
       const view = await fastify.prisma.userPostView.upsert({
         where: { userId_postId: { userId, postId } },
-        create: { userId, postId, dwellTimeMs, scrollDepth },
-        update: { viewedAt: new Date(), dwellTimeMs, scrollDepth },
+        create: { userId, postId, dwellTimeMs: dwellTimeMs ?? null, scrollDepth: scrollDepth ?? null },
+        update: { viewedAt: new Date(), dwellTimeMs: dwellTimeMs ?? null, scrollDepth: scrollDepth ?? null },
       });
 
       return reply.send({ view });

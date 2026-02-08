@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Upload, X, Palette } from 'lucide-react-native';
 import { COLORS, TYPOGRAPHY, SPACING, RADIUS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 // Banner color presets - curated palette
 const BANNER_COLORS = [
@@ -43,32 +44,34 @@ export const BannerEditor: React.FC<BannerEditorProps> = ({
     onRemoveImage,
     onClose,
 }) => {
+    const theme = useAppTheme();
+
     return (
         <View style={styles.container}>
             {/* Glass background */}
-            <View style={styles.glassBackground} />
+            <View style={[styles.glassBackground, { backgroundColor: theme.panel, borderColor: theme.accent }]} />
 
             <View style={styles.content}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.headerLeft}>
-                        <Palette size={16} color={COLORS.node.text} />
-                        <Text style={styles.title}>Customize Banner</Text>
+                        <Palette size={16} color={theme.text} />
+                        <Text style={[styles.title, { color: theme.text }]}>Customize Banner</Text>
                     </View>
-                    <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                        <X size={16} color={COLORS.node.muted} />
+                    <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: theme.border }]}>
+                        <X size={16} color={theme.muted} />
                     </TouchableOpacity>
                 </View>
 
                 {/* Upload section */}
                 <View style={styles.uploadSection}>
                     <TouchableOpacity
-                        style={styles.uploadButton}
+                        style={[styles.uploadButton, { backgroundColor: `${theme.accent}15`, borderColor: theme.accent }]}
                         onPress={onUploadImage}
                         disabled={saving}
                     >
-                        <Upload size={16} color={COLORS.node.accent} />
-                        <Text style={styles.uploadText}>Upload Image</Text>
+                        <Upload size={16} color={theme.accent} />
+                        <Text style={[styles.uploadText, { color: theme.accent }]}>Upload Image</Text>
                     </TouchableOpacity>
 
                     {hasBannerImage && (
@@ -84,9 +87,9 @@ export const BannerEditor: React.FC<BannerEditorProps> = ({
 
                 {/* Divider */}
                 <View style={styles.divider}>
-                    <View style={styles.dividerLine} />
-                    <Text style={styles.dividerText}>or choose a color</Text>
-                    <View style={styles.dividerLine} />
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                    <Text style={[styles.dividerText, { color: theme.muted }]}>or choose a color</Text>
+                    <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                 </View>
 
                 {/* Color grid */}
@@ -112,7 +115,7 @@ export const BannerEditor: React.FC<BannerEditorProps> = ({
                 {/* Loading indicator */}
                 {saving && (
                     <View style={styles.loadingOverlay}>
-                        <ActivityIndicator size="small" color={COLORS.node.accent} />
+                        <ActivityIndicator size="small" color={theme.accent} />
                     </View>
                 )}
             </View>
@@ -129,9 +132,7 @@ const styles = StyleSheet.create({
     },
     glassBackground: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: COLORS.node.panel, // Solid background for visibility
         borderWidth: 2,
-        borderColor: COLORS.node.accent,
         borderRadius: RADIUS.lg,
         boxShadow: '0px 12px 40px rgba(0, 0, 0, 0.6), 0px 0px 20px rgba(99, 102, 241, 0.3)',
         ...Platform.select({
@@ -157,13 +158,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: TYPOGRAPHY.sizes.small,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     closeButton: {
         width: 28,
         height: 28,
         borderRadius: 14,
-        backgroundColor: COLORS.node.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -180,14 +179,11 @@ const styles = StyleSheet.create({
         paddingVertical: SPACING.sm,
         paddingHorizontal: SPACING.md,
         borderRadius: RADIUS.md,
-        backgroundColor: `${COLORS.node.accent}15`,
         borderWidth: 1,
-        borderColor: COLORS.node.accent,
     },
     uploadText: {
         fontSize: TYPOGRAPHY.sizes.small,
         fontWeight: '600',
-        color: COLORS.node.accent,
     },
     removeButton: {
         width: 36,
@@ -208,11 +204,9 @@ const styles = StyleSheet.create({
     dividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: COLORS.node.border,
     },
     dividerText: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.muted,
     },
     colorGrid: {
         flexDirection: 'row',

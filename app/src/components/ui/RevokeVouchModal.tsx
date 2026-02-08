@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { AlertTriangle, X } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
 import { revokeVouch } from '../../lib/api';
 import { getErrorMessage } from '../../lib/errors';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface RevokeVouchModalProps {
   visible: boolean;
@@ -22,6 +22,7 @@ export const RevokeVouchModal: React.FC<RevokeVouchModalProps> = ({
   username,
   stake,
 }) => {
+  const theme = useAppTheme();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -46,28 +47,28 @@ export const RevokeVouchModal: React.FC<RevokeVouchModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bg, borderColor: theme.border }]}>
           {/* Header */}
           <View style={styles.header}>
             <AlertTriangle size={24} color="#ef4444" />
-            <Text style={styles.title}>Revoke Vouch</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Revoke Vouch</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
           {/* Info */}
-          <Text style={styles.infoText}>
-            You vouched <Text style={styles.highlight}>{stake} cred</Text> for @{username}
+          <Text style={[styles.infoText, { color: theme.muted }]}>
+            You vouched <Text style={[styles.highlight, { color: theme.text }]}>{stake} cred</Text> for @{username}
           </Text>
 
           {/* Penalty Box */}
           <View style={styles.penaltyBox}>
-            <Text style={styles.penaltyLabel}>Revoking costs 50% of your stake:</Text>
+            <Text style={[styles.penaltyLabel, { color: theme.muted }]}>Revoking costs 50% of your stake:</Text>
             <Text style={styles.penaltyAmount}>-{penalty} cred</Text>
           </View>
 
-          <Text style={styles.penaltyNote}>
+          <Text style={[styles.penaltyNote, { color: theme.muted }]}>
             This cred is lost permanently.{'\n'}
             Your remaining stake ({credReturned}) returns to you.
           </Text>
@@ -88,7 +89,7 @@ export const RevokeVouchModal: React.FC<RevokeVouchModalProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onClose} style={styles.keepButton}>
-            <Text style={styles.keepText}>Keep Vouch</Text>
+            <Text style={[styles.keepText, { color: theme.muted }]}>Keep Vouch</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -104,10 +105,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   container: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     padding: 20,
   },
   header: {
@@ -119,7 +118,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
     flex: 1,
   },
   closeButton: {
@@ -127,11 +125,9 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 15,
-    color: COLORS.node.muted,
     marginBottom: 20,
   },
   highlight: {
-    color: COLORS.node.text,
     fontWeight: '600',
   },
   penaltyBox: {
@@ -144,7 +140,6 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   penaltyLabel: {
-    color: COLORS.node.muted,
     fontSize: 13,
     marginBottom: 4,
   },
@@ -154,7 +149,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   penaltyNote: {
-    color: COLORS.node.muted,
     fontSize: 13,
     textAlign: 'center',
     lineHeight: 20,
@@ -186,7 +180,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   keepText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
 });

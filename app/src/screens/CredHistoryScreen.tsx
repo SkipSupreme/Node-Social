@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { ArrowLeft, TrendingUp } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { getCredHistory } from '../lib/api';
 import { useAuthStore } from '../store/auth';
 
@@ -18,6 +18,7 @@ interface CredHistoryScreenProps {
 }
 
 export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
+    const theme = useAppTheme();
     const { user } = useAuthStore();
     const [transactions, setTransactions] = useState<CredTransaction[]>([]);
     const [loading, setLoading] = useState(true);
@@ -39,13 +40,13 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
     };
 
     const renderItem = ({ item }: { item: CredTransaction }) => (
-        <View style={styles.transactionItem}>
+        <View style={[styles.transactionItem, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <View style={styles.iconContainer}>
-                <TrendingUp size={20} color={COLORS.node.accent} />
+                <TrendingUp size={20} color={theme.accent} />
             </View>
             <View style={styles.details}>
-                <Text style={styles.reason}>{formatReason(item.reason)}</Text>
-                <Text style={styles.date}>{new Date(item.createdAt).toLocaleDateString()}</Text>
+                <Text style={[styles.reason, { color: theme.text }]}>{formatReason(item.reason)}</Text>
+                <Text style={[styles.date, { color: theme.muted }]}>{new Date(item.createdAt).toLocaleDateString()}</Text>
             </View>
             <Text style={[styles.amount, item.amount > 0 ? styles.positive : styles.negative]}>
                 {item.amount > 0 ? '+' : ''}{item.amount}
@@ -58,26 +59,26 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-                    <ArrowLeft size={24} color={COLORS.node.text} />
+                    <ArrowLeft size={24} color={theme.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Cred History</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>Cred History</Text>
             </View>
 
-            <View style={styles.summary}>
-                <Text style={styles.totalLabel}>Total Cred</Text>
-                <Text style={styles.totalValue}>{user?.cred || 0}</Text>
+            <View style={[styles.summary, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
+                <Text style={[styles.totalLabel, { color: theme.muted }]}>Total Cred</Text>
+                <Text style={[styles.totalValue, { color: theme.accent }]}>{user?.cred || 0}</Text>
             </View>
 
             {loading ? (
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={COLORS.node.accent} />
+                    <ActivityIndicator size="large" color={theme.accent} />
                 </View>
             ) : transactions.length === 0 ? (
                 <View style={styles.center}>
-                    <Text style={styles.emptyText}>No history yet.</Text>
+                    <Text style={[styles.emptyText, { color: theme.muted }]}>No history yet.</Text>
                 </View>
             ) : (
                 <FlatList
@@ -94,14 +95,12 @@ export const CredHistoryScreen = ({ onBack }: CredHistoryScreenProps) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
         gap: 16
     },
     backBtn: {
@@ -110,24 +109,19 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text
     },
     summary: {
         padding: 24,
         alignItems: 'center',
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
-        backgroundColor: COLORS.node.panel
     },
     totalLabel: {
         fontSize: 14,
-        color: COLORS.node.muted,
         marginBottom: 4
     },
     totalValue: {
         fontSize: 36,
         fontWeight: 'bold',
-        color: COLORS.node.accent
     },
     listContent: {
         padding: 16
@@ -136,11 +130,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
-        backgroundColor: COLORS.node.panel,
         borderRadius: 12,
         marginBottom: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border
     },
     iconContainer: {
         width: 40,
@@ -157,12 +149,10 @@ const styles = StyleSheet.create({
     reason: {
         fontSize: 16,
         fontWeight: '500',
-        color: COLORS.node.text,
         marginBottom: 4
     },
     date: {
         fontSize: 12,
-        color: COLORS.node.muted
     },
     amount: {
         fontSize: 18,
@@ -180,7 +170,6 @@ const styles = StyleSheet.create({
         alignItems: 'center'
     },
     emptyText: {
-        color: COLORS.node.muted,
         fontSize: 16
     }
 });

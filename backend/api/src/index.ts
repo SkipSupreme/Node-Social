@@ -36,6 +36,8 @@ import uploadsRoutes from './routes/uploads.js';
 import trendingRoutes from './routes/trending.js';
 import trustRoutes from './routes/trust.js';
 import externalRoutes from './routes/external.js';
+import externalAccountRoutes from './routes/external-accounts.js';
+import themeRoutes from './routes/themes.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
 import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
@@ -151,7 +153,7 @@ export async function build(): Promise<FastifyInstance> {
       const cookieToken = request.cookies?.accessToken;
       if (cookieToken) {
         try {
-          await request.jwtVerify({ token: cookieToken });
+          await (request.jwtVerify as Function)({ token: cookieToken });
           return;
         } catch (cookieErr) {
           app.log.debug({ cookieErr }, 'Cookie JWT verification failed');
@@ -171,7 +173,7 @@ export async function build(): Promise<FastifyInstance> {
       const cookieToken = request.cookies?.accessToken;
       if (cookieToken) {
         try {
-          await request.jwtVerify({ token: cookieToken });
+          await (request.jwtVerify as Function)({ token: cookieToken });
           return;
         } catch (cookieErr) {
           // Silent fail - user stays anonymous
@@ -235,6 +237,7 @@ export async function build(): Promise<FastifyInstance> {
     await fastify.register(councilRoutes, { prefix: '/api/v1/council' });
     await fastify.register(appealRoutes, { prefix: '/api/v1/appeals' });
     await fastify.register(trustRoutes, { prefix: '/api/v1/trust' });
+    await fastify.register(themeRoutes, { prefix: '/api/v1/themes' });
   });
   await app.register(usersRoutes, { prefix: '/users' });
   await app.register(metadataRoutes, { prefix: '/metadata' });
@@ -243,6 +246,7 @@ export async function build(): Promise<FastifyInstance> {
   await app.register(uploadsRoutes, { prefix: '/api/uploads' }); // File upload routes (separate from static /uploads)
   await app.register(trendingRoutes); // Trending routes - /trending/vibes, /trending/nodes, /discover/nodes
   await app.register(externalRoutes, { prefix: '/external' }); // Tier 5: External platform feeds (Bluesky, Mastodon)
+  await app.register(externalAccountRoutes, { prefix: '/external-accounts' }); // Linked Bluesky/Mastodon accounts + interactions
 
   // health check
   app.get('/health', async () => ({ ok: true }));
@@ -272,9 +276,32 @@ if (isMainModule) {
   build()
     .then((app) => {
       // Graceful shutdown handlers
+      let isShuttingDown = false;
       const shutdown = async (signal: string) => {
+        if (isShuttingDown) {
+          app.log.info(`Received ${signal} again, forcing exit`);
+          process.exit(1);
+        }
+        isShuttingDown = true;
         app.log.info(`Received ${signal}, shutting down gracefully...`);
-        await app.close();
+
+        // Force exit after 5 seconds if graceful shutdown hangs
+        const forceTimer = setTimeout(() => {
+          app.log.error('Shutdown timed out after 5s, forcing exit');
+          process.exit(1);
+        }, 5_000);
+        forceTimer.unref();
+
+        // Disconnect all socket.io clients first so server.close() can complete
+        if (app.io) {
+          app.io.disconnectSockets(true);
+        }
+
+        try {
+          await app.close();
+        } catch (err) {
+          app.log.error({ err }, 'Error during shutdown');
+        }
         process.exit(0);
       };
 

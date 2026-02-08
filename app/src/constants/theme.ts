@@ -1,3 +1,6 @@
+// Re-export DEFAULT_THEME from the store so legacy imports still work
+export { DEFAULT_THEME } from '../store/theme';
+export type { ThemeTokens } from '../store/theme';
 
 export const COLORS = {
     node: {

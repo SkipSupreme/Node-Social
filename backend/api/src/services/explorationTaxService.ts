@@ -54,6 +54,13 @@ export async function getProbationaryContent(
   const slots: ExplorationSlot[] = [];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
 
+  // Pre-fetch post IDs the user has already seen via exploration slots
+  const seenSlots = await prisma.explorationSlot.findMany({
+    where: { userId },
+    select: { postId: true },
+  });
+  const seenPostIds = seenSlots.map((s) => s.postId);
+
   // Strategy 1: New users in user's interest areas (contextual bandit)
   if (nodeContext) {
     const newUserPosts = await prisma.post.findMany({
@@ -65,11 +72,7 @@ export async function getProbationaryContent(
           id: { not: userId },
         },
         // Exclude posts user has already seen
-        NOT: {
-          explorationSlots: {
-            some: { userId },
-          },
-        },
+        id: { notIn: seenPostIds },
       },
       select: {
         id: true,
@@ -97,23 +100,15 @@ export async function getProbationaryContent(
       where: {
         deletedAt: null,
         authorId: { not: userId },
-        // Posts with few reactions
-        vibeAggregate: {
-          OR: [
-            { totalReactors: { lt: LOW_VISIBILITY_REACTION_THRESHOLD } },
-            { totalReactors: null },
-          ],
-        },
+        // Posts with few reactions (or no aggregate at all)
+        OR: [
+          { vibeAggregate: { totalReactors: { lt: LOW_VISIBILITY_REACTION_THRESHOLD } } },
+          { vibeAggregate: { is: null } },
+        ],
         // Recent posts only
         createdAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        // Not already in slots
-        id: { notIn: slots.map((s) => s.postId) },
-        // Exclude posts user has already seen
-        NOT: {
-          explorationSlots: {
-            some: { userId },
-          },
-        },
+        // Not already in slots and exclude posts user has already seen
+        id: { notIn: [...slots.map((s) => s.postId), ...seenPostIds] },
       },
       select: {
         id: true,
@@ -220,11 +215,6 @@ export async function recordExplorationInteraction(
 ): Promise<{ trustBoosted: boolean; boostAmount: number }> {
   const slot = await prisma.explorationSlot.findUnique({
     where: { id: slotId },
-    include: {
-      post: {
-        select: { authorId: true },
-      },
-    },
   });
 
   if (!slot) {
@@ -246,8 +236,12 @@ export async function recordExplorationInteraction(
     return { trustBoosted: false, boostAmount: 0 };
   }
 
-  // Boost the author's trust score
-  const authorId = (slot as typeof slot & { post: { authorId: string } }).post?.authorId;
+  // Boost the author's trust score — look up the post to get the authorId
+  const post = await prisma.post.findUnique({
+    where: { id: slot.postId },
+    select: { authorId: true },
+  });
+  const authorId = post?.authorId;
 
   if (authorId) {
     const authorTrust = await prisma.trustScore.findUnique({

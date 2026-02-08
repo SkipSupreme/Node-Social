@@ -1,7 +1,7 @@
 import React, { ComponentType } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { Home, Compass, Bell, User, Plus } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 type NavItem = 'feed' | 'discovery' | 'create' | 'notifications' | 'profile';
 
@@ -16,6 +16,8 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onNavigate,
   unreadNotifications = 0,
 }) => {
+  const theme = useAppTheme();
+
   const isActive = (view: NavItem) => {
     if (view === 'feed') return currentView === 'feed' || currentView === 'following';
     return currentView === view;
@@ -32,7 +34,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <View style={styles.iconContainer}>
           <Icon
             size={24}
-            color={active ? COLORS.node.accent : COLORS.node.muted}
+            color={active ? theme.accent : theme.muted}
             strokeWidth={active ? 2.5 : 2}
           />
           {view === 'notifications' && unreadNotifications > 0 && (
@@ -43,7 +45,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             </View>
           )}
         </View>
-        <Text style={[styles.navLabel, active && styles.navLabelActive]}>
+        <Text style={[styles.navLabel, { color: theme.muted }, active && { color: theme.accent, fontWeight: '600' }]}>
           {label}
         </Text>
       </TouchableOpacity>
@@ -51,7 +53,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       <NavButton view="feed" icon={Home} label="Feed" />
       <NavButton view="discovery" icon={Compass} label="Explore" />
 
@@ -61,7 +63,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         onPress={() => onNavigate('create')}
         activeOpacity={0.8}
       >
-        <View style={styles.createButtonInner}>
+        <View style={[styles.createButtonInner, { backgroundColor: theme.accent }]}>
           <Plus size={28} color="#fff" strokeWidth={2.5} />
         </View>
       </TouchableOpacity>
@@ -77,7 +79,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
-    backgroundColor: COLORS.node.bg,
     paddingTop: 4,
     paddingBottom: 2,
   },
@@ -91,12 +92,7 @@ const styles = StyleSheet.create({
   },
   navLabel: {
     fontSize: 8,
-    color: COLORS.node.muted,
     marginTop: 1,
-  },
-  navLabelActive: {
-    color: COLORS.node.accent,
-    fontWeight: '600',
   },
   badge: {
     position: 'absolute',
@@ -125,7 +121,6 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: COLORS.node.accent,
     alignItems: 'center',
     justifyContent: 'center',
     boxShadow: '0px 3px 6px rgba(99, 102, 241, 0.3)',

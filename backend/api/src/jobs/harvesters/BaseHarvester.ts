@@ -83,13 +83,13 @@ export abstract class BaseHarvester {
       update: {
         lastSeenId,
         lastRunAt: new Date(),
-        metadata: metadata || undefined,
+        ...(metadata != null && { metadata: metadata as Prisma.InputJsonValue }),
       },
       create: {
         sourceType: sourceKey,
         lastSeenId,
         lastRunAt: new Date(),
-        metadata: metadata || undefined,
+        ...(metadata != null && { metadata: metadata as Prisma.InputJsonValue }),
       },
     });
   }
@@ -126,15 +126,15 @@ export abstract class BaseHarvester {
         sourceType: item.sourceType,
         sourceId: item.sourceId,
         sourceUrl: item.sourceUrl,
-        sourceScore: item.sourceScore,
-        subreddit: item.subreddit,
         title: item.title,
-        content: item.content,
-        linkUrl: item.linkUrl,
-        mediaUrl: item.mediaUrl,
         galleryUrls: item.galleryUrls || [],
-        suggestedNode: item.suggestedNode,
         status: 'pending',
+        ...(item.sourceScore != null && { sourceScore: item.sourceScore }),
+        ...(item.subreddit != null && { subreddit: item.subreddit }),
+        ...(item.content != null && { content: item.content }),
+        ...(item.linkUrl != null && { linkUrl: item.linkUrl }),
+        ...(item.mediaUrl != null && { mediaUrl: item.mediaUrl }),
+        ...(item.suggestedNode != null && { suggestedNode: item.suggestedNode }),
       },
     });
   }

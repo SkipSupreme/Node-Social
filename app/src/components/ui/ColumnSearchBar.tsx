@@ -10,8 +10,8 @@ import {
   Image,
 } from 'react-native';
 import { Search, ChevronDown, Globe, Compass, Users, User, Bell, TrendingUp, Hash } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { ColumnType } from '../../store/columns';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface ColumnSearchBarProps {
   currentType: ColumnType;
@@ -38,6 +38,7 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
   onSearch,
   nodes,
 }) => {
+  const theme = useAppTheme();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [showNodePicker, setShowNodePicker] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -95,14 +96,14 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
   return (
     <View style={styles.container}>
       {/* Search Input */}
-      <View style={styles.inputContainer}>
-        <Search size={16} color={COLORS.node.muted} testID="search-icon" />
+      <View style={[styles.inputContainer, { backgroundColor: theme.bg, borderColor: theme.border }]}>
+        <Search size={16} color={theme.muted} testID="search-icon" />
         <TextInput
           ref={inputRef}
           testID="search-input"
-          style={styles.input}
+          style={[styles.input, { color: theme.text }]}
           placeholder={currentTitle}
-          placeholderTextColor={COLORS.node.muted}
+          placeholderTextColor={theme.muted}
           value={searchQuery}
           onChangeText={handleChangeText}
           onFocus={handleFocus}
@@ -124,7 +125,7 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
         >
           <ChevronDown
             size={14}
-            color={COLORS.node.muted}
+            color={theme.muted}
             style={isDropdownOpen ? { transform: [{ rotate: '180deg' }] } : undefined}
           />
         </TouchableOpacity>
@@ -139,7 +140,7 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
             onPress={handleBackdropPress}
             activeOpacity={1}
           />
-          <View testID="column-dropdown" style={styles.dropdown}>
+          <View testID="column-dropdown" style={[styles.dropdown, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <ScrollView style={styles.dropdownScroll} keyboardShouldPersistTaps="handled">
               {/* Search option - shown when typing */}
               {searchQuery.trim() && (
@@ -148,15 +149,15 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
                   style={styles.dropdownOption}
                   onPress={handleSearchOptionPress}
                 >
-                  <Search size={14} color={COLORS.node.accent} />
-                  <Text style={styles.searchOptionText}>Search: {searchQuery}</Text>
+                  <Search size={14} color={theme.accent} />
+                  <Text style={[styles.searchOptionText, { color: theme.accent }]}>Search: {searchQuery}</Text>
                 </TouchableOpacity>
               )}
 
               {/* Node picker view */}
               {showNodePicker ? (
                 <View testID="node-picker">
-                  <Text style={styles.sectionLabel}>Select Node</Text>
+                  <Text style={[styles.sectionLabel, { color: theme.muted }]}>Select Node</Text>
                   {nodes.map((node) => (
                     <TouchableOpacity
                       key={node.id}
@@ -166,11 +167,11 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
                       {node.avatar ? (
                         <Image source={{ uri: node.avatar }} style={styles.nodeAvatar} />
                       ) : (
-                        <View style={[styles.nodeAvatarPlaceholder, { backgroundColor: node.color || COLORS.node.accent }]}>
+                        <View style={[styles.nodeAvatarPlaceholder, { backgroundColor: node.color || theme.accent }]}>
                           <Text style={styles.nodeAvatarText}>{node.name[0]}</Text>
                         </View>
                       )}
-                      <Text style={styles.nodeName}>{node.name}</Text>
+                      <Text style={[styles.nodeName, { color: theme.text }]}>{node.name}</Text>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -184,11 +185,11 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
                       <TouchableOpacity
                         key={option.type}
                         testID={`option-${option.type}`}
-                        style={[styles.dropdownOption, isActive && styles.dropdownOptionActive]}
+                        style={[styles.dropdownOption, isActive && { backgroundColor: `${theme.accent}15` }]}
                         onPress={() => handleTypeSelect(option.type, option.title)}
                       >
-                        <Icon size={14} color={isActive ? COLORS.node.accent : COLORS.node.text} />
-                        <Text style={[styles.optionText, isActive && styles.optionTextActive]}>
+                        <Icon size={14} color={isActive ? theme.accent : theme.text} />
+                        <Text style={[styles.optionText, { color: theme.text }, isActive && { color: theme.accent, fontWeight: '600' }]}>
                           {option.title}
                         </Text>
                       </TouchableOpacity>
@@ -198,14 +199,14 @@ export const ColumnSearchBar: React.FC<ColumnSearchBarProps> = ({
                   {/* Node Feed option */}
                   <TouchableOpacity
                     testID="option-node"
-                    style={[styles.dropdownOption, currentType === 'node' && styles.dropdownOptionActive]}
+                    style={[styles.dropdownOption, currentType === 'node' && { backgroundColor: `${theme.accent}15` }]}
                     onPress={() => handleTypeSelect('node', 'Node Feed')}
                   >
-                    <Hash size={14} color={currentType === 'node' ? COLORS.node.accent : COLORS.node.text} />
-                    <Text style={[styles.optionText, currentType === 'node' && styles.optionTextActive]}>
+                    <Hash size={14} color={currentType === 'node' ? theme.accent : theme.text} />
+                    <Text style={[styles.optionText, { color: theme.text }, currentType === 'node' && { color: theme.accent, fontWeight: '600' }]}>
                       Node Feed
                     </Text>
-                    <ChevronDown size={12} color={COLORS.node.muted} style={{ transform: [{ rotate: '-90deg' }], marginLeft: 'auto' }} />
+                    <ChevronDown size={12} color={theme.muted} style={{ transform: [{ rotate: '-90deg' }], marginLeft: 'auto' }} />
                   </TouchableOpacity>
                 </>
               )}
@@ -225,18 +226,15 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.node.bg,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 8,
     gap: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   input: {
     flex: 1,
     fontSize: 13,
-    color: COLORS.node.text,
     padding: 0,
   },
   backdrop: {
@@ -253,10 +251,8 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     marginTop: 4,
-    backgroundColor: COLORS.node.panel,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     zIndex: 99,
     maxHeight: 300,
     boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.3)',
@@ -272,26 +268,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 6,
   },
-  dropdownOptionActive: {
-    backgroundColor: `${COLORS.node.accent}15`,
-  },
   optionText: {
     fontSize: 13,
-    color: COLORS.node.text,
-  },
-  optionTextActive: {
-    color: COLORS.node.accent,
-    fontWeight: '600',
   },
   searchOptionText: {
     fontSize: 13,
-    color: COLORS.node.accent,
     fontWeight: '500',
   },
   sectionLabel: {
     fontSize: 11,
     fontWeight: '600',
-    color: COLORS.node.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     paddingHorizontal: 10,
@@ -324,7 +310,6 @@ const styles = StyleSheet.create({
   },
   nodeName: {
     fontSize: 13,
-    color: COLORS.node.text,
   },
 });
 

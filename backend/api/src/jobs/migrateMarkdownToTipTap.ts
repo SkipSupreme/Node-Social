@@ -142,7 +142,9 @@ async function migrateMarkdownToTipTap(options: {
     // Check if we've reached the limit
     if (limit && processed >= limit) break;
 
-    cursor = posts[posts.length - 1].id;
+    const lastPost = posts[posts.length - 1];
+    if (!lastPost) break;
+    cursor = lastPost.id;
   }
 
   // Print summary
@@ -185,13 +187,16 @@ function parseArgs(): { dryRun: boolean; limit?: number; verbose: boolean } {
       dryRun = true;
     } else if (args[i] === '--verbose') {
       verbose = true;
-    } else if (args[i] === '--limit' && args[i + 1]) {
-      limit = parseInt(args[i + 1], 10);
+    } else if (args[i] === '--limit') {
+      const limitArg = args[i + 1];
+      if (limitArg != null) {
+        limit = parseInt(limitArg, 10);
+      }
       i++;
     }
   }
 
-  return { dryRun, limit, verbose };
+  return { dryRun, ...(limit != null && { limit }), verbose };
 }
 
 // Main entry point

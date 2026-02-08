@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, ComponentType } from 'react';
 import { View, Text, StyleSheet, PanResponder, Dimensions, TouchableOpacity, Platform } from 'react-native';
 import Svg, { Path, Circle, G, Text as SvgText, Line } from 'react-native-svg';
 import { Hexagon, Lightbulb, Smile, Skull, Sparkles, Flame, Heart, Zap, HelpCircle, X } from '../components/ui/Icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -56,6 +56,7 @@ interface BetaTestScreenProps {
 }
 
 export const BetaTestScreen = ({ onBack }: BetaTestScreenProps) => {
+    const theme = useAppTheme();
     const [isActive, setIsActive] = useState(false);
     const [center, setCenter] = useState({ x: 0, y: 0 });
     const [drag, setDrag] = useState({ x: 0, y: 0 });
@@ -167,7 +168,7 @@ export const BetaTestScreen = ({ onBack }: BetaTestScreenProps) => {
 
     return (
         <View
-            style={styles.container}
+            style={[styles.container, { backgroundColor: theme.bg }]}
             ref={containerRef}
             onLayout={updateOffset} // Capture offset on layout
             collapsable={false} // Ensure view is not optimized away for measurement
@@ -176,29 +177,29 @@ export const BetaTestScreen = ({ onBack }: BetaTestScreenProps) => {
                 <View style={styles.header}>
                     <Text style={styles.title}>Beta Testing Lab</Text>
                     <TouchableOpacity onPress={() => onBack ? onBack() : Platform.OS === 'web' ? window.history.back() : null} style={styles.exitBtn}>
-                        <X size={24} color={COLORS.node.muted} />
+                        <X size={24} color={theme.muted} />
                     </TouchableOpacity>
                 </View>
-                <Text style={styles.subtitle}>Pure React Native Radial Menu</Text>
+                <Text style={[styles.subtitle, { color: theme.muted }]}>Pure React Native Radial Menu</Text>
 
                 <View style={styles.playground}>
                     <View
                         style={styles.triggerWrapper}
                         {...panResponderRobust.panHandlers}
                     >
-                        <TouchableOpacity activeOpacity={0.8} style={styles.triggerBtn}>
-                            <Hexagon size={20} color={COLORS.node.accent} />
-                            <Text style={styles.triggerText}>Vibe Check</Text>
+                        <TouchableOpacity activeOpacity={0.8} style={[styles.triggerBtn, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+                            <Hexagon size={20} color={theme.accent} />
+                            <Text style={[styles.triggerText, { color: theme.muted }]}>Vibe Check</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
 
                 {/* Live Log */}
-                <View style={styles.logContainer}>
+                <View style={[styles.logContainer, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                     <Text style={styles.logTitle}>Live Intensity Log:</Text>
                     {Object.entries(intensities).map(([key, val]) => (
                         <View key={key} style={styles.logRow}>
-                            <Text style={styles.logLabel}>{key}</Text>
+                            <Text style={[styles.logLabel, { color: theme.muted }]}>{key}</Text>
                             <View style={styles.barBg}>
                                 <View style={[styles.barFill, { width: `${val}%`, backgroundColor: VIBES.find(v => v.id === key)?.color }]} />
                             </View>
@@ -331,7 +332,6 @@ export const BetaTestScreen = ({ onBack }: BetaTestScreenProps) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
         paddingTop: 60,
     },
     content: {
@@ -356,7 +356,6 @@ const styles = StyleSheet.create({
     },
     subtitle: {
         fontSize: 16,
-        color: COLORS.node.muted,
         marginBottom: 40,
     },
     playground: {
@@ -374,23 +373,18 @@ const styles = StyleSheet.create({
         gap: 8,
         paddingHorizontal: 16,
         paddingVertical: 8,
-        backgroundColor: COLORS.node.panel,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: 999,
     },
     triggerText: {
         fontSize: 14,
         fontWeight: '500',
-        color: COLORS.node.muted,
     },
     logContainer: {
         width: '100%',
-        backgroundColor: COLORS.node.panel,
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     logTitle: {
         color: '#fff',
@@ -404,7 +398,6 @@ const styles = StyleSheet.create({
     },
     logLabel: {
         width: 80,
-        color: COLORS.node.muted,
         fontSize: 12,
     },
     barBg: {

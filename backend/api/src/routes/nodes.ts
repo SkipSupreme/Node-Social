@@ -352,6 +352,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       avatar: node.avatar,
       banner: node.banner,
       rules: node.rules || [],
+      customTheme: node.customTheme,
       createdAt: node.createdAt,
       curatorBot: node.curatorBot,
       stats: {
@@ -381,6 +382,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       description: z.string().max(500).optional(),
       color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
       rules: z.array(z.string().max(200)).max(10).optional(),
+      customTheme: z.record(z.string(), z.unknown()).nullable().optional(),
     });
 
     const parsed = schema.safeParse(request.body);
@@ -393,6 +395,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
     if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
     if (parsed.data.color !== undefined) updateData.color = parsed.data.color;
     if (parsed.data.rules !== undefined) updateData.rules = parsed.data.rules;
+    if (parsed.data.customTheme !== undefined) updateData.customTheme = parsed.data.customTheme;
 
     const updated = await fastify.prisma.node.update({
       where: { id },

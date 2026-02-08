@@ -95,8 +95,8 @@ export class YouTubeHarvester extends BaseHarvester {
               title: video.snippet.title,
               content: video.snippet.description, // No truncation - store full description
               linkUrl: videoUrl,
-              mediaUrl: thumbnail,
               suggestedNode: nodeSlug,
+              ...(thumbnail != null && { mediaUrl: thumbnail }),
             });
           }
 

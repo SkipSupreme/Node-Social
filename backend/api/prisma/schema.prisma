@@ -42,6 +42,7 @@ model User {
   managedNodes        Node[]
   refreshTokens       RefreshToken[]
   federatedIdentities FederatedIdentity[] // OAuth provider identities
+  linkedAccounts      LinkedAccount[] // Connected Bluesky/Mastodon accounts
   feedPreference      UserFeedPreference?
   reactions           VibeReaction[] // User's Vibe Vector reactions
   pollVotes           PollVote[]
@@ -62,7 +63,11 @@ model User {
   conversations    ConversationParticipant[]
 
   // Customization
-  customCss       String? // User's custom CSS
+  customCss       String? // User's custom CSS (legacy, kept for migration)
+  customTheme     Json?   // ThemeTokens JSON: dynamic theme configuration
+
+  // Theme Marketplace
+  sharedThemes    SharedTheme[]
 
   // Moderation
   isModerator     Boolean @default(false)
@@ -164,6 +169,9 @@ model Node {
   vectorConfig  NodeVectorConfig?
   subscriptions NodeSubscription[] // Users subscribed to this node
   muters        NodeMute[] // Users who have muted this node
+
+  // Customization
+  customTheme   Json?   // ThemeTokens JSON for community theming
 
   // Node Charter (governance configuration)
   charter       NodeCharter?
@@ -410,6 +418,32 @@ model FederatedIdentity {
   @@map("federated_identities")
 }
 
+// Linked external platform accounts for Bluesky/Mastodon interactions
+model LinkedAccount {
+  id              String    @id @default(uuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform        String    // 'bluesky' | 'mastodon'
+  handle          String    // e.g. "user.bsky.social" or "user@mastodon.social"
+  platformUserId  String    // Bluesky DID or Mastodon account ID
+  instanceUrl     String?   // null for Bluesky, full URL for Mastodon
+  accessTokenEnc  String    // AES-256-GCM encrypted access token
+  refreshTokenEnc String?   // Encrypted refresh token (Bluesky has this)
+  tokenExpiresAt  DateTime? // When access token expires (Bluesky ~2h)
+  tokenScope      String?   // OAuth scopes granted (Mastodon)
+  clientId        String?   // Mastodon per-instance app client_id
+  clientSecretEnc String?   // Encrypted Mastodon app client_secret
+  active          Boolean   @default(true)
+  lastUsedAt      DateTime?
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@map("linked_accounts")
+}
+
 // Moderation Action Log: Public immutable log of moderation actions
 // Per FINAL_PLAN.md Section 5.2 - Foundation for Node Court and transparency
 model ModActionLog {
@@ -576,25 +610,28 @@ model VibeReaction {
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   postId      String?
   post        Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  commentId   String?
-  comment     Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
-  nodeId      String   // Which Node's context (affects weighting calculation)
-  node        Node     @relation(fields: [nodeId], references: [id])
-  
+  commentId       String?
+  comment         Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  externalPostId  String?  // "bsky_{cid}" or "masto_{instance}_{statusId}" for external posts
+  nodeId          String   // Which Node's context (affects weighting calculation)
+  node            Node     @relation(fields: [nodeId], references: [id])
+
   // Intensity-based reactions (0.0-1.0 for each vector)
   intensities Json     // {"funny": 0.8, "insightful": 0.2, "angry": 0.0, "novel": 0.0}
   totalIntensity Float @default(0.0) // Sum of all intensities
-  
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-  
+
   // Note: Unique constraint handled at application level since Prisma doesn't support conditional uniques
-  // One reaction per user per post per node OR one reaction per user per comment per node
+  // One reaction per user per (post|comment|externalPost) per node
   @@index([postId, nodeId])
   @@index([commentId, nodeId])
+  @@index([externalPostId, nodeId])
   @@index([userId, createdAt(sort: Desc)])
   @@index([userId, postId, nodeId])
   @@index([userId, commentId, nodeId])
+  @@index([userId, externalPostId, nodeId])
   @@map("vibe_reactions")
 }
 
@@ -640,6 +677,39 @@ model PostVibeAggregate {
   updatedAt DateTime @updatedAt
 
   @@map("post_vibe_aggregates")
+}
+
+model ExternalPostVibeAggregate {
+  externalPostId   String @id // "bsky_{cid}" or "masto_{instance}_{statusId}"
+  platform         String     // "bluesky" | "mastodon"
+
+  // Sum of all intensity values per vector
+  insightfulSum    Float @default(0)
+  joySum           Float @default(0)
+  fireSum          Float @default(0)
+  supportSum       Float @default(0)
+  shockSum         Float @default(0)
+  questionableSum  Float @default(0)
+
+  // Count of reactions that included each vector (intensity > 0)
+  insightfulCount  Int @default(0)
+  joyCount         Int @default(0)
+  fireCount        Int @default(0)
+  supportCount     Int @default(0)
+  shockCount       Int @default(0)
+  questionableCount Int @default(0)
+
+  // Total unique reactors
+  totalReactors    Int @default(0)
+  totalIntensity   Float @default(0)
+
+  // Computed scores
+  qualityScore     Float @default(0)
+  engagementScore  Float @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("external_post_vibe_aggregates")
 }
 
 model SavedPost {
@@ -847,6 +917,25 @@ model FeedPreset {
   @@index([isPublic, downloads(sort: Desc)])
   @@index([creatorId])
   @@map("feed_presets")
+}
+
+// Theme Marketplace - Shared theme presets
+model SharedTheme {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  tokens      Json     // ThemeTokens JSON object
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  installs    Int      @default(0)
+  rating      Float    @default(0)
+  isPublic    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublic, installs(sort: Desc)])
+  @@index([authorId])
+  @@map("shared_themes")
 }
 
 // Node Court - Appeals System

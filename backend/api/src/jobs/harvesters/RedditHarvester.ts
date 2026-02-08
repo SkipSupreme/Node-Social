@@ -147,11 +147,11 @@ export class RedditHarvester extends BaseHarvester {
             sourceScore: p.score,
             subreddit: p.subreddit,
             title: p.title,
-            content: p.selftext || undefined,
-            linkUrl,
-            mediaUrl,
-            galleryUrls: galleryUrls.length > 0 ? galleryUrls : undefined,
             suggestedNode,
+            ...(p.selftext != null && p.selftext !== '' && { content: p.selftext }),
+            ...(linkUrl != null && { linkUrl }),
+            ...(mediaUrl != null && { mediaUrl }),
+            ...(galleryUrls.length > 0 && { galleryUrls }),
           });
           subredditCount++;
         }
@@ -173,6 +173,6 @@ export class RedditHarvester extends BaseHarvester {
 // Factory function to create harvesters for all configured nodes
 export function createRedditHarvesters(prisma: PrismaClient): RedditHarvester[] {
   return Object.keys(REDDIT_SOURCES)
-    .filter(node => REDDIT_SOURCES[node].length > 0)
+    .filter(node => (REDDIT_SOURCES[node] ?? []).length > 0)
     .map(node => new RedditHarvester(prisma, node));
 }

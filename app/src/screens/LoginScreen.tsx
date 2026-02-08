@@ -20,7 +20,7 @@ import * as Crypto from "expo-crypto";
 import { login, loginWithApple, loginWithGoogle } from "../lib/api";
 import { useAuthStore } from "../store/auth";
 import { googleOAuthConfig, isGoogleSignInEnabled } from "../config";
-import { COLORS } from "../constants/theme";
+import { useAppTheme } from '../hooks/useTheme';
 import { getErrorMessage } from "../lib/errors";
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
@@ -58,6 +58,7 @@ export const LoginScreen: React.FC<{
   goToForgotPassword: () => void;
   onClose?: () => void; // Optional close handler for modal presentation
 }> = ({ onSuccessLogin, goToRegister, goToForgotPassword, onClose }) => {
+  const theme = useAppTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -358,14 +359,14 @@ export const LoginScreen: React.FC<{
 
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Animated node network background */}
       <NodeNetworkBackground />
 
       {/* Close button - only shown when in modal mode */}
       {onClose && (
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <X size={24} color={COLORS.node.muted} />
+          <X size={24} color={theme.muted} />
         </TouchableOpacity>
       )}
 
@@ -384,30 +385,30 @@ export const LoginScreen: React.FC<{
 
           <View style={styles.header}>
             <Text style={styles.brandName}>NODE</Text>
-            <Text style={styles.title}>Sign in to your account</Text>
-            <Text style={styles.subtitle}>The social network of the future</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Sign in to your account</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>The social network of the future</Text>
           </View>
 
           <View style={styles.form}>
             <TextInput
               placeholder="Email"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
               value={email}
               onChangeText={setEmail}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             <TextInput
               placeholder="Password"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               secureTextEntry
               autoComplete="password"
               value={password}
               onChangeText={setPassword}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             {error && (
@@ -417,7 +418,7 @@ export const LoginScreen: React.FC<{
             )}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: theme.accent }]}
               onPress={onSubmit}
               disabled={loading}
             >
@@ -429,30 +430,30 @@ export const LoginScreen: React.FC<{
             </TouchableOpacity>
 
             <TouchableOpacity onPress={goToForgotPassword} style={styles.forgotPassword}>
-              <Text style={styles.linkText}>Forgot password?</Text>
+              <Text style={[styles.linkText, { color: theme.accent }]}>Forgot password?</Text>
             </TouchableOpacity>
 
             {/* OAuth buttons - temporarily hidden for beta testing */}
             {SHOW_OAUTH_BUTTONS && (isGoogleSignInEnabled || appleAvailable) && (
               <>
                 <View style={styles.divider}>
-                  <View style={styles.dividerLine} />
-                  <Text style={styles.dividerText}>or</Text>
-                  <View style={styles.dividerLine} />
+                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
+                  <Text style={[styles.dividerText, { color: theme.muted }]}>or</Text>
+                  <View style={[styles.dividerLine, { backgroundColor: theme.border }]} />
                 </View>
                 {isGoogleSignInEnabled && (
                   <TouchableOpacity
                     style={[
                       styles.googleButton,
                       (googleLoading || !googleRequest) && styles.buttonDisabled,
-                    ]}
+                    , { borderColor: theme.border, backgroundColor: theme.panel }]}
                     onPress={startGoogleLogin}
                     disabled={googleLoading || !googleRequest}
                   >
                     {googleLoading ? (
-                      <ActivityIndicator color={COLORS.node.text} />
+                      <ActivityIndicator color={theme.text} />
                     ) : (
-                      <Text style={styles.googleButtonText}>Continue with Google</Text>
+                      <Text style={[styles.googleButtonText, { color: theme.text }]}>Continue with Google</Text>
                     )}
                   </TouchableOpacity>
                 )}
@@ -476,9 +477,9 @@ export const LoginScreen: React.FC<{
             )}
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>New to Node? </Text>
+              <Text style={[styles.footerText, { color: theme.muted }]}>New to Node? </Text>
               <TouchableOpacity onPress={goToRegister}>
-                <Text style={styles.linkText}>Create account</Text>
+                <Text style={[styles.linkText, { color: theme.accent }]}>Create account</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -491,7 +492,6 @@ export const LoginScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   closeButton: {
     position: 'absolute',
@@ -531,27 +531,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "600",
-    color: COLORS.node.text,
     marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.node.muted,
     textAlign: 'center',
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.node.text,
   },
   errorContainer: {
     backgroundColor: 'rgba(239, 68, 68, 0.1)',
@@ -566,7 +561,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -595,25 +589,20 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: COLORS.node.border,
   },
   dividerText: {
     fontSize: 13,
-    color: COLORS.node.muted,
     textTransform: "uppercase",
     letterSpacing: 1.2,
   },
   googleButton: {
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingVertical: 14,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: COLORS.node.panel,
   },
   googleButtonText: {
-    color: COLORS.node.text,
     fontSize: 15,
     fontWeight: "600",
   },
@@ -642,11 +631,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
   linkText: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },

@@ -56,7 +56,7 @@ export function createMockRedis() {
       if (args[0] === 'EX' && typeof args[1] === 'number') {
         expiresAt = Date.now() + args[1] * 1000;
       }
-      store.set(key, { value, expiresAt });
+      store.set(key, { value, ...(expiresAt !== undefined ? { expiresAt } : {}) });
       return 'OK';
     },
 

@@ -1,10 +1,12 @@
 // Individual feed column with independent state and scrolling
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, ScrollView, RefreshControl, Platform, ViewProps } from 'react-native';
 import { X, ChevronLeft, ChevronRight, Settings } from './Icons';
-import { COLORS, COLUMNS } from '../../constants/theme';
+import { COLUMNS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { FeedColumn as FeedColumnType, ColumnType, ColumnVibeSettings } from '../../store/columns';
-import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost, Node, AuthResponse, Notification, TipTapDoc } from '../../lib/api';
+import { getFeed, searchPosts, getUserPosts, getNotifications, markNotificationsRead, getBlueskyDiscover, getBlueskyUserPosts, getMastodonTimeline, getMastodonTrending, getCombinedExternalFeed, ExternalPost, Node, AuthResponse, Notification, TipTapDoc, externalLike, externalUnlike, externalRepost, externalUnrepost, externalReply } from '../../lib/api';
+import { useLinkedAccountsStore } from '../../store/linkedAccounts';
 import { Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2, Bell, RefreshCw } from 'lucide-react-native';
 import { Feed, UIPost } from './Feed';
 import { WhatsVibing } from './WhatsVibing';
@@ -135,6 +137,47 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   onSaveExternalPost,
   onEdit,
 }) => {
+  const theme = useAppTheme();
+  const { hasLinkedAccount, fetchAccounts } = useLinkedAccountsStore();
+
+  // Fetch linked accounts on mount
+  useEffect(() => {
+    if (currentUser) fetchAccounts();
+  }, [currentUser, fetchAccounts]);
+
+  const handleExternalLike = useCallback(async (post: ExternalPost) => {
+    const result = await externalLike(post.platform, post.externalId, post.cid, post.platformStatusId);
+    return { recordUri: result.recordUri };
+  }, []);
+
+  const handleExternalUnlike = useCallback(async (post: ExternalPost, recordUri?: string) => {
+    await externalUnlike(post.platform, post.externalId, recordUri, post.platformStatusId);
+  }, []);
+
+  const handleExternalRepost = useCallback(async (post: ExternalPost) => {
+    const result = await externalRepost(post.platform, post.externalId, post.cid, post.platformStatusId);
+    return { recordUri: result.recordUri };
+  }, []);
+
+  const handleExternalUnrepost = useCallback(async (post: ExternalPost, recordUri?: string) => {
+    await externalUnrepost(post.platform, post.externalId, recordUri, post.platformStatusId);
+  }, []);
+
+  const handleExternalReply = useCallback(async (post: ExternalPost, text: string) => {
+    await externalReply(post.platform, post.externalId, text, post.cid, post.platformStatusId);
+  }, []);
+
+  // Memoize themed style overrides for stable identity on web
+  const ts = useMemo(() => StyleSheet.create({
+    column: { backgroundColor: theme.bg, borderRightColor: theme.border },
+    header: { borderBottomColor: theme.border, backgroundColor: theme.bgAlt },
+    notificationItem: { backgroundColor: theme.panel, borderColor: theme.border },
+    notificationText: { color: theme.text },
+    notificationTime: { color: theme.muted },
+    unreadDot: { backgroundColor: theme.accent },
+    emptyText: { color: theme.muted },
+  }), [theme]);
+
   // Independent state for this column
   const [posts, setPosts] = useState<ReturnType<typeof mapPosts>>([]);
   const [externalPosts, setExternalPosts] = useState<ExternalPost[]>([]);
@@ -216,10 +259,10 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
           const config = column.externalConfig;
           let data;
           if (config?.blueskyFeed === 'user' && config?.blueskyHandle) {
-            data = await getBlueskyUserPosts(config.blueskyHandle, 20, cursor);
+            data = await getBlueskyUserPosts(config.blueskyHandle, 20, cursor, undefined, true);
           } else {
             // Default to discover feed
-            data = await getBlueskyDiscover(20, cursor);
+            data = await getBlueskyDiscover(20, cursor, undefined, true);
           }
           if (cursor) {
             setExternalPosts(prev => [...prev, ...data.posts]);
@@ -245,11 +288,11 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
           let data;
           if (config?.mastodonTimeline === 'trending') {
             const offset = cursor ? parseInt(cursor) : 0;
-            data = await getMastodonTrending(instance, 20, offset);
+            data = await getMastodonTrending(instance, 20, offset, undefined, true);
             setNextCursor(data.nextCursor);
           } else {
             const timeline = config?.mastodonTimeline || 'public';
-            data = await getMastodonTimeline(instance, timeline, 20, cursor);
+            data = await getMastodonTimeline(instance, timeline, 20, cursor, undefined, true);
             setNextCursor(data.nextCursor);
           }
           if (cursor) {
@@ -274,7 +317,9 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
           const data = await getCombinedExternalFeed(
             ['bluesky', 'mastodon'],
             20,
-            config?.mastodonInstance
+            config?.mastodonInstance,
+            undefined,
+            true
           );
           // Combined feed doesn't support pagination yet
           setExternalPosts(data.posts);
@@ -551,7 +596,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
       case 'warning': return <AlertTriangle size={18} color="#f59e0b" />;
       case 'mod_removed': return <Trash2 size={18} color="#ef4444" />;
       case 'banned': return <Ban size={18} color="#ef4444" />;
-      default: return <Bell size={18} color={COLORS.node.accent} />;
+      default: return <Bell size={18} color={theme.accent} />;
     }
   };
 
@@ -577,12 +622,12 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
       if (loading) {
         return (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.node.accent} />
+            <ActivityIndicator size="large" color={theme.accent} />
           </View>
         );
       }
       if (notifications.length === 0) {
-        return <Text style={styles.emptyText}>No notifications yet</Text>;
+        return <Text style={[styles.emptyText, ts.emptyText]}>No notifications yet</Text>;
       }
       return (
         <View style={{ flex: 1, overflow: 'hidden' }} {...webTouchProps}>
@@ -603,7 +648,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
               }}
             >
               <View style={{ transform: [{ rotate: refreshing ? '0deg' : `${(webPullDistance / PULL_THRESHOLD) * 180}deg` }] }}>
-                <RefreshCw size={24} color={COLORS.node.accent} />
+                <RefreshCw size={24} color={theme.accent} />
               </View>
             </View>
           )}
@@ -626,8 +671,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={handleRefresh}
-                    tintColor={COLORS.node.accent}
-                    colors={[COLORS.node.accent]}
+                    tintColor={theme.accent}
+                    colors={[theme.accent]}
                   />
                 ) : undefined
               }
@@ -637,7 +682,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                 return (
                   <TouchableOpacity
                     key={item.id}
-                    style={[styles.notificationItem, isModNotification && styles.modNotification]}
+                    style={[styles.notificationItem, ts.notificationItem, isModNotification && styles.modNotification]}
                     onPress={() => {
                       if (item.targetId) onPostClick(item.targetId);
                       else if (item.actorId) onUserClick(item.actorId);
@@ -647,7 +692,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                       {getNotificationIcon(item.type)}
                     </View>
                     <View style={{ flex: 1 }}>
-                      <Text style={styles.notificationText} numberOfLines={2}>
+                      <Text style={[styles.notificationText, ts.notificationText]} numberOfLines={2}>
                         {isModNotification ? (
                           item.message
                         ) : (
@@ -656,11 +701,11 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                           </>
                         )}
                       </Text>
-                      <Text style={styles.notificationTime}>
+                      <Text style={[styles.notificationTime, ts.notificationTime]}>
                         {new Date(item.createdAt).toLocaleDateString()}
                       </Text>
                     </View>
-                    {!item.read && <View style={styles.unreadDot} />}
+                    {!item.read && <View style={[styles.unreadDot, ts.unreadDot]} />}
                   </TouchableOpacity>
                 );
               })}
@@ -675,12 +720,12 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
       if (loading) {
         return (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.node.accent} />
+            <ActivityIndicator size="large" color={theme.accent} />
           </View>
         );
       }
       if (externalPosts.length === 0) {
-        return <Text style={styles.emptyText}>No posts found</Text>;
+        return <Text style={[styles.emptyText, ts.emptyText]}>No posts found</Text>;
       }
       return (
         <View style={{ flex: 1, overflow: 'hidden' }} {...webTouchProps}>
@@ -701,7 +746,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
               }}
             >
               <View style={{ transform: [{ rotate: refreshing ? '0deg' : `${(webPullDistance / PULL_THRESHOLD) * 180}deg` }] }}>
-                <RefreshCw size={24} color={COLORS.node.accent} />
+                <RefreshCw size={24} color={theme.accent} />
               </View>
             </View>
           )}
@@ -722,8 +767,8 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                   <RefreshControl
                     refreshing={refreshing}
                     onRefresh={handleRefresh}
-                    tintColor={COLORS.node.accent}
-                    colors={[COLORS.node.accent]}
+                    tintColor={theme.accent}
+                    colors={[theme.accent]}
                   />
                 ) : undefined
               }
@@ -747,11 +792,20 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
                   post={post}
                   onRepostToNode={onQuoteExternalPost}
                   onSaveToNode={onSaveExternalPost}
+                  hasLinkedAccount={hasLinkedAccount(post.platform)}
+                  onExternalLike={handleExternalLike}
+                  onExternalUnlike={handleExternalUnlike}
+                  onExternalRepost={handleExternalRepost}
+                  onExternalUnrepost={handleExternalUnrepost}
+                  onExternalReply={handleExternalReply}
+                  vibeAggregate={post.vibeAggregate}
+                  myReaction={post.myReaction}
+                  globalNodeId={globalNodeId}
                 />
               ))}
               {loadingMore && (
                 <View style={{ padding: 20, alignItems: 'center' }}>
-                  <ActivityIndicator size="small" color={COLORS.node.accent} />
+                  <ActivityIndicator size="small" color={theme.accent} />
                 </View>
               )}
             </ScrollView>
@@ -764,7 +818,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
     if (loading) {
       return (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.node.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       );
     }
@@ -792,9 +846,9 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
   };
 
   return (
-    <View style={styles.column}>
+    <View style={[styles.column, ts.column]}>
       {/* Unified Column Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, ts.header]}>
         {/* Move Left Button */}
         {onMoveLeft && (
           <TouchableOpacity
@@ -802,7 +856,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
             onPress={onMoveLeft}
             style={styles.headerButton}
           >
-            <ChevronLeft size={14} color={COLORS.node.muted} />
+            <ChevronLeft size={14} color={theme.muted} />
           </TouchableOpacity>
         )}
 
@@ -822,7 +876,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
             onPress={() => setShowVibeModal(true)}
             style={styles.headerButton}
           >
-            <Settings size={16} color={COLORS.node.muted} />
+            <Settings size={16} color={theme.muted} />
           </TouchableOpacity>
         )}
 
@@ -833,7 +887,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
             onPress={onMoveRight}
             style={styles.headerButton}
           >
-            <ChevronRight size={14} color={COLORS.node.muted} />
+            <ChevronRight size={14} color={theme.muted} />
           </TouchableOpacity>
         )}
 
@@ -844,7 +898,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
             onPress={onRemove}
             style={styles.headerButton}
           >
-            <X size={16} color={COLORS.node.muted} />
+            <X size={16} color={theme.muted} />
           </TouchableOpacity>
         )}
       </View>
@@ -869,9 +923,7 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 const styles = StyleSheet.create({
   column: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
     borderRightWidth: 1,
-    borderRightColor: COLORS.node.border,
     overflow: 'hidden',
   },
   header: {
@@ -881,8 +933,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
-    backgroundColor: COLORS.node.bgAlt,
   },
   headerButton: {
     padding: 6,
@@ -898,7 +948,6 @@ const styles = StyleSheet.create({
     padding: 40,
   },
   emptyText: {
-    color: COLORS.node.muted,
     fontSize: 14,
     textAlign: 'center',
     padding: 20,
@@ -909,11 +958,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     padding: 12,
-    backgroundColor: COLORS.node.panel,
     marginBottom: 8,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   modNotification: {
     borderColor: '#f59e0b',
@@ -929,19 +976,16 @@ const styles = StyleSheet.create({
   },
   notificationText: {
     fontSize: 13,
-    color: COLORS.node.text,
     lineHeight: 18,
   },
   notificationTime: {
     fontSize: 11,
-    color: COLORS.node.muted,
     marginTop: 4,
   },
   unreadDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: COLORS.node.accent,
   },
 });
 

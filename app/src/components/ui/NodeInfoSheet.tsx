@@ -12,10 +12,10 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { X, Users, Shield, UserPlus, LogOut } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { getNodeDetails, joinNode, leaveNode, NodeDetails } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
 import { useAuthPrompt } from '../../context/AuthPromptContext';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface NodeInfoSheetProps {
   visible: boolean;
@@ -30,6 +30,7 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
   nodeId,
   onViewPosts,
 }) => {
+  const theme = useAppTheme();
   const { user } = useAuthStore();
   const { requireAuth } = useAuthPrompt();
   const [nodeDetails, setNodeDetails] = useState<NodeDetails | null>(null);
@@ -90,18 +91,18 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
       onRequestClose={onClose}
     >
       <Pressable style={styles.overlay} onPress={onClose}>
-        <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
+        <Pressable style={[styles.sheet, { backgroundColor: theme.panel, borderColor: theme.border }]} onPress={(e) => e.stopPropagation()}>
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Community Info</Text>
+          <View style={[styles.header, { borderBottomColor: theme.border }]}>
+            <Text style={[styles.headerTitle, { color: theme.text }]}>Community Info</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
           {loading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.node.accent} />
+              <ActivityIndicator size="large" color={theme.accent} />
             </View>
           ) : nodeDetails ? (
             <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -109,7 +110,7 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
               {nodeDetails.banner && (
                 <Image
                   source={{ uri: nodeDetails.banner }}
-                  style={styles.banner}
+                  style={[styles.banner, { backgroundColor: theme.bgAlt }]}
                   resizeMode="cover"
                 />
               )}
@@ -124,53 +125,53 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
                       style={styles.avatar}
                     />
                   ) : (
-                    <View style={[styles.avatar, styles.avatarPlaceholder]}>
+                    <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.accent }]}>
                       <Text style={styles.avatarText}>
                         {nodeDetails.name?.charAt(0) || '?'}
                       </Text>
                     </View>
                   )}
                   <View style={styles.nameContainer}>
-                    <Text style={styles.nodeName}>{nodeDetails.name}</Text>
-                    <Text style={styles.nodeSlug}>/{nodeDetails.slug}</Text>
+                    <Text style={[styles.nodeName, { color: theme.text }]}>{nodeDetails.name}</Text>
+                    <Text style={[styles.nodeSlug, { color: theme.muted }]}>/{nodeDetails.slug}</Text>
                   </View>
                 </View>
 
                 {/* Description */}
                 {nodeDetails.description && (
-                  <Text style={styles.description}>{nodeDetails.description}</Text>
+                  <Text style={[styles.description, { color: theme.textSecondary }]}>{nodeDetails.description}</Text>
                 )}
 
                 {/* Stats */}
                 <View style={styles.stats}>
                   <View style={styles.stat}>
-                    <Users size={16} color={COLORS.node.muted} />
-                    <Text style={styles.statValue}>{nodeDetails.stats?.memberCount || 0}</Text>
-                    <Text style={styles.statLabel}>members</Text>
+                    <Users size={16} color={theme.muted} />
+                    <Text style={[styles.statValue, { color: theme.text }]}>{nodeDetails.stats?.memberCount || 0}</Text>
+                    <Text style={[styles.statLabel, { color: theme.muted }]}>members</Text>
                   </View>
                   <View style={styles.stat}>
-                    <Shield size={16} color={COLORS.node.muted} />
-                    <Text style={styles.statValue}>{nodeDetails.council?.length || 0}</Text>
-                    <Text style={styles.statLabel}>council</Text>
+                    <Shield size={16} color={theme.muted} />
+                    <Text style={[styles.statValue, { color: theme.text }]}>{nodeDetails.council?.length || 0}</Text>
+                    <Text style={[styles.statLabel, { color: theme.muted }]}>council</Text>
                   </View>
                 </View>
 
                 {/* Join/Leave Button */}
                 <TouchableOpacity
-                  style={[styles.joinButton, isMember && styles.leaveButton]}
+                  style={[styles.joinButton, { backgroundColor: theme.accent }, isMember && [styles.leaveButton, { backgroundColor: theme.bgAlt, borderColor: theme.border }]]}
                   onPress={handleJoinLeave}
                   disabled={joining}
                 >
                   {joining ? (
-                    <ActivityIndicator size="small" color={isMember ? COLORS.node.text : '#fff'} />
+                    <ActivityIndicator size="small" color={isMember ? theme.text : '#fff'} />
                   ) : (
                     <>
                       {isMember ? (
-                        <LogOut size={18} color={COLORS.node.text} />
+                        <LogOut size={18} color={theme.text} />
                       ) : (
                         <UserPlus size={18} color="#fff" />
                       )}
-                      <Text style={[styles.joinButtonText, isMember && styles.leaveButtonText]}>
+                      <Text style={[styles.joinButtonText, isMember && { color: theme.text }]}>
                         {isMember ? 'Leave Community' : 'Join Community'}
                       </Text>
                     </>
@@ -180,24 +181,24 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
                 {/* View Posts Button */}
                 {onViewPosts && (
                   <TouchableOpacity
-                    style={styles.viewPostsButton}
+                    style={[styles.viewPostsButton, { borderColor: theme.accent }]}
                     onPress={() => {
                       onViewPosts();
                       onClose();
                     }}
                   >
-                    <Text style={styles.viewPostsText}>View Posts</Text>
+                    <Text style={[styles.viewPostsText, { color: theme.accent }]}>View Posts</Text>
                   </TouchableOpacity>
                 )}
 
                 {/* Rules */}
                 {nodeDetails.rules && nodeDetails.rules.length > 0 && (
                   <View style={styles.rulesSection}>
-                    <Text style={styles.sectionTitle}>Community Rules</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.muted }]}>Community Rules</Text>
                     {nodeDetails.rules.map((rule, index) => (
                       <View key={index} style={styles.rule}>
-                        <Text style={styles.ruleNumber}>{index + 1}.</Text>
-                        <Text style={styles.ruleText}>{rule}</Text>
+                        <Text style={[styles.ruleNumber, { color: theme.accent }]}>{index + 1}.</Text>
+                        <Text style={[styles.ruleText, { color: theme.textSecondary }]}>{rule}</Text>
                       </View>
                     ))}
                   </View>
@@ -206,23 +207,23 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
                 {/* Council Members */}
                 {nodeDetails.council && nodeDetails.council.length > 0 && (
                   <View style={styles.councilSection}>
-                    <Text style={styles.sectionTitle}>Council Members</Text>
+                    <Text style={[styles.sectionTitle, { color: theme.muted }]}>Council Members</Text>
                     <View style={styles.councilList}>
                       {nodeDetails.council.slice(0, 5).map((member) => (
-                        <View key={member.userId} style={styles.councilMember}>
+                        <View key={member.userId} style={[styles.councilMember, { backgroundColor: theme.bg }]}>
                           {member.avatar ? (
                             <Image
                               source={{ uri: member.avatar }}
                               style={styles.councilAvatar}
                             />
                           ) : (
-                            <View style={[styles.councilAvatar, styles.avatarPlaceholder]}>
+                            <View style={[styles.councilAvatar, styles.avatarPlaceholder, { backgroundColor: theme.accent }]}>
                               <Text style={styles.councilAvatarText}>
                                 {member.username?.charAt(0) || '?'}
                               </Text>
                             </View>
                           )}
-                          <Text style={styles.councilUsername}>@{member.username}</Text>
+                          <Text style={[styles.councilUsername, { color: theme.text }]}>@{member.username}</Text>
                         </View>
                       ))}
                     </View>
@@ -232,7 +233,7 @@ export const NodeInfoSheet: React.FC<NodeInfoSheetProps> = ({
             </ScrollView>
           ) : (
             <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>Failed to load community info</Text>
+              <Text style={[styles.errorText, { color: theme.muted }]}>Failed to load community info</Text>
             </View>
           )}
         </Pressable>
@@ -248,12 +249,10 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   sheet: {
-    backgroundColor: COLORS.node.panel,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '85%',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderBottomWidth: 0,
   },
   header: {
@@ -262,12 +261,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   closeButton: {
     padding: 4,
@@ -283,7 +280,6 @@ const styles = StyleSheet.create({
   banner: {
     width: '100%',
     height: 120,
-    backgroundColor: COLORS.node.bgAlt,
   },
   nodeInfo: {
     padding: 16,
@@ -299,7 +295,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   avatarPlaceholder: {
-    backgroundColor: COLORS.node.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -315,17 +310,14 @@ const styles = StyleSheet.create({
   nodeName: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.node.text,
   },
   nodeSlug: {
     fontSize: 14,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   description: {
     fontSize: 14,
     lineHeight: 20,
-    color: COLORS.node.textSecondary,
     marginBottom: 16,
   },
   stats: {
@@ -341,47 +333,37 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   statLabel: {
     fontSize: 13,
-    color: COLORS.node.muted,
   },
   joinButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    backgroundColor: COLORS.node.accent,
     paddingVertical: 12,
     borderRadius: 10,
     marginBottom: 12,
   },
   leaveButton: {
-    backgroundColor: COLORS.node.bgAlt,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   joinButtonText: {
     fontSize: 15,
     fontWeight: '600',
     color: '#fff',
   },
-  leaveButtonText: {
-    color: COLORS.node.text,
-  },
   viewPostsButton: {
     alignItems: 'center',
     paddingVertical: 12,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: COLORS.node.accent,
     marginBottom: 20,
   },
   viewPostsText: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.accent,
   },
   rulesSection: {
     marginBottom: 20,
@@ -389,7 +371,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.node.muted,
     marginBottom: 12,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -400,7 +381,6 @@ const styles = StyleSheet.create({
   },
   ruleNumber: {
     fontSize: 14,
-    color: COLORS.node.accent,
     fontWeight: '600',
     marginRight: 8,
     width: 20,
@@ -409,7 +389,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-    color: COLORS.node.textSecondary,
   },
   councilSection: {
     marginBottom: 20,
@@ -422,7 +401,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: 8,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 8,
   },
   councilAvatar: {
@@ -437,7 +415,6 @@ const styles = StyleSheet.create({
   },
   councilUsername: {
     fontSize: 14,
-    color: COLORS.node.text,
   },
   errorContainer: {
     padding: 40,
@@ -445,7 +422,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 14,
-    color: COLORS.node.muted,
   },
 });
 

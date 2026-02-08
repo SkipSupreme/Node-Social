@@ -13,7 +13,8 @@ import {
     useWindowDimensions
 } from 'react-native';
 import { X } from 'lucide-react-native';
-import { COLORS, RADIUS, SHADOWS } from '../../constants/theme';
+import { RADIUS, SHADOWS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { editPost, TipTapDoc } from '../../lib/api';
 import { RichTextEditor, RichTextEditorRef, SelectionState } from './RichTextEditor';
 import { EditorToolbar } from './EditorToolbar';
@@ -23,7 +24,7 @@ interface EditPostModalProps {
     visible: boolean;
     post: UIPost | null;
     onClose: () => void;
-    onSuccess: (updatedPostId: string) => void;
+    onSuccess: (updatedPost: { id: string; title: string; content: string; contentJson?: TipTapDoc }) => void;
 }
 
 // Default empty selection state
@@ -47,6 +48,7 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({
     onClose,
     onSuccess,
 }) => {
+    const theme = useAppTheme();
     const { width } = useWindowDimensions();
     const isDesktop = width >= 768;
 
@@ -134,7 +136,12 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({
                 title: finalTitle,
             });
 
-            onSuccess(post.id);
+            onSuccess({
+                id: post.id,
+                title: finalTitle,
+                content: hasRichContent ? '' : (hasText ? plainText.trim() : ''),
+                contentJson: hasRichContent ? contentJson : undefined,
+            });
         } catch (err: unknown) {
             setError(err instanceof Error ? err.message : 'Failed to update post');
         } finally {
@@ -154,17 +161,17 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({
             >
                 <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
 
-                <View style={[styles.container, isDesktop && styles.containerDesktop]}>
+                <View style={[styles.container, { backgroundColor: theme.bg }, isDesktop && styles.containerDesktop]}>
                     {/* Header */}
-                    <View style={styles.header}>
+                    <View style={[styles.header, { borderBottomColor: theme.border }]}>
                         <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-                            <X color={COLORS.node.muted} size={22} />
+                            <X color={theme.muted} size={22} />
                         </TouchableOpacity>
 
-                        <Text style={styles.headerTitle}>Edit Post</Text>
+                        <Text style={[styles.headerTitle, { color: theme.text }]}>Edit Post</Text>
 
                         <TouchableOpacity
-                            style={[styles.saveBtn, !canSubmit && styles.saveBtnDisabled]}
+                            style={[styles.saveBtn, { backgroundColor: theme.accent }, !canSubmit && styles.saveBtnDisabled]}
                             onPress={handleSubmit}
                             disabled={!canSubmit || loading}
                         >
@@ -194,9 +201,9 @@ export const EditPostModal: React.FC<EditPostModalProps> = ({
                     >
                         {/* Title Input */}
                         <TextInput
-                            style={[styles.titleInput, isDesktop && styles.titleInputDesktop]}
+                            style={[styles.titleInput, { color: theme.text }, isDesktop && styles.titleInputDesktop]}
                             placeholder="Title"
-                            placeholderTextColor={COLORS.node.muted}
+                            placeholderTextColor={theme.muted}
                             value={title}
                             onChangeText={setTitle}
                             maxLength={300}
@@ -237,7 +244,6 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0,0,0,0.7)',
     },
     container: {
-        backgroundColor: COLORS.node.bg,
         borderTopLeftRadius: RADIUS.xl,
         borderTopRightRadius: RADIUS.xl,
         height: '92%',
@@ -259,7 +265,6 @@ const styles = StyleSheet.create({
         padding: 12,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
         gap: 12,
     },
     closeBtn: {
@@ -269,10 +274,8 @@ const styles = StyleSheet.create({
         flex: 1,
         fontSize: 16,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     saveBtn: {
-        backgroundColor: COLORS.node.accent,
         paddingHorizontal: 18,
         paddingVertical: 9,
         borderRadius: RADIUS.full,
@@ -314,7 +317,6 @@ const styles = StyleSheet.create({
     titleInput: {
         fontSize: 22,
         fontWeight: '600',
-        color: COLORS.node.text,
         marginBottom: 12,
         lineHeight: 28,
     },

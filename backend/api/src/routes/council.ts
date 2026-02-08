@@ -83,7 +83,7 @@ const councilRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { nodeId } = request.params;
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
 
       // Get user's subscription and stats
       const [subscription, user] = await Promise.all([

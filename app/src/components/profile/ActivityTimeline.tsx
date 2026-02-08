@@ -9,7 +9,8 @@ import {
     Platform,
 } from 'react-native';
 import { Clock, MessageSquare, Heart, Repeat, Bookmark, ChevronRight } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface Activity {
     id: string;
@@ -25,10 +26,10 @@ interface ActivityTimelineProps {
     onActivityPress?: (activity: Activity) => void;
 }
 
-const getActivityIcon = (type: Activity['type']) => {
+const getActivityIcon = (type: Activity['type'], colors: { accent: string; muted: string }) => {
     switch (type) {
         case 'post':
-            return <MessageSquare size={14} color={COLORS.node.accent} />;
+            return <MessageSquare size={14} color={colors.accent} />;
         case 'comment':
             return <MessageSquare size={14} color="#34d399" />;
         case 'reaction':
@@ -38,14 +39,14 @@ const getActivityIcon = (type: Activity['type']) => {
         case 'bookmark':
             return <Bookmark size={14} color="#fbbf24" />;
         default:
-            return <MessageSquare size={14} color={COLORS.node.muted} />;
+            return <MessageSquare size={14} color={colors.muted} />;
     }
 };
 
-const getActivityColor = (type: Activity['type']): string => {
+const getActivityColor = (type: Activity['type'], colors: { accent: string; muted: string }): string => {
     switch (type) {
         case 'post':
-            return COLORS.node.accent;
+            return colors.accent;
         case 'comment':
             return '#34d399';
         case 'reaction':
@@ -55,7 +56,7 @@ const getActivityColor = (type: Activity['type']): string => {
         case 'bookmark':
             return '#fbbf24';
         default:
-            return COLORS.node.muted;
+            return colors.muted;
     }
 };
 
@@ -81,6 +82,7 @@ const ActivityItem: React.FC<{
     eraStyle: typeof ERAS[keyof typeof ERAS];
     onPress?: () => void;
 }> = ({ activity, index, isLast, eraStyle, onPress }) => {
+    const theme = useAppTheme();
     const slideAnim = useRef(new Animated.Value(30)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -102,7 +104,7 @@ const ActivityItem: React.FC<{
         ]).start();
     }, [index]);
 
-    const activityColor = getActivityColor(activity.type);
+    const activityColor = getActivityColor(activity.type, theme);
 
     return (
         <Animated.View
@@ -117,7 +119,7 @@ const ActivityItem: React.FC<{
             {/* Timeline connector */}
             <View style={styles.timelineConnector}>
                 <View style={[styles.timelineDot, { backgroundColor: activityColor }]} />
-                {!isLast && <View style={styles.timelineLine} />}
+                {!isLast && <View style={[styles.timelineLine, { backgroundColor: theme.border }]} />}
             </View>
 
             {/* Content */}
@@ -128,12 +130,12 @@ const ActivityItem: React.FC<{
             >
                 <View style={styles.activityHeader}>
                     <View style={[styles.activityIconBadge, { backgroundColor: `${activityColor}15` }]}>
-                        {getActivityIcon(activity.type)}
+                        {getActivityIcon(activity.type, theme)}
                     </View>
-                    <Text style={styles.activityTime}>{timeAgo(activity.timestamp)}</Text>
+                    <Text style={[styles.activityTime, { color: theme.muted }]}>{timeAgo(activity.timestamp)}</Text>
                 </View>
 
-                <Text style={styles.activityTitle} numberOfLines={2}>
+                <Text style={[styles.activityTitle, { color: theme.text }]} numberOfLines={2}>
                     {activity.title}
                 </Text>
 
@@ -156,6 +158,7 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     eraStyle,
     onActivityPress,
 }) => {
+    const theme = useAppTheme();
     const { width } = useWindowDimensions();
     const isDesktop = width >= BREAKPOINTS.desktop;
 
@@ -177,18 +180,18 @@ export const ActivityTimeline: React.FC<ActivityTimelineProps> = ({
     return (
         <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
             {/* Glass background */}
-            <View style={[styles.glassBackground, { borderColor: eraStyle.border }]} />
+            <View style={[styles.glassBackground, { backgroundColor: `${theme.panel}f5`, borderColor: eraStyle.border }]} />
 
             <View style={styles.content}>
                 {/* Header */}
                 <View style={styles.header}>
                     <View style={styles.titleRow}>
                         <View style={[styles.iconBadge, { backgroundColor: 'rgba(148, 163, 184, 0.1)' }]}>
-                            <Clock size={18} color={COLORS.node.muted} />
+                            <Clock size={18} color={theme.muted} />
                         </View>
                         <View>
-                            <Text style={styles.title}>Recent Activity</Text>
-                            <Text style={styles.subtitle}>Your latest contributions</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>Recent Activity</Text>
+                            <Text style={[styles.subtitle, { color: theme.muted }]}>Your latest contributions</Text>
                         </View>
                     </View>
                 </View>
@@ -219,7 +222,6 @@ const styles = StyleSheet.create({
     },
     glassBackground: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: `${COLORS.node.panel}f5`,
         borderWidth: 1,
         borderRadius: RADIUS.xl,
         ...Platform.select({
@@ -249,12 +251,10 @@ const styles = StyleSheet.create({
     title: {
         fontSize: TYPOGRAPHY.sizes.h4,
         fontWeight: '700',
-        color: COLORS.node.text,
         letterSpacing: TYPOGRAPHY.letterSpacing.tight,
     },
     subtitle: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     timeline: {
@@ -278,7 +278,6 @@ const styles = StyleSheet.create({
     timelineLine: {
         flex: 1,
         width: 2,
-        backgroundColor: COLORS.node.border,
         marginTop: SPACING.xs,
     },
     activityContent: {
@@ -300,12 +299,10 @@ const styles = StyleSheet.create({
     },
     activityTime: {
         fontSize: TYPOGRAPHY.sizes.xs,
-        color: COLORS.node.muted,
         fontWeight: '500',
     },
     activityTitle: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.text,
         lineHeight: TYPOGRAPHY.sizes.body * TYPOGRAPHY.lineHeights.normal,
     },
     activityMeta: {

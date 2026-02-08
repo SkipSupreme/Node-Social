@@ -88,7 +88,7 @@ export class BlueskyHarvester extends BaseHarvester {
         // Extract link if present
         let linkUrl: string | undefined;
         const fullText = post.record.text;
-        const firstLine = fullText.split('\n')[0].slice(0, 200);
+        const firstLine = (fullText.split('\n')[0] ?? '').slice(0, 200);
         let title = firstLine;
         let content: string | undefined;
 
@@ -125,16 +125,16 @@ export class BlueskyHarvester extends BaseHarvester {
           sourceUrl: `https://bsky.app/profile/${post.author.handle}/post/${postId}`,
           sourceScore: likes,
           title,
-          content,
-          linkUrl,
-          mediaUrl,
-          suggestedNode,
+          ...(content != null && { content }),
+          ...(linkUrl != null && { linkUrl }),
+          ...(mediaUrl != null && { mediaUrl }),
+          ...(suggestedNode != null && { suggestedNode }),
         });
       }
 
       console.log(`  → Bluesky: ${items.length} candidates`);
 
-      return { items, newCursor: data.cursor };
+      return { items, ...(data.cursor != null && { newCursor: data.cursor }) };
 
     } catch (err) {
       console.error('  ✗ Bluesky:', err);

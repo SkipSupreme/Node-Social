@@ -65,6 +65,7 @@ export type AuthResponse = {
     cred?: number;
     era?: string;
     theme?: string;
+    customTheme?: Record<string, unknown> | null;
   };
   token: string;
   refreshToken: string;
@@ -98,6 +99,7 @@ export type NodeDetails = {
   avatar: string | null;
   banner: string | null;
   rules: string[];
+  customTheme: Record<string, unknown> | null;
   createdAt: string;
   curatorBot: {
     id: string;
@@ -413,6 +415,18 @@ async function request<T>(
     return request<T>(path, options, false);
   }
 
+  // Handle CSRF token expiration — refresh sets a new csrfToken cookie, then retry
+  if (res.status === 403 && retry && isWeb) {
+    const body: unknown = await res.clone().json().catch(() => ({}));
+    const errorMsg = typeof body === 'object' && body !== null && 'error' in body
+      ? (body as Record<string, unknown>).error
+      : '';
+    if (errorMsg === 'Invalid CSRF token') {
+      await refreshAccessToken();
+      return request<T>(path, options, false);
+    }
+  }
+
   if (!res.ok) {
     const body: unknown = await res.json().catch(() => ({}));
     const message = (typeof body === 'object' && body !== null && 'error' in body && typeof (body as Record<string, unknown>).error === 'string')
@@ -456,12 +470,68 @@ export function updateProfile(data: {
   theme?: string;
   era?: string;
   customCss?: string;
+  customTheme?: Record<string, unknown>;
   location?: string;
   website?: string;
 }) {
   return request<{ user: AuthResponse["user"] }>("/users/me", {
     method: "PUT",
     body: JSON.stringify(data),
+  });
+}
+
+// ── Theme Marketplace API ──────────────────────────────────
+
+export interface SharedTheme {
+  id: string;
+  name: string;
+  description: string | null;
+  tokens: Record<string, unknown>;
+  authorId: string;
+  author: { id: string; username: string; avatar: string | null };
+  installs: number;
+  rating: number;
+  isPublic: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export function getSharedThemes(sort: 'popular' | 'newest' | 'rating' = 'popular', limit = 20, cursor?: string) {
+  const params = new URLSearchParams({ sort, limit: String(limit) });
+  if (cursor) params.set('cursor', cursor);
+  return request<{ themes: SharedTheme[]; nextCursor: string | null; hasMore: boolean }>(
+    `/api/v1/themes?${params.toString()}`,
+    { method: 'GET' },
+  );
+}
+
+export function getSharedTheme(id: string) {
+  return request<SharedTheme>(`/api/v1/themes/${id}`, { method: 'GET' });
+}
+
+export function shareTheme(data: { name: string; description?: string; tokens: Record<string, unknown>; isPublic?: boolean }) {
+  return request<SharedTheme>('/api/v1/themes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export function updateSharedTheme(id: string, data: { name?: string; description?: string; tokens?: Record<string, unknown>; isPublic?: boolean }) {
+  return request<SharedTheme>(`/api/v1/themes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export function installTheme(id: string) {
+  return request<{ success: boolean; tokens: Record<string, unknown> }>(`/api/v1/themes/${id}/install`, {
+    method: 'POST',
+  });
+}
+
+export function deleteSharedTheme(id: string) {
+  return request<{ success: boolean }>(`/api/v1/themes/${id}`, {
+    method: 'DELETE',
   });
 }
 
@@ -732,6 +802,7 @@ export function updateNode(nodeId: string, data: {
   description?: string;
   color?: string;
   rules?: string[];
+  customTheme?: Record<string, unknown> | null;
 }) {
   return request<Node>(`/nodes/${nodeId}`, {
     method: "PATCH",
@@ -1004,6 +1075,7 @@ export function createPost(data: {
   nodeId?: string;
   title?: string;
   linkUrl?: string;
+  linkMetaData?: { title?: string; description?: string; image?: string }; // Pre-populated metadata for external reposts
   poll?: PollCreate;
   expertGateCred?: number; // Minimum cred required to comment (Expert Gate)
 }) {
@@ -1497,6 +1569,35 @@ export function deleteCommentReaction(commentId: string, nodeId?: string) {
   const searchParams = new URLSearchParams();
   if (nodeId) searchParams.append("nodeId", nodeId);
   return request<{ message: string }>(`/api/v1/comments/${commentId}?${searchParams.toString()}`, {
+    method: "DELETE",
+  });
+}
+
+// External post reactions
+export function createExternalPostReaction(
+  externalPostId: string,
+  data: { nodeId?: string; intensities: VibeIntensities }
+) {
+  return request<VibeReaction>(`/api/v1/external-posts/${encodeURIComponent(externalPostId)}`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export function getExternalPostReactions(externalPostId: string) {
+  return request<{
+    reactions: VibeReaction[];
+    aggregate: any;
+    myReaction: Record<string, number> | null;
+  }>(`/api/v1/external-posts/${encodeURIComponent(externalPostId)}`, {
+    method: "GET",
+  });
+}
+
+export function deleteExternalPostReaction(externalPostId: string, nodeId?: string) {
+  const searchParams = new URLSearchParams();
+  if (nodeId) searchParams.append("nodeId", nodeId);
+  return request<{ message: string }>(`/api/v1/external-posts/${encodeURIComponent(externalPostId)}?${searchParams.toString()}`, {
     method: "DELETE",
   });
 }
@@ -2160,6 +2261,22 @@ export interface ExternalPost {
   };
   language?: string | null; // Detected language code
   cached?: boolean; // Whether result was from cache
+  cid?: string; // Bluesky CID (needed for interactions)
+  platformStatusId?: string; // Numeric status ID for Mastodon, DID for Bluesky
+  vibeAggregate?: {
+    insightfulSum: number;
+    joySum: number;
+    fireSum: number;
+    supportSum: number;
+    shockSum: number;
+    questionableSum: number;
+    totalReactors: number;
+    totalIntensity: number;
+    qualityScore: number;
+    engagementScore: number;
+  } | null;
+  myReaction?: Record<string, number> | null;
+  feedScore?: number;
 }
 
 export interface ExternalFeedResult {
@@ -2170,39 +2287,42 @@ export interface ExternalFeedResult {
 }
 
 // Bluesky feeds
-export function getBlueskyDiscover(limit = 20, cursor?: string, language?: string) {
+export function getBlueskyDiscover(limit = 20, cursor?: string, language?: string, scored?: boolean) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (cursor) params.append('cursor', cursor);
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
+  if (scored) params.append('scored', 'true');
   return request<ExternalFeedResult>(`/external/bluesky/discover?${params}`, {
     method: "GET",
   });
 }
 
-export function getBlueskyFeed(feedUri?: string, limit = 20, cursor?: string, language?: string) {
+export function getBlueskyFeed(feedUri?: string, limit = 20, cursor?: string, language?: string, scored?: boolean) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (feedUri) params.append('feed', feedUri);
   if (cursor) params.append('cursor', cursor);
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
+  if (scored) params.append('scored', 'true');
   return request<ExternalFeedResult>(`/external/bluesky/feed?${params}`, {
     method: "GET",
   });
 }
 
-export function getBlueskyUserPosts(handle: string, limit = 20, cursor?: string, language?: string) {
+export function getBlueskyUserPosts(handle: string, limit = 20, cursor?: string, language?: string, scored?: boolean) {
   const params = new URLSearchParams({ limit: limit.toString() });
   if (cursor) params.append('cursor', cursor);
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
+  if (scored) params.append('scored', 'true');
   return request<ExternalFeedResult>(`/external/bluesky/user/${encodeURIComponent(handle)}?${params}`, {
     method: "GET",
   });
 }
 
 // Mastodon feeds
-export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'public' | 'local' = 'public', limit = 20, cursor?: string, language?: string) {
+export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'public' | 'local' = 'public', limit = 20, cursor?: string, language?: string, scored?: boolean) {
   const params = new URLSearchParams({
     instance,
     timeline,
@@ -2211,12 +2331,13 @@ export function getMastodonTimeline(instance = 'mastodon.social', timeline: 'pub
   if (cursor) params.append('cursor', cursor);
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
+  if (scored) params.append('scored', 'true');
   return request<ExternalFeedResult>(`/external/mastodon/timeline?${params}`, {
     method: "GET",
   });
 }
 
-export function getMastodonTrending(instance = 'mastodon.social', limit = 20, offset = 0, language?: string) {
+export function getMastodonTrending(instance = 'mastodon.social', limit = 20, offset = 0, language?: string, scored?: boolean) {
   const params = new URLSearchParams({
     instance,
     limit: limit.toString(),
@@ -2224,13 +2345,14 @@ export function getMastodonTrending(instance = 'mastodon.social', limit = 20, of
   });
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
+  if (scored) params.append('scored', 'true');
   return request<ExternalFeedResult>(`/external/mastodon/trending?${params}`, {
     method: "GET",
   });
 }
 
 // Combined external feed
-export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'mastodon'], limit = 20, mastodonInstance?: string, language?: string) {
+export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'mastodon'], limit = 20, mastodonInstance?: string, language?: string, scored?: boolean) {
   const params = new URLSearchParams({
     limit: limit.toString(),
     platforms: platforms.join(','),
@@ -2238,7 +2360,8 @@ export function getCombinedExternalFeed(platforms: string[] = ['bluesky', 'masto
   if (mastodonInstance) params.append('mastodonInstance', mastodonInstance);
   const lang = language ?? externalFeedLanguage;
   if (lang) params.append('language', lang);
-  return request<{ posts: ExternalPost[]; platforms: string[] }>(`/external/combined?${params}`, {
+  if (scored) params.append('scored', 'true');
+  return request<{ posts: ExternalPost[]; platforms: string[]; scored?: boolean }>(`/external/combined?${params}`, {
     method: "GET",
   });
 }
@@ -2295,6 +2418,86 @@ export function getMastodonThread(instance: string, statusId: string) {
   const params = new URLSearchParams({ instance, statusId });
   return request<ExternalThreadResult>(`/external/mastodon/thread?${params}`, {
     method: "GET",
+  });
+}
+
+// ============================================
+// Linked Accounts (Bluesky/Mastodon)
+// ============================================
+
+export interface LinkedAccountInfo {
+  id: string;
+  platform: 'bluesky' | 'mastodon';
+  handle: string;
+  platformUserId: string;
+  instanceUrl?: string | null;
+  active: boolean;
+  lastUsedAt?: string | null;
+  lastError?: string | null;
+  createdAt: string;
+}
+
+export function getLinkedAccounts() {
+  return request<{ accounts: LinkedAccountInfo[] }>('/external-accounts', { method: 'GET' });
+}
+
+export function connectBluesky(handle: string, appPassword: string) {
+  return request<{ success: boolean; handle: string; did: string }>('/external-accounts/bluesky/connect', {
+    method: 'POST',
+    body: JSON.stringify({ handle, appPassword }),
+  });
+}
+
+export function initMastodonOAuth(instance: string) {
+  return request<{ authUrl: string; state: string }>('/external-accounts/mastodon/init', {
+    method: 'POST',
+    body: JSON.stringify({ instance }),
+  });
+}
+
+export function completeMastodonOAuth(code: string, state: string) {
+  return request<{ success: boolean; handle: string; instance: string }>('/external-accounts/mastodon/callback', {
+    method: 'POST',
+    body: JSON.stringify({ code, state }),
+  });
+}
+
+export function disconnectLinkedAccount(platform: string) {
+  return request<{ success: boolean }>(`/external-accounts/${platform}`, { method: 'DELETE' });
+}
+
+export function externalLike(platform: string, externalId: string, cid?: string, platformStatusId?: string) {
+  return request<{ success: boolean; recordUri?: string }>(`/external-accounts/${platform}/like`, {
+    method: 'POST',
+    body: JSON.stringify({ externalId, cid, platformStatusId }),
+  });
+}
+
+export function externalUnlike(platform: string, externalId: string, recordUri?: string, platformStatusId?: string) {
+  return request<{ success: boolean }>(`/external-accounts/${platform}/like`, {
+    method: 'DELETE',
+    body: JSON.stringify({ externalId, recordUri, platformStatusId }),
+  });
+}
+
+export function externalRepost(platform: string, externalId: string, cid?: string, platformStatusId?: string) {
+  return request<{ success: boolean; recordUri?: string }>(`/external-accounts/${platform}/repost`, {
+    method: 'POST',
+    body: JSON.stringify({ externalId, cid, platformStatusId }),
+  });
+}
+
+export function externalUnrepost(platform: string, externalId: string, recordUri?: string, platformStatusId?: string) {
+  return request<{ success: boolean }>(`/external-accounts/${platform}/repost`, {
+    method: 'DELETE',
+    body: JSON.stringify({ externalId, recordUri, platformStatusId }),
+  });
+}
+
+export function externalReply(platform: string, externalId: string, text: string, cid?: string, platformStatusId?: string, rootUri?: string, rootCid?: string) {
+  return request<{ success: boolean }>(`/external-accounts/${platform}/reply`, {
+    method: 'POST',
+    body: JSON.stringify({ externalId, cid, platformStatusId, text, rootUri, rootCid }),
   });
 }
 

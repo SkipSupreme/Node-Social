@@ -2,9 +2,9 @@
 import React, { ComponentType, useState } from 'react';
 import { View, Text, StyleSheet, Modal, TouchableOpacity, TextInput, ScrollView, Image } from 'react-native';
 import { X, Globe, Compass, Users, User, Bell, Search, TrendingUp, Hash, ChevronRight, ExternalLink } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { FeedColumn, ExternalFeedConfig } from '../../store/columns';
 import type { Node } from '../../lib/api';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface AddColumnModalProps {
   visible: boolean;
@@ -45,6 +45,7 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
   nodes,
   existingColumns,
 }) => {
+  const theme = useAppTheme();
   const [step, setStep] = useState<Step>('type');
   const [selectedType, setSelectedType] = useState<FeedColumn['type'] | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -168,22 +169,22 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
         onPress={handleClose}
       >
         <TouchableOpacity
-          style={styles.modal}
+          style={[styles.modal, { backgroundColor: theme.panel }]}
           activeOpacity={1}
           onPress={e => e.stopPropagation()}
         >
           {/* Header */}
-          <View style={styles.header}>
+          <View style={[styles.header, { borderBottomColor: theme.border }]}>
             {step !== 'type' && (
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-                <ChevronRight size={20} color={COLORS.node.text} style={{ transform: [{ rotate: '180deg' }] }} />
+                <ChevronRight size={20} color={theme.text} style={{ transform: [{ rotate: '180deg' }] }} />
               </TouchableOpacity>
             )}
-            <Text style={styles.title}>
+            <Text style={[styles.title, { color: theme.text }]}>
               {step === 'type' ? 'Add Column' : step === 'node' ? 'Select Node' : step === 'search' ? 'Saved Search' : selectedType === 'bluesky' ? 'Bluesky Feed' : 'Mastodon Feed'}
             </Text>
             <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
@@ -196,17 +197,17 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
                   return (
                     <TouchableOpacity
                       key={option.type}
-                      style={styles.typeItem}
+                      style={[styles.typeItem, { backgroundColor: theme.bg }]}
                       onPress={() => handleSelectType(option.type)}
                     >
-                      <View style={styles.typeIcon}>
-                        <Icon size={20} color={COLORS.node.accent} />
+                      <View style={[styles.typeIcon, { backgroundColor: theme.panel }]}>
+                        <Icon size={20} color={theme.accent} />
                       </View>
                       <View style={styles.typeInfo}>
-                        <Text style={styles.typeTitle}>{option.title}</Text>
-                        <Text style={styles.typeDescription}>{option.description}</Text>
+                        <Text style={[styles.typeTitle, { color: theme.text }]}>{option.title}</Text>
+                        <Text style={[styles.typeDescription, { color: theme.muted }]}>{option.description}</Text>
                       </View>
-                      <ChevronRight size={16} color={COLORS.node.muted} />
+                      <ChevronRight size={16} color={theme.muted} />
                     </TouchableOpacity>
                   );
                 })}
@@ -218,20 +219,20 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
                 {nodes.map((node) => (
                   <TouchableOpacity
                     key={node.id}
-                    style={styles.nodeItem}
+                    style={[styles.nodeItem, { backgroundColor: theme.bg }]}
                     onPress={() => handleSelectNode(node)}
                   >
                     {node.avatar ? (
                       <Image source={{ uri: node.avatar }} style={styles.nodeAvatar} />
                     ) : (
-                      <View style={[styles.nodeAvatarPlaceholder, { backgroundColor: node.color || COLORS.node.accent }]}>
+                      <View style={[styles.nodeAvatarPlaceholder, { backgroundColor: node.color || theme.accent }]}>
                         <Text style={styles.nodeAvatarText}>{node.name[0]}</Text>
                       </View>
                     )}
                     <View style={styles.nodeInfo}>
-                      <Text style={styles.nodeName}>{node.name}</Text>
+                      <Text style={[styles.nodeName, { color: theme.text }]}>{node.name}</Text>
                       {node.subscriberCount !== undefined && (
-                        <Text style={styles.nodeMembers}>{node.subscriberCount} members</Text>
+                        <Text style={[styles.nodeMembers, { color: theme.muted }]}>{node.subscriberCount} members</Text>
                       )}
                     </View>
                   </TouchableOpacity>
@@ -241,19 +242,19 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
 
             {step === 'search' && (
               <View style={styles.searchForm}>
-                <Text style={styles.searchLabel}>Enter a search query to track:</Text>
+                <Text style={[styles.searchLabel, { color: theme.textSecondary }]}>Enter a search query to track:</Text>
                 <TextInput
-                  style={styles.searchInput}
+                  style={[styles.searchInput, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   placeholder="e.g., react native, web3, AI..."
-                  placeholderTextColor={COLORS.node.muted}
+                  placeholderTextColor={theme.muted}
                   autoFocus
                   returnKeyType="done"
                   onSubmitEditing={handleAddSearch}
                 />
                 <TouchableOpacity
-                  style={[styles.addButton, !searchQuery.trim() && styles.addButtonDisabled]}
+                  style={[styles.addButton, { backgroundColor: theme.accent }, !searchQuery.trim() && styles.addButtonDisabled]}
                   onPress={handleAddSearch}
                   disabled={!searchQuery.trim()}
                 >
@@ -264,88 +265,90 @@ export const AddColumnModal: React.FC<AddColumnModalProps> = ({
 
             {step === 'external' && selectedType === 'bluesky' && (
               <View style={styles.externalForm}>
-                <Text style={styles.externalLabel}>Choose a Bluesky feed:</Text>
+                <Text style={[styles.externalLabel, { color: theme.textSecondary }]}>Choose a Bluesky feed:</Text>
                 <TouchableOpacity
-                  style={styles.externalOption}
+                  style={[styles.externalOption, { backgroundColor: theme.bg }]}
                   onPress={() => handleAddBlueskyFeed('discover')}
                 >
                   <Text style={styles.externalOptionIcon}>🦋</Text>
                   <View style={styles.externalOptionInfo}>
-                    <Text style={styles.externalOptionTitle}>What's Hot</Text>
-                    <Text style={styles.externalOptionDesc}>Popular posts from across Bluesky</Text>
+                    <Text style={[styles.externalOptionTitle, { color: theme.text }]}>What's Hot</Text>
+                    <Text style={[styles.externalOptionDesc, { color: theme.muted }]}>Popular posts from across Bluesky</Text>
                   </View>
-                  <ChevronRight size={16} color={COLORS.node.muted} />
+                  <ChevronRight size={16} color={theme.muted} />
                 </TouchableOpacity>
               </View>
             )}
 
             {step === 'external' && selectedType === 'mastodon' && (
               <View style={styles.externalForm}>
-                <Text style={styles.externalLabel}>Select a timeline type:</Text>
+                <Text style={[styles.externalLabel, { color: theme.textSecondary }]}>Select a timeline type:</Text>
 
                 <TouchableOpacity
-                  style={styles.externalOption}
+                  style={[styles.externalOption, { backgroundColor: theme.bg }]}
                   onPress={() => handleAddMastodonFeed('public', mastodonInstance)}
                 >
                   <Text style={styles.externalOptionIcon}>🌐</Text>
                   <View style={styles.externalOptionInfo}>
-                    <Text style={styles.externalOptionTitle}>Federated Timeline</Text>
-                    <Text style={styles.externalOptionDesc}>Public posts from across the Fediverse</Text>
+                    <Text style={[styles.externalOptionTitle, { color: theme.text }]}>Federated Timeline</Text>
+                    <Text style={[styles.externalOptionDesc, { color: theme.muted }]}>Public posts from across the Fediverse</Text>
                   </View>
-                  <ChevronRight size={16} color={COLORS.node.muted} />
+                  <ChevronRight size={16} color={theme.muted} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.externalOption}
+                  style={[styles.externalOption, { backgroundColor: theme.bg }]}
                   onPress={() => handleAddMastodonFeed('local', mastodonInstance)}
                 >
                   <Text style={styles.externalOptionIcon}>🏠</Text>
                   <View style={styles.externalOptionInfo}>
-                    <Text style={styles.externalOptionTitle}>Local Timeline</Text>
-                    <Text style={styles.externalOptionDesc}>Posts from {mastodonInstance}</Text>
+                    <Text style={[styles.externalOptionTitle, { color: theme.text }]}>Local Timeline</Text>
+                    <Text style={[styles.externalOptionDesc, { color: theme.muted }]}>Posts from {mastodonInstance}</Text>
                   </View>
-                  <ChevronRight size={16} color={COLORS.node.muted} />
+                  <ChevronRight size={16} color={theme.muted} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                  style={styles.externalOption}
+                  style={[styles.externalOption, { backgroundColor: theme.bg }]}
                   onPress={() => handleAddMastodonFeed('trending', mastodonInstance)}
                 >
                   <Text style={styles.externalOptionIcon}>📈</Text>
                   <View style={styles.externalOptionInfo}>
-                    <Text style={styles.externalOptionTitle}>Trending</Text>
-                    <Text style={styles.externalOptionDesc}>Currently popular posts</Text>
+                    <Text style={[styles.externalOptionTitle, { color: theme.text }]}>Trending</Text>
+                    <Text style={[styles.externalOptionDesc, { color: theme.muted }]}>Currently popular posts</Text>
                   </View>
-                  <ChevronRight size={16} color={COLORS.node.muted} />
+                  <ChevronRight size={16} color={theme.muted} />
                 </TouchableOpacity>
 
                 <View style={styles.instanceSection}>
-                  <Text style={styles.instanceLabel}>Instance:</Text>
+                  <Text style={[styles.instanceLabel, { color: theme.textSecondary }]}>Instance:</Text>
                   <TextInput
-                    style={styles.instanceInput}
+                    style={[styles.instanceInput, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                     value={mastodonInstance}
                     onChangeText={setMastodonInstance}
                     placeholder="mastodon.social"
-                    placeholderTextColor={COLORS.node.muted}
+                    placeholderTextColor={theme.muted}
                     autoCapitalize="none"
                     autoCorrect={false}
                   />
                 </View>
 
-                <Text style={styles.instanceHint}>Popular instances:</Text>
+                <Text style={[styles.instanceHint, { color: theme.muted }]}>Popular instances:</Text>
                 <View style={styles.instanceChips}>
                   {popularMastodonInstances.map((instance) => (
                     <TouchableOpacity
                       key={instance}
                       style={[
                         styles.instanceChip,
-                        mastodonInstance === instance && styles.instanceChipActive,
+                        { backgroundColor: theme.bg, borderColor: theme.border },
+                        mastodonInstance === instance && { backgroundColor: theme.accent, borderColor: theme.accent },
                       ]}
                       onPress={() => setMastodonInstance(instance)}
                     >
                       <Text
                         style={[
                           styles.instanceChipText,
+                          { color: theme.muted },
                           mastodonInstance === instance && styles.instanceChipTextActive,
                         ]}
                       >
@@ -374,7 +377,6 @@ const styles = StyleSheet.create({
     width: '90%',
     maxWidth: 400,
     maxHeight: '80%',
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     overflow: 'hidden',
   },
@@ -384,7 +386,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   backButton: {
     position: 'absolute',
@@ -394,7 +395,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   closeButton: {
     position: 'absolute',
@@ -412,14 +412,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
     gap: 12,
   },
   typeIcon: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    backgroundColor: COLORS.node.panel,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -429,11 +427,9 @@ const styles = StyleSheet.create({
   typeTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   typeDescription: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   nodeList: {
@@ -444,7 +440,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 12,
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
     gap: 12,
   },
   nodeAvatar: {
@@ -470,11 +465,9 @@ const styles = StyleSheet.create({
   nodeName: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   nodeMembers: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   searchForm: {
@@ -482,19 +475,14 @@ const styles = StyleSheet.create({
   },
   searchLabel: {
     fontSize: 14,
-    color: COLORS.node.textSecondary,
   },
   searchInput: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    color: COLORS.node.text,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   addButton: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: 10,
     padding: 14,
     alignItems: 'center',
@@ -513,7 +501,6 @@ const styles = StyleSheet.create({
   },
   externalLabel: {
     fontSize: 14,
-    color: COLORS.node.textSecondary,
     marginBottom: 4,
   },
   externalOption: {
@@ -521,7 +508,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 14,
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
     gap: 12,
   },
   externalOptionIcon: {
@@ -533,11 +519,9 @@ const styles = StyleSheet.create({
   externalOptionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   externalOptionDesc: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   instanceSection: {
@@ -545,21 +529,16 @@ const styles = StyleSheet.create({
   },
   instanceLabel: {
     fontSize: 14,
-    color: COLORS.node.textSecondary,
     marginBottom: 8,
   },
   instanceInput: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 10,
     padding: 12,
     fontSize: 15,
-    color: COLORS.node.text,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   instanceHint: {
     fontSize: 12,
-    color: COLORS.node.muted,
     marginTop: 12,
     marginBottom: 8,
   },
@@ -572,17 +551,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  instanceChipActive: {
-    backgroundColor: COLORS.node.accent,
-    borderColor: COLORS.node.accent,
   },
   instanceChipText: {
     fontSize: 13,
-    color: COLORS.node.muted,
   },
   instanceChipTextActive: {
     color: '#fff',

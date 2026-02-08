@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { COLORS } from '../../../constants/theme';
+import { useAppTheme } from '../../../hooks/useTheme';
 
 export type PostType = 'text' | 'image' | 'video' | 'link' | 'poll';
 
@@ -26,6 +26,8 @@ export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
   onTypesChange,
   multiSelect = true,
 }) => {
+  const theme = useAppTheme();
+
   const isSelected = (type: PostType) => selectedTypes.includes(type);
 
   const handleToggle = (type: PostType) => {
@@ -56,11 +58,19 @@ export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.container}>
       <TouchableOpacity
-        style={[styles.filterButton, showAll && styles.filterButtonSelected]}
+        style={[
+          styles.filterButton,
+          { backgroundColor: theme.bg, borderColor: theme.border },
+          showAll && { backgroundColor: `${theme.accent}20`, borderColor: theme.accent },
+        ]}
         onPress={handleSelectAll}
         activeOpacity={0.7}
       >
-        <Text style={[styles.filterButtonText, showAll && styles.filterButtonTextSelected]}>
+        <Text style={[
+          styles.filterButtonText,
+          { color: theme.muted },
+          showAll && { color: theme.accent, fontWeight: '600' },
+        ]}>
           All
         </Text>
       </TouchableOpacity>
@@ -70,12 +80,20 @@ export const PostTypeFilter: React.FC<PostTypeFilterProps> = ({
         return (
           <TouchableOpacity
             key={type}
-            style={[styles.filterButton, selected && styles.filterButtonSelected]}
+            style={[
+              styles.filterButton,
+              { backgroundColor: theme.bg, borderColor: theme.border },
+              selected && { backgroundColor: `${theme.accent}20`, borderColor: theme.accent },
+            ]}
             onPress={() => handleToggle(type)}
             activeOpacity={0.7}
           >
             <Text style={styles.filterIcon}>{icon}</Text>
-            <Text style={[styles.filterButtonText, selected && styles.filterButtonTextSelected]}>
+            <Text style={[
+              styles.filterButtonText,
+              { color: theme.muted },
+              selected && { color: theme.accent, fontWeight: '600' },
+            ]}>
               {label}
             </Text>
           </TouchableOpacity>
@@ -99,14 +117,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 16,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     gap: 4,
-  },
-  filterButtonSelected: {
-    backgroundColor: `${COLORS.node.accent}20`,
-    borderColor: COLORS.node.accent,
   },
   filterIcon: {
     fontSize: 14,
@@ -114,11 +126,5 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: 13,
     fontWeight: '500',
-    color: COLORS.node.muted,
-  },
-  filterButtonTextSelected: {
-    color: COLORS.node.accent,
-    fontWeight: '600',
   },
 });
-

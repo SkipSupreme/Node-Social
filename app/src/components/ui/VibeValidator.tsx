@@ -6,8 +6,8 @@ import {
     Zap, MessageSquare, Users, Eye, EyeOff, FileText, Image, Link2, Waypoints,
     Shuffle, Target, Award, Scale, Flame, RefreshCw, Edit2
 } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { MutedWordsManager } from './MutedWordsManager';
+import { useAppTheme } from '../../hooks/useTheme';
 
 // ============================================
 // TYPES
@@ -215,6 +215,7 @@ const getDefaultSettings = (): VibeValidatorSettings => ({
 // ============================================
 
 const MiniBarChart = ({ weights }: { weights: Weights }) => {
+    const theme = useAppTheme();
     const total = weights.quality + weights.recency + weights.engagement + weights.personalization;
     const colors = ['#00BFFF', '#FFD700', '#FF4500', '#FF69B4'];
     const values = [weights.quality, weights.recency, weights.engagement, weights.personalization];
@@ -223,7 +224,9 @@ const MiniBarChart = ({ weights }: { weights: Weights }) => {
         <View style={miniStyles.container}>
             {values.map((val, i) => (
                 <View key={i} style={miniStyles.barWrapper}>
-                    <View style={[miniStyles.bar, { height: `${(val / total) * 100}%`, backgroundColor: colors[i] }]} />
+                    <View style={[miniStyles.barBg, { backgroundColor: theme.border }]}>
+                        <View style={[miniStyles.bar, { height: `${(val / total) * 100}%`, backgroundColor: colors[i] }]} />
+                    </View>
                 </View>
             ))}
         </View>
@@ -240,7 +243,10 @@ const miniStyles = StyleSheet.create({
     barWrapper: {
         width: 6,
         height: '100%',
-        backgroundColor: COLORS.node.border,
+    },
+    barBg: {
+        width: '100%',
+        height: '100%',
         borderRadius: 2,
         overflow: 'hidden',
         justifyContent: 'flex-end',
@@ -263,43 +269,49 @@ interface SliderRowProps {
     suffix?: string;
 }
 
-const SliderRow = ({ label, value, onChange, color, icon: Icon, min = 0, max = 100, step = 1, suffix = '%' }: SliderRowProps) => (
-    <View style={{ marginBottom: 16 }}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {Icon && <Icon size={14} color={color} />}
-                <Text style={{ color: COLORS.node.text, fontWeight: '500', fontSize: 13 }}>{label}</Text>
+const SliderRow = ({ label, value, onChange, color, icon: Icon, min = 0, max = 100, step = 1, suffix = '%' }: SliderRowProps) => {
+    const theme = useAppTheme();
+    return (
+        <View style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {Icon && <Icon size={14} color={color} />}
+                    <Text style={{ color: theme.text, fontWeight: '500', fontSize: 13 }}>{label}</Text>
+                </View>
+                <Text style={{ color: color, fontSize: 12, fontFamily: 'monospace' }}>{value}{suffix}</Text>
             </View>
-            <Text style={{ color: color, fontSize: 12, fontFamily: 'monospace' }}>{value}{suffix}</Text>
+            <Slider
+                style={{ width: '100%', height: 28 }}
+                minimumValue={min}
+                maximumValue={max}
+                step={step}
+                value={value}
+                onValueChange={onChange}
+                minimumTrackTintColor={color}
+                maximumTrackTintColor={theme.border}
+                thumbTintColor={color}
+            />
         </View>
-        <Slider
-            style={{ width: '100%', height: 28 }}
-            minimumValue={min}
-            maximumValue={max}
-            step={step}
-            value={value}
-            onValueChange={onChange}
-            minimumTrackTintColor={color}
-            maximumTrackTintColor={COLORS.node.border}
-            thumbTintColor={color}
-        />
-    </View>
-);
+    );
+};
 
-const ToggleRow = ({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: React.ComponentType<{ size: number; color: string }> }) => (
-    <View style={toggleStyles.row}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {Icon && <Icon size={14} color={COLORS.node.muted} />}
-            <Text style={toggleStyles.label}>{label}</Text>
+const ToggleRow = ({ label, value, onChange, icon: Icon }: { label: string; value: boolean; onChange: (v: boolean) => void; icon?: React.ComponentType<{ size: number; color: string }> }) => {
+    const theme = useAppTheme();
+    return (
+        <View style={[toggleStyles.row, { borderBottomColor: theme.border }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {Icon && <Icon size={14} color={theme.muted} />}
+                <Text style={[toggleStyles.label, { color: theme.text }]}>{label}</Text>
+            </View>
+            <Switch
+                value={value}
+                onValueChange={onChange}
+                trackColor={{ false: theme.border, true: `${theme.accent}50` }}
+                thumbColor={value ? theme.accent : theme.muted}
+            />
         </View>
-        <Switch
-            value={value}
-            onValueChange={onChange}
-            trackColor={{ false: COLORS.node.border, true: `${COLORS.node.accent}50` }}
-            thumbColor={value ? COLORS.node.accent : COLORS.node.muted}
-        />
-    </View>
-);
+    );
+};
 
 const toggleStyles = StyleSheet.create({
     row: {
@@ -308,21 +320,20 @@ const toggleStyles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     label: {
-        color: COLORS.node.text,
         fontSize: 13,
     },
 });
 
 const CollapsibleSection = ({ title, children, defaultOpen = false }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) => {
+    const theme = useAppTheme();
     const [open, setOpen] = useState(defaultOpen);
     return (
-        <View style={collapseStyles.container}>
+        <View style={[collapseStyles.container, { borderBottomColor: theme.border }]}>
             <TouchableOpacity style={collapseStyles.header} onPress={() => setOpen(!open)}>
-                <Text style={collapseStyles.title}>{title}</Text>
-                {open ? <ChevronUp size={16} color={COLORS.node.muted} /> : <ChevronDown size={16} color={COLORS.node.muted} />}
+                <Text style={[collapseStyles.title, { color: theme.text }]}>{title}</Text>
+                {open ? <ChevronUp size={16} color={theme.muted} /> : <ChevronDown size={16} color={theme.muted} />}
             </TouchableOpacity>
             {open && <View style={collapseStyles.content}>{children}</View>}
         </View>
@@ -332,7 +343,6 @@ const CollapsibleSection = ({ title, children, defaultOpen = false }: { title: s
 const collapseStyles = StyleSheet.create({
     container: {
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     header: {
         flexDirection: 'row',
@@ -342,7 +352,6 @@ const collapseStyles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     title: {
-        color: COLORS.node.text,
         fontSize: 14,
         fontWeight: '600',
     },
@@ -362,6 +371,7 @@ const SimpleMode = ({ settings, onUpdate, activePreset, setActivePreset }: {
     activePreset: string | null;
     setActivePreset: (p: string | null) => void;
 }) => {
+    const theme = useAppTheme();
     const selectPreset = (preset: typeof PRESETS[0]) => {
         setActivePreset(preset.id);
         onUpdate({ ...settings, preset: preset.id, weights: preset.weights });
@@ -376,18 +386,22 @@ const SimpleMode = ({ settings, onUpdate, activePreset, setActivePreset }: {
                     return (
                         <TouchableOpacity
                             key={preset.id}
-                            style={[simpleStyles.card, isActive && simpleStyles.cardActive]}
+                            style={[
+                                simpleStyles.card,
+                                { backgroundColor: theme.bg, borderColor: theme.border },
+                                isActive && { borderColor: theme.accent, backgroundColor: `${theme.accent}15` },
+                            ]}
                             onPress={() => selectPreset(preset)}
                             activeOpacity={0.7}
                         >
-                            <View style={[simpleStyles.iconCircle, isActive && simpleStyles.iconCircleActive]}>
-                                <Icon size={20} color={isActive ? '#fff' : COLORS.node.accent} />
+                            <View style={[simpleStyles.iconCircle, { backgroundColor: `${theme.accent}20` }, isActive && { backgroundColor: theme.accent }]}>
+                                <Icon size={20} color={isActive ? '#fff' : theme.accent} />
                             </View>
                             <View style={simpleStyles.cardContent}>
-                                <Text style={[simpleStyles.cardTitle, isActive && simpleStyles.cardTitleActive]}>
+                                <Text style={[simpleStyles.cardTitle, { color: theme.text }, isActive && { color: theme.accent }]}>
                                     {preset.name}
                                 </Text>
-                                <Text style={simpleStyles.cardDesc}>{preset.description}</Text>
+                                <Text style={[simpleStyles.cardDesc, { color: theme.muted }]}>{preset.description}</Text>
                             </View>
                             <MiniBarChart weights={preset.weights} />
                         </TouchableOpacity>
@@ -402,54 +416,33 @@ const simpleStyles = StyleSheet.create({
     container: {
         padding: 16,
     },
-    hint: {
-        color: COLORS.node.muted,
-        fontSize: 12,
-        textAlign: 'center',
-        marginBottom: 16,
-    },
     grid: {
         gap: 10,
     },
     card: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.node.bg,
         borderRadius: 12,
         padding: 14,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         gap: 12,
-    },
-    cardActive: {
-        borderColor: COLORS.node.accent,
-        backgroundColor: `${COLORS.node.accent}15`,
     },
     iconCircle: {
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: `${COLORS.node.accent}20`,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    iconCircleActive: {
-        backgroundColor: COLORS.node.accent,
     },
     cardContent: {
         flex: 1,
     },
     cardTitle: {
-        color: COLORS.node.text,
         fontSize: 14,
         fontWeight: '600',
         marginBottom: 2,
     },
-    cardTitleActive: {
-        color: COLORS.node.accent,
-    },
     cardDesc: {
-        color: COLORS.node.muted,
         fontSize: 11,
     },
 });
@@ -458,6 +451,7 @@ const IntermediateMode = ({ settings, onUpdate }: {
     settings: VibeValidatorSettings;
     onUpdate: (s: VibeValidatorSettings) => void;
 }) => {
+    const theme = useAppTheme();
     const [showMutedWords, setShowMutedWords] = useState(false);
     const weights = settings.weights;
     const intermediate = settings.intermediate || DEFAULT_INTERMEDIATE;
@@ -475,8 +469,8 @@ const IntermediateMode = ({ settings, onUpdate }: {
     return (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             {/* Main Sliders */}
-            <View style={intStyles.section}>
-                <Text style={intStyles.sectionTitle}>Weight Distribution</Text>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
+                <Text style={[intStyles.sectionTitle, { color: theme.muted }]}>Weight Distribution</Text>
                 <SliderRow label="Quality" value={weights.quality} onChange={(v) => updateWeight('quality', v)} color="#00BFFF" icon={Sparkles} />
                 <SliderRow label="Recency" value={weights.recency} onChange={(v) => updateWeight('recency', v)} color="#FFD700" icon={Clock} />
                 <SliderRow label="Engagement" value={weights.engagement} onChange={(v) => updateWeight('engagement', v)} color="#FF4500" icon={TrendingUp} />
@@ -484,16 +478,16 @@ const IntermediateMode = ({ settings, onUpdate }: {
             </View>
 
             {/* Time Range */}
-            <View style={intStyles.section}>
-                <Text style={intStyles.sectionTitle}>Time Range</Text>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
+                <Text style={[intStyles.sectionTitle, { color: theme.muted }]}>Time Range</Text>
                 <View style={intStyles.pillRow}>
                     {timeRanges.map((range) => (
                         <TouchableOpacity
                             key={range}
-                            style={[intStyles.pill, intermediate.timeRange === range && intStyles.pillActive]}
+                            style={[intStyles.pill, { backgroundColor: theme.bg, borderColor: theme.border }, intermediate.timeRange === range && { borderColor: theme.accent, backgroundColor: `${theme.accent}20` }]}
                             onPress={() => updateIntermediate('timeRange', range)}
                         >
-                            <Text style={[intStyles.pillText, intermediate.timeRange === range && intStyles.pillTextActive]}>
+                            <Text style={[intStyles.pillText, { color: theme.muted }, intermediate.timeRange === range && { color: theme.accent, fontWeight: '600' }]}>
                                 {range === 'all' ? 'All Time' : range}
                             </Text>
                         </TouchableOpacity>
@@ -502,28 +496,28 @@ const IntermediateMode = ({ settings, onUpdate }: {
             </View>
 
             {/* Discovery Rate */}
-            <View style={intStyles.section}>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
                 <SliderRow
                     label="Discovery Rate"
                     value={intermediate.discoveryRate}
                     onChange={(v) => updateIntermediate('discoveryRate', v)}
-                    color={COLORS.node.accent}
+                    color={theme.accent}
                     icon={Shuffle}
                 />
-                <Text style={intStyles.hint}>Higher = more content outside your usual preferences</Text>
+                <Text style={[intStyles.hint, { color: theme.muted }]}>Higher = more content outside your usual preferences</Text>
             </View>
 
             {/* Content Intelligence - Tier 2 */}
-            <View style={intStyles.section}>
-                <Text style={intStyles.sectionTitle}>Post Length</Text>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
+                <Text style={[intStyles.sectionTitle, { color: theme.muted }]}>Post Length</Text>
                 <View style={intStyles.pillRow}>
                     {(['any', 'micro', 'short', 'medium', 'long'] as const).map((density) => (
                         <TouchableOpacity
                             key={density}
-                            style={[intStyles.pill, intermediate.textDensity === density && intStyles.pillActive]}
+                            style={[intStyles.pill, { backgroundColor: theme.bg, borderColor: theme.border }, intermediate.textDensity === density && { borderColor: theme.accent, backgroundColor: `${theme.accent}20` }]}
                             onPress={() => updateIntermediate('textDensity', density)}
                         >
-                            <Text style={[intStyles.pillText, intermediate.textDensity === density && intStyles.pillTextActive]}>
+                            <Text style={[intStyles.pillText, { color: theme.muted }, intermediate.textDensity === density && { color: theme.accent, fontWeight: '600' }]}>
                                 {density === 'any' ? 'Any' : density === 'micro' ? 'Micro (<50)' : density === 'short' ? 'Short (tweets)' : density === 'medium' ? 'Medium' : 'Long'}
                             </Text>
                         </TouchableOpacity>
@@ -531,16 +525,16 @@ const IntermediateMode = ({ settings, onUpdate }: {
                 </View>
             </View>
 
-            <View style={intStyles.section}>
-                <Text style={intStyles.sectionTitle}>Media Type</Text>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
+                <Text style={[intStyles.sectionTitle, { color: theme.muted }]}>Media Type</Text>
                 <View style={intStyles.pillRow}>
                     {(['any', 'photo', 'video', 'gif'] as const).map((type) => (
                         <TouchableOpacity
                             key={type}
-                            style={[intStyles.pill, intermediate.mediaType === type && intStyles.pillActive]}
+                            style={[intStyles.pill, { backgroundColor: theme.bg, borderColor: theme.border }, intermediate.mediaType === type && { borderColor: theme.accent, backgroundColor: `${theme.accent}20` }]}
                             onPress={() => updateIntermediate('mediaType', type)}
                         >
-                            <Text style={[intStyles.pillText, intermediate.mediaType === type && intStyles.pillTextActive]}>
+                            <Text style={[intStyles.pillText, { color: theme.muted }, intermediate.mediaType === type && { color: theme.accent, fontWeight: '600' }]}>
                                 {type === 'any' ? 'Any' : type.charAt(0).toUpperCase() + type.slice(1) + 's'}
                             </Text>
                         </TouchableOpacity>
@@ -549,13 +543,13 @@ const IntermediateMode = ({ settings, onUpdate }: {
             </View>
 
             {/* Quick Toggles */}
-            <View style={intStyles.section}>
-                <Text style={intStyles.sectionTitle}>Quick Filters</Text>
+            <View style={[intStyles.section, { borderBottomColor: theme.border }]}>
+                <Text style={[intStyles.sectionTitle, { color: theme.muted }]}>Quick Filters</Text>
                 <View style={intStyles.mutedWordsRow}>
                     <ToggleRow label="Hide muted words" value={intermediate.hideMutedWords} onChange={(v) => updateIntermediate('hideMutedWords', v)} icon={EyeOff} />
-                    <TouchableOpacity style={intStyles.manageButton} onPress={() => setShowMutedWords(true)}>
-                        <Edit2 size={14} color={COLORS.node.accent} />
-                        <Text style={intStyles.manageButtonText}>Manage</Text>
+                    <TouchableOpacity style={[intStyles.manageButton, { backgroundColor: `${theme.accent}15`, borderColor: `${theme.accent}30` }]} onPress={() => setShowMutedWords(true)}>
+                        <Edit2 size={14} color={theme.accent} />
+                        <Text style={[intStyles.manageButtonText, { color: theme.accent }]}>Manage</Text>
                     </TouchableOpacity>
                 </View>
                 <ToggleRow label="Show seen posts" value={intermediate.showSeenPosts} onChange={(v) => updateIntermediate('showSeenPosts', v)} icon={Eye} />
@@ -578,10 +572,8 @@ const intStyles = StyleSheet.create({
     section: {
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     sectionTitle: {
-        color: COLORS.node.muted,
         fontSize: 11,
         fontWeight: '600',
         textTransform: 'uppercase',
@@ -596,25 +588,13 @@ const intStyles = StyleSheet.create({
     pill: {
         paddingHorizontal: 14,
         paddingVertical: 8,
-        backgroundColor: COLORS.node.bg,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
-    },
-    pillActive: {
-        borderColor: COLORS.node.accent,
-        backgroundColor: `${COLORS.node.accent}20`,
     },
     pillText: {
-        color: COLORS.node.muted,
         fontSize: 13,
     },
-    pillTextActive: {
-        color: COLORS.node.accent,
-        fontWeight: '600',
-    },
     hint: {
-        color: COLORS.node.muted,
         fontSize: 11,
         marginTop: 4,
     },
@@ -630,14 +610,11 @@ const intStyles = StyleSheet.create({
         gap: 4,
         paddingHorizontal: 10,
         paddingVertical: 6,
-        backgroundColor: `${COLORS.node.accent}15`,
         borderRadius: 6,
         borderWidth: 1,
-        borderColor: `${COLORS.node.accent}30`,
     },
     manageButtonText: {
         fontSize: 12,
-        color: COLORS.node.accent,
         fontWeight: '600',
     },
 });
@@ -646,6 +623,7 @@ const AdvancedMode = ({ settings, onUpdate }: {
     settings: VibeValidatorSettings;
     onUpdate: (s: VibeValidatorSettings) => void;
 }) => {
+    const theme = useAppTheme();
     const advanced = settings.advanced || DEFAULT_ADVANCED;
 
     const updateAdvanced = (key: keyof AdvancedSettings, val: AdvancedSettings[keyof AdvancedSettings]) => {
@@ -701,8 +679,8 @@ const AdvancedMode = ({ settings, onUpdate }: {
             </CollapsibleSection>
 
             <View style={{ padding: 16 }}>
-                <SliderRow label="Anti-Alignment Penalty" value={advanced.antiAlignmentPenalty} onChange={(v) => updateAdvanced('antiAlignmentPenalty', v)} color={COLORS.node.accent} />
-                <Text style={intStyles.hint}>Penalize content too similar to what you usually engage with</Text>
+                <SliderRow label="Anti-Alignment Penalty" value={advanced.antiAlignmentPenalty} onChange={(v) => updateAdvanced('antiAlignmentPenalty', v)} color={theme.accent} />
+                <Text style={[intStyles.hint, { color: theme.muted }]}>Penalize content too similar to what you usually engage with</Text>
             </View>
         </ScrollView>
     );
@@ -712,6 +690,7 @@ const ExpertMode = ({ settings, onUpdate }: {
     settings: VibeValidatorSettings;
     onUpdate: (s: VibeValidatorSettings) => void;
 }) => {
+    const theme = useAppTheme();
     const expert = settings.expert || DEFAULT_EXPERT;
 
     const updateExpert = (key: keyof ExpertSettings, val: ExpertSettings[keyof ExpertSettings]) => {
@@ -724,8 +703,8 @@ const ExpertMode = ({ settings, onUpdate }: {
     return (
         <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
             <CollapsibleSection title="Diversity Controls" defaultOpen>
-                <SliderRow label="Max Posts Per Author" value={expert.maxPostsPerAuthor} onChange={(v) => updateExpert('maxPostsPerAuthor', v)} color={COLORS.node.accent} min={1} max={10} suffix="" />
-                <SliderRow label="Topic Clustering Penalty" value={expert.topicClusteringPenalty} onChange={(v) => updateExpert('topicClusteringPenalty', v)} color={COLORS.node.accent} />
+                <SliderRow label="Max Posts Per Author" value={expert.maxPostsPerAuthor} onChange={(v) => updateExpert('maxPostsPerAuthor', v)} color={theme.accent} min={1} max={10} suffix="" />
+                <SliderRow label="Topic Clustering Penalty" value={expert.topicClusteringPenalty} onChange={(v) => updateExpert('topicClusteringPenalty', v)} color={theme.accent} />
             </CollapsibleSection>
 
             <CollapsibleSection title="Content Type Targeting">
@@ -740,10 +719,10 @@ const ExpertMode = ({ settings, onUpdate }: {
                     {pools.map((pool) => (
                         <TouchableOpacity
                             key={pool}
-                            style={[intStyles.pill, expert.explorationPool === pool && intStyles.pillActive]}
+                            style={[intStyles.pill, { backgroundColor: theme.bg, borderColor: theme.border }, expert.explorationPool === pool && { borderColor: theme.accent, backgroundColor: `${theme.accent}20` }]}
                             onPress={() => updateExpert('explorationPool', pool)}
                         >
-                            <Text style={[intStyles.pillText, expert.explorationPool === pool && intStyles.pillTextActive]}>
+                            <Text style={[intStyles.pillText, { color: theme.muted }, expert.explorationPool === pool && { color: theme.accent, fontWeight: '600' }]}>
                                 {pool.charAt(0).toUpperCase() + pool.slice(1)}
                             </Text>
                         </TouchableOpacity>
@@ -756,16 +735,16 @@ const ExpertMode = ({ settings, onUpdate }: {
                     {moods.map((mood) => (
                         <TouchableOpacity
                             key={mood}
-                            style={[intStyles.pill, expert.moodToggle === mood && intStyles.pillActive]}
+                            style={[intStyles.pill, { backgroundColor: theme.bg, borderColor: theme.border }, expert.moodToggle === mood && { borderColor: theme.accent, backgroundColor: `${theme.accent}20` }]}
                             onPress={() => updateExpert('moodToggle', mood)}
                         >
-                            <Text style={[intStyles.pillText, expert.moodToggle === mood && intStyles.pillTextActive]}>
+                            <Text style={[intStyles.pillText, { color: theme.muted }, expert.moodToggle === mood && { color: theme.accent, fontWeight: '600' }]}>
                                 {mood.charAt(0).toUpperCase() + mood.slice(1)}
                             </Text>
                         </TouchableOpacity>
                     ))}
                 </View>
-                <Text style={[intStyles.hint, { marginTop: 8 }]}>Temporary algorithm shift based on your current mood</Text>
+                <Text style={[intStyles.hint, { color: theme.muted, marginTop: 8 }]}>Temporary algorithm shift based on your current mood</Text>
             </CollapsibleSection>
 
             <View style={{ padding: 16 }}>
@@ -775,7 +754,7 @@ const ExpertMode = ({ settings, onUpdate }: {
 
             <View style={expertStyles.warningBox}>
                 <Text style={expertStyles.warningTitle}>Expert Mode</Text>
-                <Text style={expertStyles.warningText}>
+                <Text style={[expertStyles.warningText, { color: theme.muted }]}>
                     These settings give you fine-grained control over your feed algorithm.
                     Changes here can significantly affect your experience.
                 </Text>
@@ -800,7 +779,6 @@ const expertStyles = StyleSheet.create({
         marginBottom: 8,
     },
     warningText: {
-        color: COLORS.node.muted,
         fontSize: 12,
         lineHeight: 18,
     },
@@ -811,6 +789,7 @@ const expertStyles = StyleSheet.create({
 // ============================================
 
 export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProps) => {
+    const theme = useAppTheme();
     const [mode, setMode] = useState<ValidatorMode>(settings.mode || 'simple');
     const [activePreset, setActivePreset] = useState<string | null>(settings.preset || 'balanced');
 
@@ -834,38 +813,38 @@ export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProp
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.panel }]}>
             {/* Header */}
-            <View style={styles.header}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <View style={styles.headerTop}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <Waypoints size={20} color={COLORS.node.accent} />
-                        <Text style={styles.title}>Vibe Validator</Text>
+                        <Waypoints size={20} color={theme.accent} />
+                        <Text style={[styles.title, { color: theme.text }]}>Vibe Validator</Text>
                     </View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                        <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                            <RefreshCw size={14} color={COLORS.node.muted} />
-                            <Text style={styles.resetText}>Reset</Text>
+                        <TouchableOpacity style={[styles.resetButton, { backgroundColor: theme.border }]} onPress={handleReset}>
+                            <RefreshCw size={14} color={theme.muted} />
+                            <Text style={[styles.resetText, { color: theme.muted }]}>Reset</Text>
                         </TouchableOpacity>
                         {onClose && (
-                            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-                                <Text style={styles.closeX}>✕</Text>
+                            <TouchableOpacity style={[styles.closeButton, { backgroundColor: theme.border }]} onPress={onClose}>
+                                <Text style={[styles.closeX, { color: theme.text }]}>✕</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 </View>
-                <Text style={styles.subtitle}>Control your feed algorithm</Text>
+                <Text style={[styles.subtitle, { color: theme.muted }]}>Control your feed algorithm</Text>
             </View>
 
             {/* Mode Tabs */}
-            <View style={styles.modeTabs}>
+            <View style={[styles.modeTabs, { borderBottomColor: theme.border }]}>
                 {modes.map((m) => (
                     <TouchableOpacity
                         key={m.id}
-                        style={[styles.modeTab, mode === m.id && styles.modeTabActive]}
+                        style={[styles.modeTab, mode === m.id && { borderBottomColor: theme.accent }]}
                         onPress={() => handleModeChange(m.id)}
                     >
-                        <Text style={[styles.modeTabText, mode === m.id && styles.modeTabTextActive]}>
+                        <Text style={[styles.modeTabText, { color: theme.muted }, mode === m.id && { color: theme.accent, fontWeight: '600' }]}>
                             {m.label}
                         </Text>
                     </TouchableOpacity>
@@ -899,12 +878,10 @@ export const VibeValidator = ({ settings, onUpdate, onClose }: VibeValidatorProp
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.panel,
     },
     header: {
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     headerTop: {
         flexDirection: 'row',
@@ -915,14 +892,12 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 8,
-        backgroundColor: COLORS.node.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
     closeX: {
         fontSize: 20,
         fontWeight: '600',
-        color: COLORS.node.text,
         lineHeight: 22,
     },
     resetButton: {
@@ -932,27 +907,22 @@ const styles = StyleSheet.create({
         paddingHorizontal: 10,
         paddingVertical: 6,
         borderRadius: 6,
-        backgroundColor: COLORS.node.border,
     },
     resetText: {
         fontSize: 12,
-        color: COLORS.node.muted,
         fontWeight: '500',
     },
     title: {
-        color: COLORS.node.text,
         fontSize: 18,
         fontWeight: '700',
     },
     subtitle: {
-        color: COLORS.node.muted,
         fontSize: 12,
         marginTop: 4,
     },
     modeTabs: {
         flexDirection: 'row',
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     modeTab: {
         flex: 1,
@@ -961,16 +931,8 @@ const styles = StyleSheet.create({
         borderBottomWidth: 2,
         borderBottomColor: 'transparent',
     },
-    modeTabActive: {
-        borderBottomColor: COLORS.node.accent,
-    },
     modeTabText: {
-        color: COLORS.node.muted,
         fontSize: 12,
         fontWeight: '500',
-    },
-    modeTabTextActive: {
-        color: COLORS.node.accent,
-        fontWeight: '600',
     },
 });

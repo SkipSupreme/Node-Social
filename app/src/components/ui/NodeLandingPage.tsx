@@ -8,6 +8,7 @@ import { useAuthStore } from '../../store/auth';
 import { NodeOverflowMenu } from './NodeOverflowMenu';
 import { ModLogPreview } from './ModLogPreview';
 import { EditBotModal } from './EditBotModal';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface NodeLandingPageProps {
   nodeId: string;
@@ -36,6 +37,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   onMessageCouncil,
   onStartChat,
 }) => {
+  const theme = useAppTheme();
   const { user } = useAuthStore();
   const [nodeData, setNodeData] = useState<NodeDetails | null>(null);
   const [loading, setLoading] = useState(true);
@@ -138,17 +140,17 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.node.accent} />
+      <View style={[styles.loadingContainer, { backgroundColor: theme.panel }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
 
   if (error || !nodeData) {
     return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>{error || 'Node not found'}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchNodeData}>
+      <View style={[styles.errorContainer, { backgroundColor: theme.panel }]}>
+        <Text style={[styles.errorText, { color: theme.muted }]}>{error || 'Node not found'}</Text>
+        <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.accent }]} onPress={fetchNodeData}>
           <Text style={styles.retryButtonText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -162,7 +164,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
   const displayRules = showAllRules ? nodeData.rules : nodeData.rules.slice(0, 3);
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView style={[styles.container, { backgroundColor: theme.panel }]} showsVerticalScrollIndicator={false}>
       {/* Banner */}
       <View style={[styles.banner, { backgroundColor: nodeColor }]}>
         {nodeData.banner ? (
@@ -171,8 +173,8 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
       </View>
 
       {/* Avatar + Basic Info */}
-      <View style={styles.infoSection}>
-        <View style={[styles.avatarContainer, { borderColor: COLORS.node.panel }]}>
+      <View style={[styles.infoSection, { borderBottomColor: theme.border }]}>
+        <View style={[styles.avatarContainer, { borderColor: theme.panel }]}>
           {nodeData.avatar ? (
             <Image source={{ uri: nodeData.avatar }} style={styles.avatar} />
           ) : (
@@ -184,25 +186,25 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
           )}
         </View>
 
-        <Text style={styles.nodeName}>n/{nodeData.slug}</Text>
+        <Text style={[styles.nodeName, { color: theme.text }]}>n/{nodeData.slug}</Text>
         {nodeData.description && (
-          <Text style={styles.nodeDescription}>{nodeData.description}</Text>
+          <Text style={[styles.nodeDescription, { color: theme.muted }]}>{nodeData.description}</Text>
         )}
 
         {/* Stats Row */}
         <View style={styles.statsRow}>
           <View style={styles.stat}>
-            <Users size={14} color={COLORS.node.muted} />
-            <Text style={styles.statText}>{nodeData.stats.memberCount.toLocaleString()} members</Text>
+            <Users size={14} color={theme.muted} />
+            <Text style={[styles.statText, { color: theme.muted }]}>{nodeData.stats.memberCount.toLocaleString()} members</Text>
           </View>
           <View style={styles.stat}>
-            <Calendar size={14} color={COLORS.node.muted} />
-            <Text style={styles.statText}>Est. {formatEstDate(nodeData.createdAt)}</Text>
+            <Calendar size={14} color={theme.muted} />
+            <Text style={[styles.statText, { color: theme.muted }]}>Est. {formatEstDate(nodeData.createdAt)}</Text>
           </View>
           {nodeData.stats.growthThisWeek > 0 && (
             <View style={styles.stat}>
-              <TrendingUp size={14} color={COLORS.node.accent} />
-              <Text style={[styles.statText, { color: COLORS.node.accent }]}>
+              <TrendingUp size={14} color={theme.accent} />
+              <Text style={[styles.statText, { color: theme.accent }]}>
                 +{nodeData.stats.growthThisWeek} this week
               </Text>
             </View>
@@ -222,7 +224,7 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
             </View>
           ) : (
             <TouchableOpacity
-              style={[styles.joinButton, joining && styles.buttonDisabled]}
+              style={[styles.joinButton, { backgroundColor: theme.accent }, joining && styles.buttonDisabled]}
               onPress={handleJoinLeave}
               disabled={joining}
             >
@@ -232,12 +234,12 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
             </TouchableOpacity>
           )}
           {canEditNode && onNavigateToSettings && (
-            <TouchableOpacity style={styles.settingsButton} onPress={onNavigateToSettings}>
-              <Settings size={18} color={COLORS.node.text} />
+            <TouchableOpacity style={[styles.settingsButton, { backgroundColor: theme.bg, borderColor: theme.border }]} onPress={onNavigateToSettings}>
+              <Settings size={18} color={theme.text} />
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.menuButton} onPress={() => setShowMenu(true)}>
-            <MoreHorizontal size={18} color={COLORS.node.text} />
+          <TouchableOpacity style={[styles.menuButton, { backgroundColor: theme.bg, borderColor: theme.border }]} onPress={() => setShowMenu(true)}>
+            <MoreHorizontal size={18} color={theme.text} />
           </TouchableOpacity>
         </View>
       </View>
@@ -270,16 +272,16 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
 
       {/* Rules Section */}
       {nodeData.rules.length > 0 && (
-        <View style={styles.section}>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
           <View style={styles.sectionHeader}>
-            <BookOpen size={16} color={COLORS.node.accent} />
-            <Text style={styles.sectionTitle}>Rules</Text>
+            <BookOpen size={16} color={theme.accent} />
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>Rules</Text>
           </View>
           <View style={styles.rulesList}>
             {displayRules.map((rule, index) => (
               <View key={index} style={styles.ruleItem}>
-                <Text style={styles.ruleNumber}>{index + 1}.</Text>
-                <Text style={styles.ruleText}>{rule}</Text>
+                <Text style={[styles.ruleNumber, { color: theme.muted }]}>{index + 1}.</Text>
+                <Text style={[styles.ruleText, { color: theme.text }]}>{rule}</Text>
               </View>
             ))}
           </View>
@@ -288,12 +290,12 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
               style={styles.showMoreButton}
               onPress={() => setShowAllRules(!showAllRules)}
             >
-              <Text style={styles.showMoreText}>
+              <Text style={[styles.showMoreText, { color: theme.accent }]}>
                 {showAllRules ? 'Show less' : `Show all ${nodeData.rules.length} rules`}
               </Text>
               <ChevronRight
                 size={14}
-                color={COLORS.node.accent}
+                color={theme.accent}
                 style={{ transform: [{ rotate: showAllRules ? '-90deg' : '90deg' }] }}
               />
             </TouchableOpacity>
@@ -302,10 +304,10 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
       )}
 
       {/* Council Section */}
-      <View style={styles.section}>
+      <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.sectionHeader}>
-          <Crown size={16} color={COLORS.node.accent} />
-          <Text style={styles.sectionTitle}>Node Council</Text>
+          <Crown size={16} color={theme.accent} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Node Council</Text>
         </View>
         {nodeData.council.length > 0 ? (
           <View style={styles.councilList}>
@@ -314,45 +316,45 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
                 {member.avatar ? (
                   <Image source={{ uri: member.avatar }} style={styles.councilAvatar} />
                 ) : (
-                  <View style={styles.councilAvatarPlaceholder}>
+                  <View style={[styles.councilAvatarPlaceholder, { backgroundColor: theme.accent }]}>
                     <Text style={styles.councilAvatarText}>
                       {member.username.charAt(0).toUpperCase()}
                     </Text>
                   </View>
                 )}
                 <View style={styles.councilInfo}>
-                  <Text style={styles.councilUsername}>@{member.username}</Text>
-                  <Text style={styles.councilRole}>
+                  <Text style={[styles.councilUsername, { color: theme.text }]}>@{member.username}</Text>
+                  <Text style={[styles.councilRole, { color: theme.muted }]}>
                     {member.role.charAt(0).toUpperCase() + member.role.slice(1)} · {member.tenure}
                   </Text>
                 </View>
                 {onStartChat && member.userId !== user?.id && (
                   <TouchableOpacity
-                    style={styles.councilMessageButton}
+                    style={[styles.councilMessageButton, { backgroundColor: theme.bg }]}
                     onPress={() => onStartChat(member.userId)}
                   >
-                    <MessageSquare size={16} color={COLORS.node.accent} />
+                    <MessageSquare size={16} color={theme.accent} />
                   </TouchableOpacity>
                 )}
               </View>
             ))}
           </View>
         ) : (
-          <Text style={styles.emptyText}>No council members yet</Text>
+          <Text style={[styles.emptyText, { color: theme.muted }]}>No council members yet</Text>
         )}
         {onMessageCouncil && nodeData.council.length > 0 && (
-          <TouchableOpacity style={styles.messageCouncilButton} onPress={onMessageCouncil}>
-            <MessageSquare size={14} color={COLORS.node.accent} style={{ marginRight: 6 }} />
-            <Text style={styles.messageCouncilText}>Message Council</Text>
+          <TouchableOpacity style={[styles.messageCouncilButton, { borderColor: theme.border }]} onPress={onMessageCouncil}>
+            <MessageSquare size={14} color={theme.accent} style={{ marginRight: 6 }} />
+            <Text style={[styles.messageCouncilText, { color: theme.text }]}>Message Council</Text>
           </TouchableOpacity>
         )}
       </View>
 
       {/* Curator Bot Section */}
-      <View style={styles.section}>
+      <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.sectionHeader}>
-          <Bot size={16} color={COLORS.node.accent} />
-          <Text style={styles.sectionTitle}>Content Curator</Text>
+          <Bot size={16} color={theme.accent} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Content Curator</Text>
         </View>
         {nodeData.curatorBot ? (
           <View style={styles.curatorBotInfo}>
@@ -360,25 +362,25 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
               {nodeData.curatorBot.avatar ? (
                 <Image source={{ uri: nodeData.curatorBot.avatar }} style={styles.councilAvatar} />
               ) : (
-                <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
+                <View style={[styles.councilAvatarPlaceholder, { backgroundColor: theme.accent }]}>
                   <Bot size={16} color="#fff" />
                 </View>
               )}
               <View style={styles.councilInfo}>
-                <Text style={styles.councilUsername}>@{nodeData.curatorBot.username}</Text>
+                <Text style={[styles.councilUsername, { color: theme.text }]}>@{nodeData.curatorBot.username}</Text>
                 {nodeData.curatorBot.bio && (
-                  <Text style={styles.councilRole} numberOfLines={2}>{nodeData.curatorBot.bio}</Text>
+                  <Text style={[styles.councilRole, { color: theme.muted }]} numberOfLines={2}>{nodeData.curatorBot.bio}</Text>
                 )}
               </View>
             </View>
           </View>
         ) : (
-          <Text style={styles.emptyText}>No curator bot assigned</Text>
+          <Text style={[styles.emptyText, { color: theme.muted }]}>No curator bot assigned</Text>
         )}
         {canEditNode && (
-          <TouchableOpacity style={styles.messageCouncilButton} onPress={handleOpenBotModal}>
-            <Settings size={14} color={COLORS.node.accent} style={{ marginRight: 6 }} />
-            <Text style={styles.messageCouncilText}>
+          <TouchableOpacity style={[styles.messageCouncilButton, { borderColor: theme.border }]} onPress={handleOpenBotModal}>
+            <Settings size={14} color={theme.accent} style={{ marginRight: 6 }} />
+            <Text style={[styles.messageCouncilText, { color: theme.text }]}>
               {nodeData.curatorBot ? 'Change Curator Bot' : 'Assign Curator Bot'}
             </Text>
           </TouchableOpacity>
@@ -393,15 +395,15 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
         onRequestClose={() => setShowBotModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Curator Bot</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Curator Bot</Text>
               <TouchableOpacity onPress={() => setShowBotModal(false)}>
-                <X size={20} color={COLORS.node.muted} />
+                <X size={20} color={theme.muted} />
               </TouchableOpacity>
             </View>
             {loadingBots ? (
-              <ActivityIndicator size="small" color={COLORS.node.accent} style={{ marginVertical: 20 }} />
+              <ActivityIndicator size="small" color={theme.accent} style={{ marginVertical: 20 }} />
             ) : (
               <ScrollView style={styles.botList}>
                 {/* Option to remove curator bot */}
@@ -413,14 +415,14 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
                   onPress={() => handleSelectBot(null)}
                   disabled={updatingBot}
                 >
-                  <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.border }]}>
-                    <X size={16} color={COLORS.node.muted} />
+                  <View style={[styles.councilAvatarPlaceholder, { backgroundColor: theme.border }]}>
+                    <X size={16} color={theme.muted} />
                   </View>
                   <View style={styles.councilInfo}>
-                    <Text style={styles.councilUsername}>None</Text>
-                    <Text style={styles.councilRole}>No automated curation</Text>
+                    <Text style={[styles.councilUsername, { color: theme.text }]}>None</Text>
+                    <Text style={[styles.councilRole, { color: theme.muted }]}>No automated curation</Text>
                   </View>
-                  {!nodeData.curatorBot && <CheckCircle size={18} color={COLORS.node.accent} />}
+                  {!nodeData.curatorBot && <CheckCircle size={18} color={theme.accent} />}
                 </TouchableOpacity>
                 {availableBots.map((bot) => (
                   <View key={bot.id} style={[
@@ -435,21 +437,21 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
                       {bot.avatar ? (
                         <Image source={{ uri: bot.avatar }} style={styles.councilAvatar} />
                       ) : (
-                        <View style={[styles.councilAvatarPlaceholder, { backgroundColor: COLORS.node.accent }]}>
+                        <View style={[styles.councilAvatarPlaceholder, { backgroundColor: theme.accent }]}>
                           <Bot size={16} color="#fff" />
                         </View>
                       )}
                       <View style={styles.councilInfo}>
-                        <Text style={styles.councilUsername}>@{bot.username}</Text>
-                        {bot.bio && <Text style={styles.councilRole} numberOfLines={1}>{bot.bio}</Text>}
+                        <Text style={[styles.councilUsername, { color: theme.text }]}>@{bot.username}</Text>
+                        {bot.bio && <Text style={[styles.councilRole, { color: theme.muted }]} numberOfLines={1}>{bot.bio}</Text>}
                       </View>
-                      {nodeData.curatorBot?.id === bot.id && <CheckCircle size={18} color={COLORS.node.accent} />}
+                      {nodeData.curatorBot?.id === bot.id && <CheckCircle size={18} color={theme.accent} />}
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.editBotButton}
+                      style={[styles.editBotButton, { backgroundColor: theme.bg }]}
                       onPress={() => setEditingBot(bot)}
                     >
-                      <Pencil size={14} color={COLORS.node.muted} />
+                      <Pencil size={14} color={theme.muted} />
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -470,10 +472,10 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
       )}
 
       {/* Mod Log Section */}
-      <View style={styles.section}>
+      <View style={[styles.section, { borderBottomColor: theme.border }]}>
         <View style={styles.sectionHeader}>
-          <FileText size={16} color={COLORS.node.accent} />
-          <Text style={styles.sectionTitle}>Recent Mod Actions</Text>
+          <FileText size={16} color={theme.accent} />
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Recent Mod Actions</Text>
         </View>
         <ModLogPreview
           actions={nodeData.recentModActions}
@@ -490,23 +492,19 @@ export const NodeLandingPage: React.FC<NodeLandingPageProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.panel,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.node.panel,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.node.panel,
     padding: 20,
   },
   errorText: {
-    color: COLORS.node.muted,
     fontSize: 14,
     textAlign: 'center',
     marginBottom: 12,
@@ -514,7 +512,6 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: COLORS.node.accent,
     borderRadius: 8,
   },
   retryButtonText: {
@@ -534,7 +531,6 @@ const styles = StyleSheet.create({
   infoSection: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
     alignItems: 'center',
   },
   avatarContainer: {
@@ -563,12 +559,10 @@ const styles = StyleSheet.create({
   nodeName: {
     fontSize: 18,
     fontWeight: '700',
-    color: COLORS.node.text,
     marginTop: 12,
   },
   nodeDescription: {
     fontSize: 14,
-    color: COLORS.node.muted,
     marginTop: 4,
     textAlign: 'center',
     paddingHorizontal: 8,
@@ -587,7 +581,6 @@ const styles = StyleSheet.create({
   },
   statText: {
     fontSize: 13,
-    color: COLORS.node.muted,
   },
   actionRow: {
     flexDirection: 'row',
@@ -597,7 +590,6 @@ const styles = StyleSheet.create({
   },
   joinButton: {
     flex: 1,
-    backgroundColor: COLORS.node.accent,
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: 'center',
@@ -605,7 +597,6 @@ const styles = StyleSheet.create({
   leaveButton: {
     backgroundColor: 'transparent',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   joinedBadge: {
     flex: 1,
@@ -632,16 +623,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  leaveButtonText: {
-    color: COLORS.node.text,
-  },
+  leaveButtonText: {},
   settingsButton: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -649,16 +636,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     justifyContent: 'center',
     alignItems: 'center',
   },
   section: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -669,7 +653,6 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   rulesList: {
     gap: 8,
@@ -679,13 +662,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   ruleNumber: {
-    color: COLORS.node.muted,
     fontSize: 14,
     width: 20,
   },
   ruleText: {
     flex: 1,
-    color: COLORS.node.text,
     fontSize: 14,
     lineHeight: 20,
   },
@@ -696,7 +677,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   showMoreText: {
-    color: COLORS.node.accent,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -717,7 +697,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -730,22 +709,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   councilUsername: {
-    color: COLORS.node.text,
     fontSize: 14,
     fontWeight: '600',
   },
   councilRole: {
-    color: COLORS.node.muted,
     fontSize: 12,
     marginTop: 2,
   },
   councilMessageButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: COLORS.node.bg,
   },
   emptyText: {
-    color: COLORS.node.muted,
     fontSize: 13,
     fontStyle: 'italic',
   },
@@ -754,61 +729,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
   },
   messageCouncilText: {
-    color: COLORS.node.text,
     fontSize: 14,
-    fontWeight: '500',
-  },
-  modLogList: {
-    gap: 12,
-  },
-  modLogItem: {
-    padding: 12,
-    backgroundColor: COLORS.node.bg,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  modLogHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  modLogAction: {
-    color: COLORS.node.text,
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  modLogTime: {
-    color: COLORS.node.muted,
-    fontSize: 12,
-  },
-  modLogReason: {
-    color: COLORS.node.muted,
-    fontSize: 13,
-    marginBottom: 4,
-  },
-  modLogMod: {
-    color: COLORS.node.muted,
-    fontSize: 12,
-  },
-  viewFullLogButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    marginTop: 12,
-    paddingVertical: 8,
-  },
-  viewFullLogText: {
-    color: COLORS.node.accent,
-    fontSize: 13,
     fontWeight: '500',
   },
   // Curator Bot styles
@@ -823,13 +749,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 12,
     width: '100%',
     maxWidth: 400,
     maxHeight: '70%',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -837,12 +761,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   modalTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   botList: {
     padding: 8,
@@ -866,7 +788,6 @@ const styles = StyleSheet.create({
   editBotButton: {
     padding: 8,
     borderRadius: 6,
-    backgroundColor: COLORS.node.bg,
     marginLeft: 8,
   },
 });

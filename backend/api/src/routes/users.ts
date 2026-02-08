@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { getErrorMessage } from '../lib/errors.js';
 
@@ -31,6 +32,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 emailVerified: true,
                 createdAt: true,
                 customCss: true,
+                customTheme: true,
             }
         });
 
@@ -53,6 +55,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             theme: z.string().max(50).optional(),
             era: z.string().optional(),
             customCss: z.string().max(5000).optional(),
+            customTheme: z.record(z.string(), z.unknown()).optional(),
             location: z.string().max(100).optional().or(z.literal('')),
             website: z.string().max(200).optional().or(z.literal('')),
         });
@@ -62,7 +65,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
         }
 
-        const { bio, avatar, bannerColor, bannerImage, theme, era, customCss, location, website } = parsed.data;
+        const { bio, avatar, bannerColor, bannerImage, theme, era, customCss, customTheme, location, website } = parsed.data;
         const userId = (request.user as { sub: string }).sub;
         const updateData = {
             ...(bio !== undefined ? { bio } : {}),
@@ -72,6 +75,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             ...(theme !== undefined ? { theme } : {}),
             ...(era !== undefined ? { era } : {}),
             ...(customCss !== undefined ? { customCss } : {}),
+            ...(customTheme !== undefined ? { customTheme: customTheme as Prisma.InputJsonValue } : {}),
             ...(location !== undefined ? { location: location || null } : {}),
             ...(website !== undefined ? { website: website || null } : {}),
         };
@@ -103,6 +107,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 emailVerified: true,
                 createdAt: true,
                 customCss: true,
+                customTheme: true,
             }
         });
 
@@ -142,6 +147,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 era: true,
                 role: true,
                 createdAt: true,
+                customTheme: true,
             }
         });
 

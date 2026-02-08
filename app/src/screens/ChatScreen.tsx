@@ -3,7 +3,7 @@ import { View, Text, FlatList, TextInput, TouchableOpacity, Image, StyleSheet, K
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Send } from 'lucide-react-native';
 import { api, type Message } from '../lib/api';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { useSocket } from '../context/SocketContext';
 import { useAuthStore } from '../store/auth';
 
@@ -21,6 +21,7 @@ interface ChatScreenProps {
 }
 
 export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProps) => {
+    const theme = useAppTheme();
     const { user: currentUser } = useAuthStore();
     const { socket } = useSocket();
 
@@ -90,22 +91,22 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
         return (
             <View style={[styles.msgContainer, isMe ? styles.msgRight : styles.msgLeft]}>
                 {!isMe && <Image source={{ uri: item.sender?.avatar || 'https://picsum.photos/200' }} style={styles.avatarSmall} />}
-                <View style={[styles.bubble, isMe ? styles.bubbleRight : styles.bubbleLeft]}>
-                    <Text style={[styles.msgText, isMe ? styles.textRight : styles.textLeft]}>{item.content}</Text>
+                <View style={[styles.bubble, isMe ? styles.bubbleRight : styles.bubbleLeft, { backgroundColor: theme.panel }, { backgroundColor: theme.accent }]}>
+                    <Text style={[styles.msgText, isMe ? styles.textRight : styles.textLeft, { color: theme.text }]}>{item.content}</Text>
                 </View>
             </View>
         );
     };
 
     return (
-        <SafeAreaView style={styles.container} edges={['top']}>
-            <View style={styles.header}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]} edges={['top']}>
+            <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-                    <ArrowLeft color={COLORS.node.text} size={24} />
+                    <ArrowLeft color={theme.text} size={24} />
                 </TouchableOpacity>
                 <View style={styles.headerInfo}>
                     <Image source={{ uri: recipient?.avatar || 'https://picsum.photos/200' }} style={styles.avatarHeader} />
-                    <Text style={styles.username}>{recipient?.username || 'Chat'}</Text>
+                    <Text style={[styles.username, { color: theme.text }]}>{recipient?.username || 'Chat'}</Text>
                 </View>
             </View>
 
@@ -119,17 +120,17 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
             />
 
             <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
-                <View style={styles.inputBar}>
+                <View style={[styles.inputBar, { borderTopColor: theme.border, backgroundColor: theme.panel }]}>
                     <TextInput
-                        style={styles.input}
+                        style={[styles.input, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
                         placeholder="Type a message..."
-                        placeholderTextColor={COLORS.node.muted}
+                        placeholderTextColor={theme.muted}
                         value={text}
                         onChangeText={setText}
                         onSubmitEditing={sendMessage}
                     />
                     <TouchableOpacity onPress={sendMessage} style={styles.sendBtn}>
-                        <Send color={COLORS.node.accent} size={20} />
+                        <Send color={theme.accent} size={20} />
                     </TouchableOpacity>
                 </View>
             </KeyboardAvoidingView>
@@ -138,33 +139,33 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.node.bg },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', padding: 12,
-        borderBottomWidth: 1, borderBottomColor: COLORS.node.border, backgroundColor: COLORS.node.panel
+        borderBottomWidth: 1,
     },
     backBtn: { padding: 8 },
     headerInfo: { flexDirection: 'row', alignItems: 'center', gap: 12, marginLeft: 8 },
     avatarHeader: { width: 32, height: 32, borderRadius: 8 },
-    username: { fontSize: 16, fontWeight: 'bold', color: COLORS.node.text },
+    username: { fontSize: 16, fontWeight: 'bold' },
     list: { padding: 16, paddingBottom: 20 },
     msgContainer: { flexDirection: 'row', marginBottom: 12, alignItems: 'flex-end', gap: 8 },
     msgLeft: { alignSelf: 'flex-start' },
     msgRight: { alignSelf: 'flex-end', flexDirection: 'row-reverse' },
     avatarSmall: { width: 24, height: 24, borderRadius: 6 },
     bubble: { maxWidth: '80%', padding: 12, borderRadius: 16 },
-    bubbleLeft: { backgroundColor: COLORS.node.panel, borderBottomLeftRadius: 4 },
-    bubbleRight: { backgroundColor: COLORS.node.accent, borderBottomRightRadius: 4 },
+    bubbleLeft: { borderBottomLeftRadius: 4 },
+    bubbleRight: { borderBottomRightRadius: 4 },
     msgText: { fontSize: 16 },
-    textLeft: { color: COLORS.node.text },
+    textLeft: {},
     textRight: { color: '#fff' },
     inputBar: {
         flexDirection: 'row', padding: 12, gap: 12,
-        borderTopWidth: 1, borderTopColor: COLORS.node.border, backgroundColor: COLORS.node.panel
+        borderTopWidth: 1,
     },
     input: {
-        flex: 1, backgroundColor: COLORS.node.bg, borderRadius: 20,
-        paddingHorizontal: 16, paddingVertical: 10, color: COLORS.node.text, borderWidth: 1, borderColor: COLORS.node.border
+        flex: 1, borderRadius: 20,
+        paddingHorizontal: 16, paddingVertical: 10, borderWidth: 1,
     },
     sendBtn: {
         width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(99, 102, 241, 0.1)',

@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Award, ChevronRight, Zap, TrendingUp } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface CredBreakdown {
     nodeId: string;
@@ -74,6 +75,7 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
     eraStyle,
     onViewHistory,
 }) => {
+    const theme = useAppTheme();
     const { width } = useWindowDimensions();
     const isTablet = width >= BREAKPOINTS.tablet;
     const isDesktop = width >= BREAKPOINTS.desktop;
@@ -130,7 +132,7 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
             ]}
         >
             {/* Glass background */}
-            <View style={[styles.glassBackground, { borderColor: eraStyle.border }]} />
+            <View style={[styles.glassBackground, { backgroundColor: theme.panel, borderColor: eraStyle.border }]} />
 
             <View style={styles.content}>
                 {/* Header row */}
@@ -140,8 +142,8 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
                             <Award size={20} color="#fbbf24" />
                         </View>
                         <View>
-                            <Text style={styles.title}>Reputation</Text>
-                            <Text style={styles.subtitle}>Your earned credibility</Text>
+                            <Text style={[styles.title, { color: theme.text }]}>Reputation</Text>
+                            <Text style={[styles.subtitle, { color: theme.muted }]}>Your earned credibility</Text>
                         </View>
                     </View>
 
@@ -156,8 +158,8 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
                 {credBreakdown.length > 0 && (
                     <View style={styles.breakdown}>
                         <View style={styles.breakdownHeader}>
-                            <Text style={styles.breakdownTitle}>Top Communities</Text>
-                            <TrendingUp size={14} color={COLORS.node.muted} />
+                            <Text style={[styles.breakdownTitle, { color: theme.muted }]}>Top Communities</Text>
+                            <TrendingUp size={14} color={theme.muted} />
                         </View>
 
                         <View style={styles.nodeList}>
@@ -170,25 +172,27 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
                                         <View style={styles.nodeLeft}>
                                             <View style={[
                                                 styles.rankBadge,
+                                                { backgroundColor: theme.border },
                                                 idx === 0 && styles.rankBadgeGold,
                                                 idx === 1 && styles.rankBadgeSilver,
                                                 idx === 2 && styles.rankBadgeBronze,
                                             ]}>
                                                 <Text style={[
                                                     styles.rankText,
+                                                    { color: theme.text },
                                                     idx === 0 && styles.rankTextGold,
                                                 ]}>
                                                     {idx + 1}
                                                 </Text>
                                             </View>
-                                            <Text style={styles.nodeName} numberOfLines={1}>
+                                            <Text style={[styles.nodeName, { color: theme.text }]} numberOfLines={1}>
                                                 n/{node.nodeSlug}
                                             </Text>
                                         </View>
 
                                         <View style={styles.nodeRight}>
                                             <View style={styles.barContainer}>
-                                                <View style={styles.barBg}>
+                                                <View style={[styles.barBg, { backgroundColor: theme.border }]}>
                                                     <Animated.View
                                                         style={[
                                                             styles.barFill,
@@ -205,7 +209,7 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
                                                     />
                                                 </View>
                                             </View>
-                                            <Text style={styles.nodeCredValue}>{node.cred}</Text>
+                                            <Text style={[styles.nodeCredValue, { color: theme.text }]}>{node.cred}</Text>
                                         </View>
                                     </View>
                                 );
@@ -216,7 +220,7 @@ export const CredDashboard: React.FC<CredDashboardProps> = ({
 
                 {/* View history CTA */}
                 {onViewHistory && (
-                    <TouchableOpacity style={styles.viewHistory} onPress={onViewHistory}>
+                    <TouchableOpacity style={[styles.viewHistory, { borderTopColor: theme.border }]} onPress={onViewHistory}>
                         <Text style={[styles.viewHistoryText, { color: eraStyle.text }]}>
                             View Full History
                         </Text>
@@ -236,7 +240,6 @@ const styles = StyleSheet.create({
     },
     glassBackground: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: COLORS.node.panel, // Solid background for better visibility on dark theme
         borderWidth: 1,
         borderRadius: RADIUS.xl,
         // Shadow for depth
@@ -271,12 +274,10 @@ const styles = StyleSheet.create({
     title: {
         fontSize: TYPOGRAPHY.sizes.h4,
         fontWeight: '700',
-        color: COLORS.node.text,
         letterSpacing: TYPOGRAPHY.letterSpacing.tight,
     },
     subtitle: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     credDisplay: {
@@ -301,7 +302,6 @@ const styles = StyleSheet.create({
     breakdownTitle: {
         fontSize: TYPOGRAPHY.sizes.xs,
         fontWeight: '600',
-        color: COLORS.node.muted,
         textTransform: 'uppercase',
         letterSpacing: TYPOGRAPHY.letterSpacing.caps,
     },
@@ -324,7 +324,6 @@ const styles = StyleSheet.create({
         width: 24,
         height: 24,
         borderRadius: 6,
-        backgroundColor: COLORS.node.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -340,7 +339,6 @@ const styles = StyleSheet.create({
     rankText: {
         fontSize: TYPOGRAPHY.sizes.xs,
         fontWeight: '700',
-        color: COLORS.node.text,
     },
     rankTextGold: {
         color: '#fbbf24',
@@ -348,7 +346,6 @@ const styles = StyleSheet.create({
     nodeName: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '500',
-        color: COLORS.node.text,
         flex: 1,
     },
     nodeRight: {
@@ -362,7 +359,6 @@ const styles = StyleSheet.create({
     },
     barBg: {
         height: 6,
-        backgroundColor: COLORS.node.border,
         borderRadius: 3,
         overflow: 'hidden',
     },
@@ -373,7 +369,6 @@ const styles = StyleSheet.create({
     nodeCredValue: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '700',
-        color: COLORS.node.text,
         width: 44,
         textAlign: 'right',
     },
@@ -385,7 +380,6 @@ const styles = StyleSheet.create({
         marginTop: SPACING.xl,
         paddingTop: SPACING.lg,
         borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
     },
     viewHistoryText: {
         fontSize: TYPOGRAPHY.sizes.body,

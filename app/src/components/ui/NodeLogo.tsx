@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
 import { Hexagon } from 'lucide-react-native';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface NodeLogoProps {
   size?: 'small' | 'medium' | 'large';
@@ -9,6 +9,7 @@ interface NodeLogoProps {
 }
 
 export const NodeLogo: React.FC<NodeLogoProps> = ({ size = 'medium', showText = true }) => {
+  const theme = useAppTheme();
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
 
@@ -64,7 +65,7 @@ export const NodeLogo: React.FC<NodeLogoProps> = ({ size = 'medium', showText = 
 
   return (
     <View style={styles.container}>
-      <View style={[styles.logoBox, { width: box, height: box, borderRadius: box * 0.25 }]}>
+      <View style={[styles.logoBox, { width: box, height: box, borderRadius: box * 0.25, backgroundColor: theme.accent }]}>
         {/* Glow effect layer */}
         <Animated.View
           style={[
@@ -72,10 +73,11 @@ export const NodeLogo: React.FC<NodeLogoProps> = ({ size = 'medium', showText = 
             {
               opacity: glowAnim,
               transform: [{ scale: pulseAnim }],
+              boxShadow: `0px 0px 8px ${theme.accent}`,
             },
           ]}
         >
-          <Hexagon size={icon} color={COLORS.node.accent} />
+          <Hexagon size={icon} color={theme.accent} />
         </Animated.View>
         {/* Main white hexagon */}
         <Animated.View
@@ -91,8 +93,8 @@ export const NodeLogo: React.FC<NodeLogoProps> = ({ size = 'medium', showText = 
       </View>
       {showText && (
         <View style={styles.textContainer}>
-          <Text style={[styles.nodeText, { fontSize: nodeText }]}>NODE</Text>
-          <Text style={[styles.socialText, { fontSize: socialText }]}>social</Text>
+          <Text style={[styles.nodeText, { fontSize: nodeText, color: theme.text }]}>NODE</Text>
+          <Text style={[styles.socialText, { fontSize: socialText, color: theme.muted }]}>social</Text>
         </View>
       )}
     </View>
@@ -106,13 +108,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   logoBox: {
-    backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
   logoGlow: {
     position: 'absolute',
-    boxShadow: `0px 0px 8px ${COLORS.node.accent}`,
   },
   logoIconInner: {
     position: 'absolute',
@@ -123,12 +123,10 @@ const styles = StyleSheet.create({
   },
   nodeText: {
     fontWeight: '800',
-    color: COLORS.node.text,
     letterSpacing: -0.5,
   },
   socialText: {
     fontWeight: '400',
-    color: COLORS.node.muted,
     letterSpacing: -0.3,
   },
 });

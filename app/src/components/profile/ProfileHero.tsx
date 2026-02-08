@@ -28,8 +28,10 @@ import {
     Pencil,
     Check,
     X,
+    Link2,
 } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface ProfileHeroProps {
     user: {
@@ -65,6 +67,7 @@ interface ProfileHeroProps {
     onMore?: () => void;
     onSaveBio?: (bio: string) => void;
     onSaveMeta?: (location: string, website: string) => void;
+    onLinkedAccounts?: () => void;
     isFollowLoading?: boolean;
     showBannerEditor: boolean;
     onToggleBannerEditor: () => void;
@@ -113,17 +116,20 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
     onMore,
     onSaveBio,
     onSaveMeta,
+    onLinkedAccounts,
     isFollowLoading,
     showBannerEditor,
     onToggleBannerEditor,
     bannerEditorContent,
 }) => {
+    const theme = useAppTheme();
     const { width } = useWindowDimensions();
     const isTablet = width >= BREAKPOINTS.tablet;
     const isDesktop = width >= BREAKPOINTS.desktop;
 
     const eraStyle = ERAS[era] || ERAS['Default'];
-    const bannerColor = user.bannerColor || COLORS.node.accent;
+    const profileAccent = theme.profileAccent || theme.accent;
+    const bannerColor = user.bannerColor || profileAccent;
 
     // Edit states
     const [isEditingBio, setIsEditingBio] = useState(false);
@@ -173,21 +179,30 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
     };
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.profileBg || theme.bg }]}>
             {/* Banner with fade */}
             <View style={[styles.bannerContainer, { height: bannerHeight }]}>
+                {/* Profile background image layer (from custom theme) */}
+                {theme.profileBgImage ? (
+                    <Image
+                        source={{ uri: theme.profileBgImage }}
+                        style={styles.bannerImage}
+                    />
+                ) : null}
+
+                {/* User's banner image or solid color (on top of profile bg image) */}
                 {user.bannerImage ? (
                     <Image
                         source={{ uri: user.bannerImage, cache: 'reload' }}
                         style={styles.bannerImage}
                     />
-                ) : (
+                ) : !theme.profileBgImage ? (
                     <View style={[styles.bannerSolid, { backgroundColor: bannerColor }]} />
-                )}
+                ) : null}
 
                 {/* Fade gradient at bottom */}
                 <LinearGradient
-                    colors={['transparent', COLORS.node.bg]}
+                    colors={['transparent', theme.profileBg || theme.bg]}
                     style={styles.bannerFade}
                 />
 
@@ -229,6 +244,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                                 height: avatarSize + 8,
                                 marginTop: -(avatarSize / 2),
                                 borderColor: eraStyle.text,
+                                backgroundColor: theme.bg,
                             },
                         ]}
                     >
@@ -248,45 +264,51 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                             </LinearGradient>
                         )}
                         {canEdit && (
-                            <View style={[styles.avatarEditBadge, { backgroundColor: eraStyle.text }]}>
-                                <Camera size={12} color={COLORS.node.bg} />
+                            <View style={[styles.avatarEditBadge, { backgroundColor: eraStyle.text, borderColor: theme.bg }]}>
+                                <Camera size={12} color={theme.bg} />
                             </View>
                         )}
                     </TouchableOpacity>
 
                     {/* Action buttons - right aligned */}
                     <View style={styles.actionButtons}>
+                        {isOwnProfile && onLinkedAccounts && (
+                            <TouchableOpacity style={[styles.iconButton, { borderColor: theme.border, backgroundColor: theme.panel }]} onPress={onLinkedAccounts}>
+                                <Link2 size={20} color={theme.text} />
+                            </TouchableOpacity>
+                        )}
                         {onMore && (
-                            <TouchableOpacity style={styles.iconButton} onPress={onMore}>
-                                <MoreHorizontal size={20} color={COLORS.node.text} />
+                            <TouchableOpacity style={[styles.iconButton, { borderColor: theme.border, backgroundColor: theme.panel }]} onPress={onMore}>
+                                <MoreHorizontal size={20} color={theme.text} />
                             </TouchableOpacity>
                         )}
                         {onMessage && !isOwnProfile && (
-                            <TouchableOpacity style={styles.iconButton} onPress={onMessage}>
-                                <MessageCircle size={20} color={COLORS.node.text} />
+                            <TouchableOpacity style={[styles.iconButton, { borderColor: theme.border, backgroundColor: theme.panel }]} onPress={onMessage}>
+                                <MessageCircle size={20} color={theme.text} />
                             </TouchableOpacity>
                         )}
                         {!isOwnProfile && onFollow && (
                             <TouchableOpacity
                                 style={[
                                     styles.followButton,
-                                    user.isFollowing && styles.followButtonFollowing,
+                                    { backgroundColor: profileAccent },
+                                    user.isFollowing && [styles.followButtonFollowing, { borderColor: theme.border }],
                                 ]}
                                 onPress={onFollow}
                                 disabled={isFollowLoading}
                             >
                                 {isFollowLoading ? (
-                                    <ActivityIndicator size="small" color={user.isFollowing ? COLORS.node.text : '#fff'} />
+                                    <ActivityIndicator size="small" color={user.isFollowing ? theme.text : '#fff'} />
                                 ) : (
                                     <>
                                         {user.isFollowing ? (
-                                            <UserCheck size={16} color={COLORS.node.text} />
+                                            <UserCheck size={16} color={theme.text} />
                                         ) : (
                                             <UserPlus size={16} color="#fff" />
                                         )}
                                         <Text style={[
                                             styles.followButtonText,
-                                            user.isFollowing && styles.followButtonTextFollowing,
+                                            user.isFollowing && { color: theme.text },
                                         ]}>
                                             {user.isFollowing ? 'Following' : 'Follow'}
                                         </Text>
@@ -299,12 +321,12 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
 
                 {/* Name row with badge */}
                 <View style={styles.nameRow}>
-                    <Text style={styles.displayName}>{displayName}</Text>
+                    <Text style={[styles.displayName, { color: theme.text }]}>{displayName}</Text>
                     {renderBadge()}
                 </View>
 
                 {/* Username */}
-                <Text style={styles.username}>@{user.username}</Text>
+                <Text style={[styles.username, { color: theme.muted }]}>@{user.username}</Text>
 
                 {/* Era badge */}
                 <View style={[styles.eraBadge, { borderColor: eraStyle.text }]}>
@@ -319,32 +341,32 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                     {isEditingBio ? (
                         <View style={styles.editContainer}>
                             <TextInput
-                                style={styles.bioInput}
+                                style={[styles.bioInput, { color: theme.text, borderColor: theme.border }]}
                                 value={editBio}
                                 onChangeText={setEditBio}
                                 placeholder="Write something about yourself..."
-                                placeholderTextColor={COLORS.node.muted}
+                                placeholderTextColor={theme.muted}
                                 multiline
                                 maxLength={500}
                                 autoFocus
                             />
                             <View style={styles.editActions}>
-                                <TouchableOpacity onPress={() => setIsEditingBio(false)} style={styles.editButton}>
-                                    <X size={16} color={COLORS.node.muted} />
+                                <TouchableOpacity onPress={() => setIsEditingBio(false)} style={[styles.editButton, { backgroundColor: theme.border }]}>
+                                    <X size={16} color={theme.muted} />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSaveBio} style={[styles.editButton, styles.saveButton]}>
+                                <TouchableOpacity onPress={handleSaveBio} style={[styles.editButton, { backgroundColor: profileAccent }]}>
                                     <Check size={16} color="#fff" />
                                 </TouchableOpacity>
                             </View>
                         </View>
                     ) : (
                         <View style={styles.bioDisplay}>
-                            <Text style={styles.bioText}>
+                            <Text style={[styles.bioText, { color: theme.text }]}>
                                 {user.bio || (canEdit ? 'Add a bio...' : '')}
                             </Text>
                             {canEdit && (
                                 <TouchableOpacity onPress={() => setIsEditingBio(true)} style={styles.editIcon}>
-                                    <Pencil size={14} color={COLORS.node.muted} />
+                                    <Pencil size={14} color={theme.muted} />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -355,32 +377,32 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                 <View style={styles.metaRow}>
                     {isEditingMeta ? (
                         <View style={styles.editContainer}>
-                            <View style={styles.metaInputRow}>
-                                <MapPin size={14} color={COLORS.node.muted} />
+                            <View style={[styles.metaInputRow, { borderColor: theme.border }]}>
+                                <MapPin size={14} color={theme.muted} />
                                 <TextInput
-                                    style={styles.metaInput}
+                                    style={[styles.metaInput, { color: theme.text }]}
                                     value={editLocation}
                                     onChangeText={setEditLocation}
                                     placeholder="Location"
-                                    placeholderTextColor={COLORS.node.muted}
+                                    placeholderTextColor={theme.muted}
                                 />
                             </View>
-                            <View style={styles.metaInputRow}>
-                                <LinkIcon size={14} color={COLORS.node.muted} />
+                            <View style={[styles.metaInputRow, { borderColor: theme.border }]}>
+                                <LinkIcon size={14} color={theme.muted} />
                                 <TextInput
-                                    style={styles.metaInput}
+                                    style={[styles.metaInput, { color: theme.text }]}
                                     value={editWebsite}
                                     onChangeText={setEditWebsite}
                                     placeholder="website.com"
-                                    placeholderTextColor={COLORS.node.muted}
+                                    placeholderTextColor={theme.muted}
                                     autoCapitalize="none"
                                 />
                             </View>
                             <View style={styles.editActions}>
-                                <TouchableOpacity onPress={() => setIsEditingMeta(false)} style={styles.editButton}>
-                                    <X size={16} color={COLORS.node.muted} />
+                                <TouchableOpacity onPress={() => setIsEditingMeta(false)} style={[styles.editButton, { backgroundColor: theme.border }]}>
+                                    <X size={16} color={theme.muted} />
                                 </TouchableOpacity>
-                                <TouchableOpacity onPress={handleSaveMeta} style={[styles.editButton, styles.saveButton]}>
+                                <TouchableOpacity onPress={handleSaveMeta} style={[styles.editButton, { backgroundColor: profileAccent }]}>
                                     <Check size={16} color="#fff" />
                                 </TouchableOpacity>
                             </View>
@@ -389,25 +411,25 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                         <View style={styles.metaDisplay}>
                             {(user.location || canEdit) && (
                                 <View style={styles.metaItem}>
-                                    <MapPin size={14} color={COLORS.node.muted} />
-                                    <Text style={styles.metaText}>{user.location || 'Add location'}</Text>
+                                    <MapPin size={14} color={theme.muted} />
+                                    <Text style={[styles.metaText, { color: theme.muted }]}>{user.location || 'Add location'}</Text>
                                 </View>
                             )}
                             {(user.website || canEdit) && (
                                 <TouchableOpacity style={styles.metaItem}>
-                                    <LinkIcon size={14} color={COLORS.node.accent} />
-                                    <Text style={[styles.metaText, styles.metaLink]}>
+                                    <LinkIcon size={14} color={profileAccent} />
+                                    <Text style={[styles.metaText, { color: profileAccent }]}>
                                         {user.website || 'Add website'}
                                     </Text>
                                 </TouchableOpacity>
                             )}
                             <View style={styles.metaItem}>
-                                <Calendar size={14} color={COLORS.node.muted} />
-                                <Text style={styles.metaText}>Joined {formatJoinDate(user.createdAt)}</Text>
+                                <Calendar size={14} color={theme.muted} />
+                                <Text style={[styles.metaText, { color: theme.muted }]}>Joined {formatJoinDate(user.createdAt)}</Text>
                             </View>
                             {canEdit && (
                                 <TouchableOpacity onPress={() => setIsEditingMeta(true)} style={styles.editIcon}>
-                                    <Pencil size={14} color={COLORS.node.muted} />
+                                    <Pencil size={14} color={theme.muted} />
                                 </TouchableOpacity>
                             )}
                         </View>
@@ -415,26 +437,26 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
                 </View>
 
                 {/* Stats row */}
-                <View style={styles.statsRow}>
+                <View style={[styles.statsRow, { borderTopColor: theme.border }]}>
                     <TouchableOpacity style={styles.statItem}>
-                        <Text style={styles.statNumber}>{formatNumber(user.followingCount || 0)}</Text>
-                        <Text style={styles.statLabel}>Following</Text>
+                        <Text style={[styles.statNumber, { color: theme.text }]}>{formatNumber(user.followingCount || 0)}</Text>
+                        <Text style={[styles.statLabel, { color: theme.muted }]}>Following</Text>
                     </TouchableOpacity>
                     <TouchableOpacity style={styles.statItem}>
-                        <Text style={styles.statNumber}>{formatNumber(user.followersCount || 0)}</Text>
-                        <Text style={styles.statLabel}>Followers</Text>
+                        <Text style={[styles.statNumber, { color: theme.text }]}>{formatNumber(user.followersCount || 0)}</Text>
+                        <Text style={[styles.statLabel, { color: theme.muted }]}>Followers</Text>
                     </TouchableOpacity>
                     <View style={styles.statItem}>
-                        <Text style={[styles.statNumber, styles.credNumber]}>{formatNumber(user.cred || 0)}</Text>
-                        <Text style={styles.statLabel}>Cred</Text>
+                        <Text style={[styles.statNumber, { color: theme.text }, styles.credNumber]}>{formatNumber(user.cred || 0)}</Text>
+                        <Text style={[styles.statLabel, { color: theme.muted }]}>Cred</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={[styles.statNumber, styles.vouchNumber]}>{formatNumber(user.vouchesReceived || 0)}</Text>
-                        <Text style={styles.statLabel}>Vouches</Text>
+                        <Text style={[styles.statNumber, { color: theme.text }, styles.vouchNumber]}>{formatNumber(user.vouchesReceived || 0)}</Text>
+                        <Text style={[styles.statLabel, { color: theme.muted }]}>Vouches</Text>
                     </View>
                     <View style={styles.statItem}>
-                        <Text style={[styles.statNumber, styles.stakeNumber]}>{formatNumber(user.totalVouchStake || 0)}</Text>
-                        <Text style={styles.statLabel}>Stake</Text>
+                        <Text style={[styles.statNumber, { color: theme.text }, styles.stakeNumber]}>{formatNumber(user.totalVouchStake || 0)}</Text>
+                        <Text style={[styles.statLabel, { color: theme.muted }]}>Stake</Text>
                     </View>
                 </View>
             </View>
@@ -443,9 +465,7 @@ export const ProfileHero: React.FC<ProfileHeroProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: COLORS.node.bg,
-    },
+    container: {},
     bannerContainer: {
         position: 'relative',
         overflow: 'hidden',
@@ -507,7 +527,6 @@ const styles = StyleSheet.create({
     avatarContainer: {
         borderRadius: RADIUS.md,
         borderWidth: 4,
-        backgroundColor: COLORS.node.bg,
         overflow: 'hidden',
     },
     avatarImage: {
@@ -532,7 +551,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         borderWidth: 2,
-        borderColor: COLORS.node.bg,
     },
     actionButtons: {
         flexDirection: 'row',
@@ -545,8 +563,6 @@ const styles = StyleSheet.create({
         height: 40,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
-        backgroundColor: COLORS.node.panel,
         alignItems: 'center',
         justifyContent: 'center',
     },
@@ -562,15 +578,11 @@ const styles = StyleSheet.create({
     followButtonFollowing: {
         backgroundColor: 'transparent',
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     followButtonText: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '700',
         color: '#fff',
-    },
-    followButtonTextFollowing: {
-        color: COLORS.node.text,
     },
     nameRow: {
         flexDirection: 'row',
@@ -581,7 +593,6 @@ const styles = StyleSheet.create({
     displayName: {
         fontSize: TYPOGRAPHY.sizes.h3,
         fontWeight: '800',
-        color: COLORS.node.text,
     },
     badge: {
         width: 22,
@@ -592,7 +603,6 @@ const styles = StyleSheet.create({
     },
     username: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     eraBadge: {
@@ -626,7 +636,6 @@ const styles = StyleSheet.create({
     bioText: {
         flex: 1,
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.text,
         lineHeight: TYPOGRAPHY.sizes.body * 1.5,
     },
     editContainer: {
@@ -634,9 +643,7 @@ const styles = StyleSheet.create({
     },
     bioInput: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.text,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: RADIUS.md,
         padding: SPACING.sm,
         minHeight: 80,
@@ -651,12 +658,8 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: COLORS.node.border,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    saveButton: {
-        backgroundColor: COLORS.node.accent,
     },
     editIcon: {
         padding: SPACING.xs,
@@ -678,17 +681,12 @@ const styles = StyleSheet.create({
     },
     metaText: {
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.muted,
-    },
-    metaLink: {
-        color: COLORS.node.accent,
     },
     metaInputRow: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: SPACING.sm,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: RADIUS.md,
         paddingHorizontal: SPACING.sm,
         paddingVertical: SPACING.xs,
@@ -696,7 +694,6 @@ const styles = StyleSheet.create({
     metaInput: {
         flex: 1,
         fontSize: TYPOGRAPHY.sizes.small,
-        color: COLORS.node.text,
         padding: 0,
     },
     statsRow: {
@@ -706,7 +703,6 @@ const styles = StyleSheet.create({
         marginTop: SPACING.lg,
         paddingTop: SPACING.lg,
         borderTopWidth: 1,
-        borderTopColor: COLORS.node.border,
     },
     statItem: {
         flexDirection: 'row',
@@ -716,7 +712,6 @@ const styles = StyleSheet.create({
     statNumber: {
         fontSize: TYPOGRAPHY.sizes.body,
         fontWeight: '700',
-        color: COLORS.node.text,
     },
     credNumber: {
         color: '#fbbf24',
@@ -729,7 +724,6 @@ const styles = StyleSheet.create({
     },
     statLabel: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.muted,
     },
 });
 

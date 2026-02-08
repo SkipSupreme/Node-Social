@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { ArrowLeft } from '../components/ui/Icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { Feed, type UIPost } from '../components/ui/Feed';
 import { getSavedPosts } from '../lib/api';
 import { useAuthStore } from '../store/auth';
@@ -13,6 +13,7 @@ interface SavedPostsScreenProps {
 }
 
 export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPostsScreenProps) => {
+    const theme = useAppTheme();
     const { user } = useAuthStore();
     const [posts, setPosts] = useState<UIPost[]>([]);
     const [loading, setLoading] = useState(true);
@@ -81,21 +82,21 @@ export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPo
     };
 
     return (
-        <View style={styles.container}>
-            <View style={styles.header}>
+        <View style={[styles.container, { backgroundColor: theme.bg }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-                    <ArrowLeft size={24} color={COLORS.node.text} />
+                    <ArrowLeft size={24} color={theme.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Saved Posts</Text>
+                <Text style={[styles.headerTitle, { color: theme.text }]}>Saved Posts</Text>
             </View>
 
             {loading ? (
                 <View style={styles.center}>
-                    <ActivityIndicator size="large" color={COLORS.node.accent} />
+                    <ActivityIndicator size="large" color={theme.accent} />
                 </View>
             ) : posts.length === 0 ? (
                 <View style={styles.center}>
-                    <Text style={styles.emptyText}>No saved posts yet.</Text>
+                    <Text style={[styles.emptyText, { color: theme.muted }]}>No saved posts yet.</Text>
                 </View>
             ) : (
                 <Feed
@@ -113,14 +114,12 @@ export const SavedPostsScreen = ({ onBack, onPostClick, onAuthorClick }: SavedPo
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
         gap: 16
     },
     backBtn: {
@@ -129,7 +128,6 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text
     },
     center: {
         flex: 1,
@@ -137,7 +135,6 @@ const styles = StyleSheet.create({
         alignItems: 'center'
     },
     emptyText: {
-        color: COLORS.node.muted,
         fontSize: 16
     }
 });

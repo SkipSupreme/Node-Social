@@ -2,9 +2,11 @@ import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from '
 import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, TextStyle, StyleProp, ViewStyle, GestureResponderEvent, ViewProps } from 'react-native';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2, RefreshCw } from './Icons';
 import { Play } from 'lucide-react-native';
-import { COLORS, ERAS, SCOPE_COLORS } from '../../constants/theme';
-import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost, AuthResponse, TipTapDoc } from '../../lib/api';
+import { ERAS, SCOPE_COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
+import { createPostReaction, savePost, muteUser, blockUser, createComment, votePoll, api, deletePost, editPost, reportContent, ReportReason, SearchUser, ExternalPost, AuthResponse, TipTapDoc, externalLike, externalUnlike, externalRepost, externalUnrepost, externalReply } from '../../lib/api';
 import { ExternalPostCard } from './ExternalPostCard';
+import { useLinkedAccountsStore } from '../../store/linkedAccounts';
 import { showToast } from '../../lib/alert';
 
 type CurrentUser = AuthResponse['user'];
@@ -129,6 +131,8 @@ const ZoomableImage = memo(({ uri, maxHeight = 500 }: { uri: string; maxHeight?:
 
 // Image Gallery component - displays multiple images in a horizontal scrollable carousel
 const ImageGallery = memo(({ urls, maxHeight = 400 }: { urls: string[]; maxHeight?: number }) => {
+    const theme = useAppTheme();
+    const counterStyle = useMemo(() => [galleryStyles.counter, { color: theme.muted }], [theme.muted]);
     const [activeIndex, setActiveIndex] = useState(0);
     const screenWidth = Dimensions.get('window').width;
     const imageWidth = useMemo(() => Math.min(screenWidth - 32, 600), [screenWidth]);
@@ -170,13 +174,13 @@ const ImageGallery = memo(({ urls, maxHeight = 400 }: { urls: string[]; maxHeigh
                         key={url}
                         style={[
                             galleryStyles.dot,
-                            { backgroundColor: index === activeIndex ? COLORS.node.accent : 'rgba(255,255,255,0.3)' }
+                            { backgroundColor: index === activeIndex ? theme.accent : 'rgba(255,255,255,0.3)' }
                         ]}
                     />
                 ))}
             </View>
             {/* Image counter */}
-            <Text style={galleryStyles.counter}>
+            <Text style={counterStyle}>
                 {activeIndex + 1} / {urls.length}
             </Text>
         </View>
@@ -198,7 +202,6 @@ const galleryStyles = StyleSheet.create({
     },
     counter: {
         textAlign: 'center',
-        color: COLORS.node.muted,
         fontSize: 12,
         marginTop: 4,
     },
@@ -206,6 +209,7 @@ const galleryStyles = StyleSheet.create({
 
 // Reddit Video Player component - handles v.redd.it URLs
 const RedditVideoPlayer = ({ url }: { url: string }) => {
+    const theme = useAppTheme();
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(false);
     const [videoUrl, setVideoUrl] = useState<string | null>(null);
@@ -263,7 +267,7 @@ const RedditVideoPlayer = ({ url }: { url: string }) => {
     if (loading) {
         return (
             <View style={[styles.videoPreview, { width: playerWidth, height: playerHeight, justifyContent: 'center', alignItems: 'center' }]}>
-                <ActivityIndicator size="large" color={COLORS.node.accent} />
+                <ActivityIndicator size="large" color={theme.accent} />
             </View>
         );
     }
@@ -474,6 +478,15 @@ interface FormattedContentProps {
 }
 
 const FormattedContent = ({ content, style }: FormattedContentProps) => {
+    const theme = useAppTheme();
+
+    // Memoize themed style overrides to avoid per-render allocations on web
+    const ts = useMemo(() => ({
+        linkStyle: StyleSheet.create({ s: { color: theme.accent, textDecorationLine: 'underline' as const } }).s,
+        textColor: theme.text,
+        mutedColor: theme.muted,
+    }), [theme]);
+
     // Clean up excessive line breaks and normalize whitespace
     const cleanContent = content
         // Normalize line endings
@@ -504,7 +517,7 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
                 parts.push(
                     <Text
                         key={key++}
-                        style={[baseStyle, { color: COLORS.node.accent, textDecorationLine: 'underline' }]}
+                        style={[baseStyle, ts.linkStyle]}
                         onPress={() => Linking.openURL(linkUrl)}
                     >
                         {linkText}
@@ -579,12 +592,12 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
                     const level = headerMatch[1].length;
                     const headerText = headerMatch[2];
                     const headerStyles: { [key: number]: TextStyle } = {
-                        1: { fontSize: 20, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 16 : 0, marginBottom: 8 },
-                        2: { fontSize: 18, fontWeight: '700', color: COLORS.node.text, marginTop: index > 0 ? 14 : 0, marginBottom: 6 },
-                        3: { fontSize: 16, fontWeight: '600', color: COLORS.node.text, marginTop: index > 0 ? 12 : 0, marginBottom: 4 },
-                        4: { fontSize: 15, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 10 : 0, marginBottom: 4 },
-                        5: { fontSize: 14, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 8 : 0, marginBottom: 2 },
-                        6: { fontSize: 13, fontWeight: '600', color: COLORS.node.muted, marginTop: index > 0 ? 6 : 0, marginBottom: 2 },
+                        1: { fontSize: 20, fontWeight: '700', color: ts.textColor, marginTop: index > 0 ? 16 : 0, marginBottom: 8 },
+                        2: { fontSize: 18, fontWeight: '700', color: ts.textColor, marginTop: index > 0 ? 14 : 0, marginBottom: 6 },
+                        3: { fontSize: 16, fontWeight: '600', color: ts.textColor, marginTop: index > 0 ? 12 : 0, marginBottom: 4 },
+                        4: { fontSize: 15, fontWeight: '600', color: ts.mutedColor, marginTop: index > 0 ? 10 : 0, marginBottom: 4 },
+                        5: { fontSize: 14, fontWeight: '600', color: ts.mutedColor, marginTop: index > 0 ? 8 : 0, marginBottom: 2 },
+                        6: { fontSize: 13, fontWeight: '600', color: ts.mutedColor, marginTop: index > 0 ? 6 : 0, marginBottom: 2 },
                     };
                     return (
                         <Text key={index} style={headerStyles[level]}>
@@ -717,17 +730,28 @@ interface CommentNodeProps {
 }
 
 const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, globalNodeId, onAuthorClick }: CommentNodeProps) => {
+    const theme = useAppTheme();
     const [isCollapsed, setIsCollapsed] = useState(false);
 
     const incomingColor = SCOPE_COLORS[(comment.depth - 1) % SCOPE_COLORS.length];
     const connectorColor = SCOPE_COLORS[comment.depth % SCOPE_COLORS.length];
     const eraStyle = ERAS[comment.author.era] || ERAS['Default'];
 
+    // Memoize themed style overrides — CommentNode is recursive, so this prevents
+    // O(n) inline object allocations across the comment tree.
+    const ts = useMemo(() => StyleSheet.create({
+        avatarSmall: { borderColor: theme.border, backgroundColor: theme.panel },
+        accentBgCenter: { backgroundColor: theme.accent, justifyContent: 'center', alignItems: 'center' },
+        textColor: { color: theme.text },
+        mutedColor: { color: theme.muted },
+        badgeBg: { backgroundColor: theme.border },
+    }), [theme]);
+
 
     const lastChildHeight = isFirst ? 14 : 10;
 
     return (
-        <View style={{ position: 'relative' }}>
+        <View style={styles.commentWrapper}>
 
             {/* Child Connectors */}
             {comment.depth > 0 && (
@@ -746,7 +770,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
             )}
 
             {/* Content Container */}
-            <View style={{ position: 'relative', zIndex: 10 }}>
+            <View style={styles.commentInner}>
                 {/* Bridge line connecting to replies */}
                 {!isCollapsed && comment.replies && comment.replies.length > 0 && (
                     <View style={[styles.bridgeLine, { backgroundColor: connectorColor }]} />
@@ -754,12 +778,12 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
                 {/* Header */}
                 <View style={styles.headerRow}>
-                    <TouchableOpacity style={styles.avatarSmallContainer} onPress={() => onAuthorClick?.(comment.author.id)}>
+                    <TouchableOpacity style={[styles.avatarSmallContainer, ts.avatarSmall]} onPress={() => onAuthorClick?.(comment.author.id)}>
                         {comment.author.avatar ? (
                             <Image source={{ uri: comment.author.avatar }} style={styles.avatarImage} />
                         ) : (
-                            <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
-                                <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+                            <View style={[styles.avatarImage, ts.accentBgCenter]}>
+                                <Text style={styles.avatarInitialSmallWhite}>
                                     {comment.author.username?.[0]?.toUpperCase() || '?'}
                                 </Text>
                             </View>
@@ -768,21 +792,21 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
                     <View style={styles.userInfoRow}>
                         <TouchableOpacity onPress={() => onAuthorClick?.(comment.author.id)}>
-                            <Text style={styles.usernameSmall}>{comment.author.username}</Text>
+                            <Text style={[styles.usernameSmall, ts.textColor]}>{comment.author.username}</Text>
                         </TouchableOpacity>
 
-                        <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
-                            <Text style={styles.badgeText}>{comment.author.cred} Cred</Text>
+                        <View style={[styles.badge, ts.badgeBg]}>
+                            <Text style={[styles.badgeText, ts.textColor]}>{comment.author.cred} Cred</Text>
                         </View>
 
                         <View style={[styles.badge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border, borderWidth: 1 }]}>
                             <Text style={[styles.badgeText, { color: eraStyle.text }]}>{comment.author.era}</Text>
                         </View>
 
-                        <Text style={styles.timestamp}>{timeAgo(comment.timestamp)}</Text>
+                        <Text style={[styles.timestamp, ts.mutedColor]}>{timeAgo(comment.timestamp)}</Text>
 
-                        <TouchableOpacity onPress={() => setIsCollapsed(!isCollapsed)} style={{ padding: 2 }}>
-                            {isCollapsed ? <CornerDownRight size={12} color={COLORS.node.muted} /> : <Minus size={12} color={COLORS.node.muted} />}
+                        <TouchableOpacity onPress={() => setIsCollapsed(!isCollapsed)} style={styles.collapseBtn}>
+                            {isCollapsed ? <CornerDownRight size={12} color={theme.muted} /> : <Minus size={12} color={theme.muted} />}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -803,7 +827,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
                                 contentType="comment"
                             />
                             <TouchableOpacity style={styles.actionBtnText} onPress={() => onReply && onReply(comment)}>
-                                <Text style={styles.actionLabel}>Reply</Text>
+                                <Text style={[styles.actionLabel, ts.mutedColor]}>Reply</Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -812,7 +836,7 @@ const CommentNode = ({ comment, isLast = false, isFirst = false, onReply, global
 
             {/* Replies */}
             {!isCollapsed && comment.replies && comment.replies.length > 0 && (
-                <View style={{ paddingLeft: 32, gap: 8 }}>
+                <View style={styles.repliesContainer}>
                     {comment.replies.map((reply, idx) => (
                         <CommentNode
                             key={reply.id}
@@ -844,6 +868,7 @@ interface PostCardProps {
 }
 
 const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeCheck, onPress, onEdit, onAuthorClick, onSaveToggle, globalNodeId }: PostCardProps) => {
+    const theme = useAppTheme();
     const { requireAuth } = useAuthPrompt();
     const [post, setPost] = useState(initialPost);
     const [isExpanded, setIsExpanded] = useState(false);
@@ -857,6 +882,37 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
     const [showReportModal, setShowReportModal] = useState(false);
     const [reportSubmitting, setReportSubmitting] = useState(false);
     const eraStyle = ERAS[post.author.era] || ERAS['Default'];
+
+    // Pre-compute themed style overrides — stable identity unless theme changes.
+    // On mobile web, React Native Web re-hashes inline style objects every render;
+    // memoizing avoids ~60 fresh allocations per PostCard mount/render.
+    const ts = useMemo(() => StyleSheet.create({
+        card: { backgroundColor: theme.panel, borderColor: theme.border },
+        avatarBorder: { borderColor: theme.accent },
+        accentBgCenter: { backgroundColor: theme.accent, justifyContent: 'center', alignItems: 'center' },
+        textColor: { color: theme.text },
+        mutedColor: { color: theme.muted },
+        accentColor: { color: theme.accent },
+        badgeBg: { backgroundColor: theme.border },
+        linkPreview: { backgroundColor: theme.bg, borderColor: theme.border },
+        linkPreviewImage: { backgroundColor: theme.panel },
+        pollContainer: { backgroundColor: theme.panel, borderColor: theme.border },
+        pollOption: { backgroundColor: theme.bg, borderColor: theme.border },
+        pollOptionSelected: { borderColor: theme.accent },
+        pillBtn: { backgroundColor: theme.panel, borderColor: theme.border },
+        pillBtnActive: { borderColor: theme.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' },
+        commentsSection: { borderTopColor: theme.border },
+        sortChip: { backgroundColor: theme.bg, borderColor: theme.border },
+        sortChipSelected: { borderColor: theme.accent },
+        avatarSmall: { borderColor: theme.border, backgroundColor: theme.panel },
+        commentInput: { backgroundColor: theme.bg, borderColor: theme.border },
+        menuContainer: { backgroundColor: theme.panel, borderColor: theme.border },
+        reportMenu: { backgroundColor: theme.panel, borderColor: theme.border, maxWidth: 350 },
+        reportOption: { backgroundColor: theme.bg },
+        continueReading: { color: theme.accent, fontSize: 12, fontWeight: '700' },
+        replyingTo: { color: theme.muted, fontSize: 12 },
+        pillTextHidden: { color: theme.muted, display: 'none' as const },
+    }), [theme]);
 
     // Check if current user is the author
     const isOwnPost = currentUser?.id === post.author.id;
@@ -1217,43 +1273,43 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
     };
 
     return (
-        <View style={styles.card}>
+        <View style={[styles.card, ts.card]}>
             <TouchableOpacity activeOpacity={0.9} style={styles.cardContent} onPress={() => setIsExpanded(!isExpanded)}>
 
                 <View style={styles.postHeader}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)} style={styles.avatarContainer}>
+                    <View style={styles.headerAuthorRow}>
+                        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)} style={[styles.avatarContainer, ts.avatarBorder]}>
                             {post.author.avatar ? (
                                 <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
                             ) : (
-                                <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
-                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 'bold' }}>
+                                <View style={[styles.avatarImage, ts.accentBgCenter]}>
+                                    <Text style={styles.avatarInitialWhite}>
                                         {post.author.username?.[0]?.toUpperCase() || '?'}
                                     </Text>
                                 </View>
                             )}
                         </TouchableOpacity>
-                        <View style={{ flex: 1 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <View style={styles.flexOne}>
+                            <View style={styles.authorBadgeRow}>
                                 <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
-                                    <Text style={styles.usernameLarge}>{post.author.username}</Text>
+                                    <Text style={[styles.usernameLarge, ts.textColor]}>{post.author.username}</Text>
                                 </TouchableOpacity>
-                                <View style={[styles.badge, { backgroundColor: COLORS.node.border }]}>
-                                    <Text style={styles.badgeText}>{post.author.cred} Cred</Text>
+                                <View style={[styles.badge, ts.badgeBg]}>
+                                    <Text style={[styles.badgeText, ts.textColor]}>{post.author.cred} Cred</Text>
                                 </View>
                                 <View style={[styles.badge, { backgroundColor: eraStyle.bg, borderColor: eraStyle.border, borderWidth: 1 }]}>
                                     <Text style={[styles.badgeText, { color: eraStyle.text }]}>{post.author.era}</Text>
                                 </View>
                             </View>
-                            <Text style={styles.subtext}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
+                            <Text style={[styles.subtext, ts.mutedColor]}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
                         </View>
                     </View>
-                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={{ padding: 8 }}>
-                        <MoreHorizontal size={16} color={COLORS.node.muted} />
+                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.moreBtn}>
+                        <MoreHorizontal size={16} color={theme.muted} />
                     </TouchableOpacity>
                 </View>
 
-                <View style={{ paddingHorizontal: 4, marginBottom: 8 }}>
+                <View style={styles.contentPadding}>
                     <TouchableOpacity onPress={() => onPress?.(post)} activeOpacity={0.7}>
                         <Text style={styles.title}>
                             {post.expertGated && <Shield size={12} color="#f87171" style={{ marginRight: 4 }} />}
@@ -1283,9 +1339,9 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         </View>
                     )}
                     {(post.content || post.contentJson) && !isExpanded && (post.content?.length || 0) > 6000 && (
-                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 4 }}>
-                            <Text style={{ color: COLORS.node.accent, fontSize: 12, fontWeight: '700' }}>Continue Reading</Text>
-                            <ChevronDown size={12} color={COLORS.node.accent} />
+                        <View style={styles.continueReadingRow}>
+                            <Text style={ts.continueReading}>Continue Reading</Text>
+                            <ChevronDown size={12} color={theme.accent} />
                         </View>
                     )}
 
@@ -1336,28 +1392,49 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                                 <ZoomableImage uri={post.linkUrl} maxHeight={500} />
                             ) : post.linkMeta?.image ? (
                                 /* Link with preview image */
+                                <View style={[styles.linkPreview, ts.linkPreview]}>
+                                    <ZoomableImage uri={post.linkMeta.image} maxHeight={500} />
+                                    <TouchableOpacity
+                                        onPress={() => Linking.openURL(post.linkUrl!)}
+                                    >
+                                        <View style={styles.linkPreviewContent}>
+                                            {post.linkMeta.title && (
+                                                <Text style={[styles.linkPreviewTitle, ts.textColor]} numberOfLines={2}>
+                                                    {post.linkMeta.title}
+                                                </Text>
+                                            )}
+                                            {post.linkMeta.description && (
+                                                <Text style={[styles.linkPreviewDescription, ts.mutedColor]} numberOfLines={2}>
+                                                    {post.linkMeta.description}
+                                                </Text>
+                                            )}
+                                            {post.linkMeta.domain && (
+                                                <Text style={[styles.linkPreviewDomain, ts.accentColor]}>
+                                                    {post.linkMeta.domain}
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : post.linkMeta && (post.linkMeta.title || post.linkMeta.description) ? (
+                                /* Link with metadata but no image (e.g. Bluesky/Mastodon reposts) */
                                 <TouchableOpacity
-                                    style={styles.linkPreview}
+                                    style={[styles.linkPreview, ts.linkPreview]}
                                     onPress={() => Linking.openURL(post.linkUrl!)}
                                 >
-                                    <Image
-                                        source={{ uri: post.linkMeta.image }}
-                                        style={styles.linkPreviewImage}
-                                        resizeMode="cover"
-                                    />
                                     <View style={styles.linkPreviewContent}>
                                         {post.linkMeta.title && (
-                                            <Text style={styles.linkPreviewTitle} numberOfLines={2}>
+                                            <Text style={[styles.linkPreviewTitle, ts.textColor]} numberOfLines={2}>
                                                 {post.linkMeta.title}
                                             </Text>
                                         )}
                                         {post.linkMeta.description && (
-                                            <Text style={styles.linkPreviewDescription} numberOfLines={2}>
+                                            <Text style={[styles.linkPreviewDescription, ts.mutedColor]} numberOfLines={3}>
                                                 {post.linkMeta.description}
                                             </Text>
                                         )}
                                         {post.linkMeta.domain && (
-                                            <Text style={styles.linkPreviewDomain}>
+                                            <Text style={[styles.linkPreviewDomain, ts.accentColor]}>
                                                 {post.linkMeta.domain}
                                             </Text>
                                         )}
@@ -1369,8 +1446,8 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
 
                     {/* Poll Rendering */}
                     {localPoll && (
-                        <View style={styles.pollContainer}>
-                            <Text style={styles.pollQuestion}>{localPoll.question}</Text>
+                        <View style={[styles.pollContainer, ts.pollContainer]}>
+                            <Text style={[styles.pollQuestion, ts.textColor]}>{localPoll.question}</Text>
                             {localPoll.options.map((opt) => {
                                 const votes = opt._count?.votes || 0;
                                 const percent = totalVotes > 0 ? (votes / totalVotes) * 100 : 0;
@@ -1379,19 +1456,19 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                                 return (
                                     <TouchableOpacity
                                         key={opt.id}
-                                        style={[styles.pollOption, isVoted && styles.pollOptionSelected]}
+                                        style={[styles.pollOption, ts.pollOption, isVoted && [styles.pollOptionSelected, ts.pollOptionSelected]]}
                                         onPress={() => handleVote(opt.id)}
                                         disabled={!!localPoll.votes?.length}
                                     >
                                         <View style={[styles.pollBar, { width: `${percent}%` }]} />
                                         <View style={styles.pollContent}>
-                                            <Text style={styles.pollText}>{opt.text}</Text>
-                                            <Text style={styles.pollPercent}>{Math.round(percent)}%</Text>
+                                            <Text style={[styles.pollText, ts.textColor]}>{opt.text}</Text>
+                                            <Text style={[styles.pollPercent, ts.mutedColor]}>{Math.round(percent)}%</Text>
                                         </View>
                                     </TouchableOpacity>
                                 );
                             })}
-                            <Text style={styles.pollTotal}>{totalVotes} votes • {timeAgo(post.createdAt)} left</Text>
+                            <Text style={[styles.pollTotal, ts.mutedColor]}>{totalVotes} votes • {timeAgo(post.createdAt)} left</Text>
                         </View>
                     )}
                 </View>
@@ -1399,11 +1476,11 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                 <View style={styles.cardActions}>
                     {/* Comments button - shows full comments section */}
                     <TouchableOpacity
-                        style={[styles.pillBtn, showComments && { borderColor: COLORS.node.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
+                        style={[styles.pillBtn, ts.pillBtn, showComments && ts.pillBtnActive]}
                         onPress={() => setShowComments(!showComments)}
                     >
-                        <MessageSquare size={20} color={showComments ? COLORS.node.accent : COLORS.node.muted} />
-                        <Text style={[styles.pillText, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
+                        <MessageSquare size={20} color={showComments ? theme.accent : theme.muted} />
+                        <Text style={[styles.pillText, ts.mutedColor, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
                     </TouchableOpacity>
 
                     {/* Vibe button with radial wheel */}
@@ -1438,24 +1515,24 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         }}
                     />
 
-                    <TouchableOpacity style={styles.pillBtn} onPress={handleSave}>
-                        <Bookmark size={20} color={isSaved ? COLORS.node.accent : COLORS.node.muted} fill={isSaved ? COLORS.node.accent : 'none'} />
-                        <Text style={[styles.pillText, { display: 'none' }]}>Save</Text>
+                    <TouchableOpacity style={[styles.pillBtn, ts.pillBtn]} onPress={handleSave}>
+                        <Bookmark size={20} color={isSaved ? theme.accent : theme.muted} fill={isSaved ? theme.accent : 'none'} />
+                        <Text style={[styles.pillText, ts.pillTextHidden]}>Save</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.pillBtn} onPress={handleShare}>
-                        <Share2 size={20} color={COLORS.node.muted} />
-                        <Text style={[styles.pillText, { display: 'none' }]}>Share</Text>
+                    <TouchableOpacity style={[styles.pillBtn, ts.pillBtn]} onPress={handleShare}>
+                        <Share2 size={20} color={theme.muted} />
+                        <Text style={[styles.pillText, ts.pillTextHidden]}>Share</Text>
                     </TouchableOpacity>
 
                     {/* Compact link button - shows domain for ALL posts with links */}
                     {post.linkUrl && (
                         <TouchableOpacity
-                            style={styles.linkPillBtn}
+                            style={[styles.linkPillBtn, ts.pillBtn]}
                             onPress={() => Linking.openURL(post.linkUrl!)}
                         >
-                            <Link2 size={14} color={COLORS.node.muted} />
-                            <Text style={styles.linkPillText} numberOfLines={1}>
+                            <Link2 size={14} color={theme.muted} />
+                            <Text style={[styles.linkPillText, ts.mutedColor]} numberOfLines={1}>
                                 {getDomain(post.linkUrl)}
                             </Text>
                         </TouchableOpacity>
@@ -1467,16 +1544,16 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
             <VibeBar vibeAggregate={post.vibeAggregate} height={5} />
 
             {showComments && (
-                <View style={styles.commentsSection}>
+                <View style={[styles.commentsSection, ts.commentsSection]}>
                     {/* Sort Controls */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }} contentContainerStyle={{ gap: 8 }}>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollSortRow} contentContainerStyle={styles.scrollSortContent}>
                         {['newest', 'insightful', 'joy', 'fire', 'support', 'shock', 'questionable'].map(sort => (
                             <TouchableOpacity
                                 key={sort}
                                 onPress={() => setCommentSort(sort)}
-                                style={[styles.sortChip, commentSort === sort && styles.sortChipSelected]}
+                                style={[styles.sortChip, ts.sortChip, commentSort === sort && [styles.sortChipSelected, ts.sortChipSelected]]}
                             >
-                                <Text style={[styles.sortChipText, commentSort === sort && styles.sortChipTextSelected]}>
+                                <Text style={[styles.sortChipText, ts.mutedColor, commentSort === sort && [styles.sortChipTextSelected, ts.accentColor]]}>
                                     {sort.charAt(0).toUpperCase() + sort.slice(1)}
                                 </Text>
                             </TouchableOpacity>
@@ -1485,37 +1562,37 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
 
                     {/* Comment Input */}
                     <View style={styles.commentInputRow}>
-                        <View style={styles.avatarSmallContainer}>
+                        <View style={[styles.avatarSmallContainer, ts.avatarSmall]}>
                             {currentUser?.avatar ? (
                                 <Image source={{ uri: currentUser.avatar }} style={styles.avatarImage} />
                             ) : (
-                                <View style={[styles.avatarImage, { backgroundColor: COLORS.node.accent, justifyContent: 'center', alignItems: 'center' }]}>
-                                    <Text style={{ color: '#fff', fontSize: 8, fontWeight: 'bold' }}>
+                                <View style={[styles.avatarImage, ts.accentBgCenter]}>
+                                    <Text style={styles.avatarInitialSmallWhite}>
                                         {currentUser?.username?.[0]?.toUpperCase() || '?'}
                                     </Text>
                                 </View>
                             )}
                         </View>
-                        <View style={{ flex: 1 }}>
+                        <View style={styles.flexOne}>
                             {replyingTo && (
-                                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-                                    <Text style={{ color: COLORS.node.muted, fontSize: 12 }}>Replying to @{replyingTo.author.username}</Text>
-                                    <TouchableOpacity onPress={() => setReplyingTo(null)} style={{ marginLeft: 8 }}>
-                                        <X size={12} color={COLORS.node.muted} />
+                                <View style={styles.replyRow}>
+                                    <Text style={ts.replyingTo}>Replying to @{replyingTo.author.username}</Text>
+                                    <TouchableOpacity onPress={() => setReplyingTo(null)} style={styles.cancelReplyBtn}>
+                                        <X size={12} color={theme.muted} />
                                     </TouchableOpacity>
                                 </View>
                             )}
                             <TextInput
                                 placeholder="Add a comment..."
-                                placeholderTextColor={COLORS.node.muted}
-                                style={styles.commentInput}
+                                placeholderTextColor={theme.muted}
+                                style={[styles.commentInput, ts.commentInput]}
                                 value={commentText}
                                 onChangeText={setCommentText}
                                 onSubmitEditing={handleSubmitComment}
                             />
                         </View>
                         <TouchableOpacity style={styles.sendBtn} onPress={handleSubmitComment} disabled={submitting}>
-                            <CornerDownRight size={16} color={submitting ? COLORS.node.muted : COLORS.node.accent} />
+                            <CornerDownRight size={16} color={submitting ? theme.muted : theme.accent} />
                         </TouchableOpacity>
                     </View>
 
@@ -1533,21 +1610,22 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                 </View>
             )}
 
-            {/* Post Menu Modal */}
-            <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+            {/* Post Menu Modal — lazy-mounted to avoid invisible subtree cost per card */}
+            {menuVisible && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setMenuVisible(false)}>
-                    <View style={styles.menuContainer}>
+                    <View style={[styles.menuContainer, ts.menuContainer]}>
                         {/* Copy Link - available for everyone */}
                         <TouchableOpacity style={styles.menuItem} onPress={handleCopyLink}>
-                            <Link2 size={20} color={COLORS.node.text} />
-                            <Text style={styles.menuText}>Copy Link</Text>
+                            <Link2 size={20} color={theme.text} />
+                            <Text style={[styles.menuText, ts.textColor]}>Copy Link</Text>
                         </TouchableOpacity>
 
                         {isOwnPost ? (
                             <>
                                 <TouchableOpacity style={styles.menuItem} onPress={handleEdit}>
-                                    <Edit2 size={20} color={COLORS.node.text} />
-                                    <Text style={styles.menuText}>Edit Post</Text>
+                                    <Edit2 size={20} color={theme.text} />
+                                    <Text style={[styles.menuText, ts.textColor]}>Edit Post</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.menuItem} onPress={handleDelete}>
                                     <Trash2 size={20} color="#ef4444" />
@@ -1557,8 +1635,8 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         ) : (
                             <>
                                 <TouchableOpacity style={styles.menuItem} onPress={handleMute}>
-                                    <BellOff size={20} color={COLORS.node.text} />
-                                    <Text style={styles.menuText}>Mute @{post.author.username}</Text>
+                                    <BellOff size={20} color={theme.text} />
+                                    <Text style={[styles.menuText, ts.textColor]}>Mute @{post.author.username}</Text>
                                 </TouchableOpacity>
                                 <TouchableOpacity style={styles.menuItem} onPress={handleBlock}>
                                     <Ban size={20} color="#ef4444" />
@@ -1571,19 +1649,21 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                             </>
                         )}
                         <TouchableOpacity style={styles.menuItem} onPress={() => setMenuVisible(false)}>
-                            <X size={20} color={COLORS.node.muted} />
-                            <Text style={styles.menuText}>Cancel</Text>
+                            <X size={20} color={theme.muted} />
+                            <Text style={[styles.menuText, ts.textColor]}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
+            )}
 
-            {/* Report Modal */}
-            <Modal visible={showReportModal} transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
+            {/* Report Modal — lazy-mounted */}
+            {showReportModal && (
+            <Modal visible transparent animationType="fade" onRequestClose={() => setShowReportModal(false)}>
                 <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setShowReportModal(false)}>
-                    <View style={[styles.menuContainer, { maxWidth: 350 }]}>
-                        <Text style={styles.reportTitle}>Report Post</Text>
-                        <Text style={styles.reportSubtitle}>Why are you reporting this post?</Text>
+                    <View style={[styles.menuContainer, ts.reportMenu]}>
+                        <Text style={[styles.reportTitle, ts.textColor]}>Report Post</Text>
+                        <Text style={[styles.reportSubtitle, ts.mutedColor]}>Why are you reporting this post?</Text>
 
                         {([
                             { reason: 'spam' as ReportReason, label: 'Spam or misleading' },
@@ -1595,21 +1675,22 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         ]).map(({ reason, label }) => (
                             <TouchableOpacity
                                 key={reason}
-                                style={styles.reportOption}
+                                style={[styles.reportOption, ts.reportOption]}
                                 onPress={() => handleReport(reason)}
                                 disabled={reportSubmitting}
                             >
-                                <Text style={styles.reportOptionText}>{label}</Text>
+                                <Text style={[styles.reportOptionText, ts.textColor]}>{label}</Text>
                             </TouchableOpacity>
                         ))}
 
-                        <TouchableOpacity style={[styles.menuItem, { marginTop: 8 }]} onPress={() => setShowReportModal(false)}>
-                            <X size={20} color={COLORS.node.muted} />
-                            <Text style={styles.menuText}>Cancel</Text>
+                        <TouchableOpacity style={[styles.menuItem, styles.reportCancelItem]} onPress={() => setShowReportModal(false)}>
+                            <X size={20} color={theme.muted} />
+                            <Text style={[styles.menuText, ts.textColor]}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
+            )}
         </View>
     );
 };
@@ -1654,6 +1735,48 @@ interface FeedProps {
 type FeedItem = { type: 'node'; data: UIPost } | { type: 'external'; data: ExternalPost };
 
 export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onScroll, headerOffset = 0, onLoadMore, hasMore = true, loadingMore = false, searchUserResults = [], onUserClick, onRefresh, refreshing = false, onQuoteExternalPost, onSaveExternalPost }: FeedProps) => {
+    const theme = useAppTheme();
+    const { hasLinkedAccount, fetchAccounts } = useLinkedAccountsStore();
+
+    // Fetch linked accounts on mount so we know which platforms are connected
+    useEffect(() => {
+        if (currentUser) fetchAccounts();
+    }, [currentUser, fetchAccounts]);
+
+    const handleExternalLike = useCallback(async (post: ExternalPost) => {
+        const result = await externalLike(post.platform, post.externalId, post.cid, post.platformStatusId);
+        return { recordUri: result.recordUri };
+    }, []);
+
+    const handleExternalUnlike = useCallback(async (post: ExternalPost, recordUri?: string) => {
+        await externalUnlike(post.platform, post.externalId, recordUri, post.platformStatusId);
+    }, []);
+
+    const handleExternalRepost = useCallback(async (post: ExternalPost) => {
+        const result = await externalRepost(post.platform, post.externalId, post.cid, post.platformStatusId);
+        return { recordUri: result.recordUri };
+    }, []);
+
+    const handleExternalUnrepost = useCallback(async (post: ExternalPost, recordUri?: string) => {
+        await externalUnrepost(post.platform, post.externalId, recordUri, post.platformStatusId);
+    }, []);
+
+    const handleExternalReply = useCallback(async (post: ExternalPost, text: string) => {
+        await externalReply(post.platform, post.externalId, text, post.cid, post.platformStatusId);
+    }, []);
+
+    // Memoize themed style overrides for Feed-level elements
+    const ts = useMemo(() => StyleSheet.create({
+        flatList: { backgroundColor: theme.bg },
+        userResultsSection: { backgroundColor: theme.panel, borderColor: theme.border },
+        userResultItem: { borderBottomColor: theme.border },
+        userResultAvatarPlaceholder: { backgroundColor: theme.accent },
+        userResultUsername: { color: theme.text },
+        userResultName: { color: theme.muted },
+        mutedColor: { color: theme.muted },
+        refreshingText: { color: theme.muted },
+    }), [theme]);
+
     const prefetchedRef = useRef<Set<string>>(new Set());
     const flatListRef = useRef<FlatList<FeedItem>>(null);
 
@@ -1705,17 +1828,28 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
     // Memoized combined and sorted feed data
     const feedData = useMemo((): FeedItem[] => {
         if (externalPosts.length > 0) {
-            const allPosts: FeedItem[] = [
-                ...posts.map(p => ({ type: 'node' as const, data: p })),
-                ...externalPosts.map(p => ({ type: 'external' as const, data: p })),
-            ];
-            // Sort by createdAt descending (newest first)
-            allPosts.sort((a, b) => {
-                const dateA = new Date(a.data.createdAt).getTime();
-                const dateB = new Date(b.data.createdAt).getTime();
-                return dateB - dateA;
-            });
-            return allPosts;
+            // Both lists arrive pre-sorted by the backend's scoring algorithm.
+            // Interleave proportionally to preserve each list's ranking order.
+            const nodeItems: FeedItem[] = posts.map(p => ({ type: 'node' as const, data: p }));
+            const extItems: FeedItem[] = externalPosts.map(p => ({ type: 'external' as const, data: p }));
+            const total = nodeItems.length + extItems.length;
+            const merged: FeedItem[] = [];
+            let ni = 0, ei = 0;
+
+            for (let i = 0; i < total; i++) {
+                // Pick from whichever list is "behind" its target proportion
+                const nodeTarget = (nodeItems.length / total) * (i + 1);
+                const extTarget = (extItems.length / total) * (i + 1);
+
+                if (ni < nodeItems.length && (ei >= extItems.length || ni < nodeTarget)) {
+                    merged.push(nodeItems[ni]!);
+                    ni++;
+                } else if (ei < extItems.length) {
+                    merged.push(extItems[ei]!);
+                    ei++;
+                }
+            }
+            return merged;
         }
         return posts.map(p => ({ type: 'node' as const, data: p }));
     }, [posts, externalPosts]);
@@ -1767,9 +1901,18 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                 post={item.data}
                 onRepostToNode={onQuoteExternalPost}
                 onSaveToNode={onSaveExternalPost}
+                hasLinkedAccount={hasLinkedAccount(item.data.platform)}
+                onExternalLike={handleExternalLike}
+                onExternalUnlike={handleExternalUnlike}
+                onExternalRepost={handleExternalRepost}
+                onExternalUnrepost={handleExternalUnrepost}
+                onExternalReply={handleExternalReply}
+                vibeAggregate={item.data.vibeAggregate}
+                myReaction={item.data.myReaction}
+                globalNodeId={globalNodeId}
             />
         );
-    }, [currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onQuoteExternalPost, onSaveExternalPost]);
+    }, [currentUser, onPostAction, onVibeCheck, onPostClick, onEdit, onAuthorClick, onSaveToggle, globalNodeId, onQuoteExternalPost, onSaveExternalPost, hasLinkedAccount, handleExternalLike, handleExternalUnlike, handleExternalRepost, handleExternalUnrepost, handleExternalReply]);
 
     const keyExtractor = useCallback((item: FeedItem) => item.data.id, []);
 
@@ -1781,27 +1924,27 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         return (
             <View>
                 {hasUserResults && (
-                    <View style={feedStyles.userResultsSection}>
-                        <Text style={feedStyles.userResultsTitle}>Users</Text>
+                    <View style={[feedStyles.userResultsSection, ts.userResultsSection]}>
+                        <Text style={[feedStyles.userResultsTitle, ts.mutedColor]}>Users</Text>
                         {searchUserResults.map(user => (
                     <TouchableOpacity
                         key={user.id}
-                        style={feedStyles.userResultItem}
+                        style={[feedStyles.userResultItem, ts.userResultItem]}
                         onPress={() => onUserClick?.(user.id)}
                     >
                         {user.avatar ? (
                             <Image source={{ uri: user.avatar }} style={feedStyles.userResultAvatar} />
                         ) : (
-                            <View style={feedStyles.userResultAvatarPlaceholder}>
+                            <View style={[feedStyles.userResultAvatarPlaceholder, ts.userResultAvatarPlaceholder]}>
                                 <Text style={feedStyles.userResultAvatarText}>
                                     {user.username?.[0]?.toUpperCase() || '?'}
                                 </Text>
                             </View>
                         )}
                         <View style={feedStyles.userResultInfo}>
-                            <Text style={feedStyles.userResultUsername}>@{user.username}</Text>
+                            <Text style={[feedStyles.userResultUsername, ts.userResultUsername]}>@{user.username}</Text>
                             {(user.firstName || user.lastName) && (
-                                <Text style={feedStyles.userResultName}>
+                                <Text style={[feedStyles.userResultName, ts.userResultName]}>
                                     {[user.firstName, user.lastName].filter(Boolean).join(' ')}
                                 </Text>
                             )}
@@ -1817,26 +1960,26 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                 )}
             </View>
         );
-    }, [searchUserResults, onUserClick]);
+    }, [searchUserResults, onUserClick, ts]);
 
     const ListFooter = useMemo(() => {
         if (loadingMore) {
             return (
                 <View style={feedStyles.listFooter}>
-                    <ActivityIndicator size="small" color={COLORS.node.accent} />
-                    <Text style={feedStyles.listFooterText}>Loading more...</Text>
+                    <ActivityIndicator size="small" color={theme.accent} />
+                    <Text style={[feedStyles.listFooterText, ts.mutedColor]}>Loading more...</Text>
                 </View>
             );
         }
         if (!hasMore && posts.length > 0) {
             return (
                 <View style={feedStyles.listFooter}>
-                    <Text style={feedStyles.endText}>You've reached the end</Text>
+                    <Text style={[feedStyles.endText, ts.mutedColor]}>You've reached the end</Text>
                 </View>
             );
         }
         return null;
-    }, [loadingMore, hasMore, posts.length]);
+    }, [loadingMore, hasMore, posts.length, ts, theme.accent]);
 
     // Web pull-to-refresh indicator (memoized)
     const WebPullIndicator = useMemo(() => {
@@ -1860,16 +2003,16 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                 >
                     <RefreshCw
                         size={24}
-                        color={COLORS.node.accent}
+                        color={theme.accent}
                         style={refreshing ? feedStyles.refreshingIcon : undefined}
                     />
                 </View>
                 {refreshing && (
-                    <Text style={feedStyles.refreshingText}>Refreshing...</Text>
+                    <Text style={[feedStyles.refreshingText, ts.refreshingText]}>Refreshing...</Text>
                 )}
             </View>
         );
-    }, [headerOffset, webPullDistance, refreshing, onRefresh]);
+    }, [headerOffset, webPullDistance, refreshing, onRefresh, theme.accent, ts]);
 
     // Memoized touch props for web pull-to-refresh
     const webTouchProps = useMemo((): Partial<ViewProps> => {
@@ -1908,10 +2051,10 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                     data={feedData}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
-                    style={feedStyles.flatList}
+                    style={[feedStyles.flatList, ts.flatList]}
                     contentContainerStyle={contentContainerStyle}
                     onScroll={handleScrollWithTracking}
-                    scrollEventThrottle={16}
+                    scrollEventThrottle={Platform.OS === 'web' ? 32 : 16}
                     onEndReached={handleEndReached}
                     onEndReachedThreshold={0.5}
                     ListHeaderComponent={ListHeader}
@@ -1922,16 +2065,16 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                             <RefreshControl
                                 refreshing={refreshing}
                                 onRefresh={onRefresh}
-                                tintColor={COLORS.node.accent}
-                                colors={[COLORS.node.accent]}
+                                tintColor={theme.accent}
+                                colors={[theme.accent]}
                                 progressViewOffset={headerOffset}
                             />
                         ) : undefined
                     }
                     // Virtualization optimizations
                     windowSize={5}
-                    maxToRenderPerBatch={10}
-                    initialNumToRender={8}
+                    maxToRenderPerBatch={Platform.OS === 'web' ? 4 : 8}
+                    initialNumToRender={6}
                     removeClippedSubviews={Platform.OS !== 'web'}
                 />
             </View>
@@ -1972,8 +2115,6 @@ const styles = StyleSheet.create({
         height: 20,
         borderRadius: 6,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
-        backgroundColor: COLORS.node.panel,
         overflow: 'hidden',
         zIndex: 10
     },
@@ -1983,27 +2124,24 @@ const styles = StyleSheet.create({
         height: 36,
         borderRadius: 10,
         borderWidth: 2,
-        borderColor: COLORS.node.accent,
         overflow: 'hidden',
     },
-    usernameSmall: { fontSize: 14, fontWeight: 'bold', color: COLORS.node.text },
-    usernameLarge: { fontSize: 16, fontWeight: 'bold', color: COLORS.node.text },
-    timestamp: { fontSize: 10, color: COLORS.node.muted },
+    usernameSmall: { fontSize: 14, fontWeight: 'bold' },
+    usernameLarge: { fontSize: 16, fontWeight: 'bold' },
+    timestamp: { fontSize: 10 },
     commentText: { fontSize: 14, color: 'rgba(226, 232, 240, 0.9)', lineHeight: 20 },
     title: { fontSize: 18, fontWeight: 'bold', color: 'white', marginBottom: 4 },
     bodyText: { fontSize: 14, color: '#e2e8f0', lineHeight: 22 },
-    subtext: { fontSize: 11, color: COLORS.node.muted },
+    subtext: { fontSize: 11 },
     headerRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
     userInfoRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
     commentBody: { marginLeft: 28, paddingBottom: 4 },
     actionRow: { flexDirection: 'row', gap: 12, marginTop: 6, opacity: 0.6 },
     badge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 },
-    badgeText: { fontSize: 9, fontWeight: '500', color: COLORS.node.text },
+    badgeText: { fontSize: 9, fontWeight: '500' },
     actionBtnText: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-    actionLabel: { fontSize: 10, fontWeight: 'bold', color: COLORS.node.muted },
+    actionLabel: { fontSize: 10, fontWeight: 'bold' },
     card: {
-        backgroundColor: COLORS.node.panel,
-        borderColor: COLORS.node.border,
         borderWidth: 1,
         borderRadius: 12,
         marginBottom: 8,
@@ -2015,46 +2153,40 @@ const styles = StyleSheet.create({
     cardActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
     pillBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 14, paddingVertical: 8,
-        backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border, borderRadius: 8
+        borderWidth: 1, borderRadius: 8
     },
-    pillText: { fontSize: 14, fontWeight: '500', color: COLORS.node.muted },
+    pillText: { fontSize: 14, fontWeight: '500' },
     linkPillBtn: {
         flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 10, paddingVertical: 6,
-        backgroundColor: COLORS.node.panel, borderWidth: 1, borderColor: COLORS.node.border,
-        borderRadius: 6, maxWidth: 160,
+        borderWidth: 1, borderRadius: 6, maxWidth: 160,
     },
-    linkPillText: { fontSize: 12, fontWeight: '500', color: COLORS.node.muted },
+    linkPillText: { fontSize: 12, fontWeight: '500' },
     commentsSection: {
-        borderTopWidth: 1, borderTopColor: COLORS.node.border, backgroundColor: 'rgba(15, 17, 21, 0.3)',
+        borderTopWidth: 1, backgroundColor: 'rgba(15, 17, 21, 0.3)',
         paddingHorizontal: 8, paddingTop: 16, paddingBottom: 16
     },
     pollContainer: {
         marginTop: 12,
         gap: 8,
         maxWidth: Platform.OS === 'web' ? 400 : '100%',
-        backgroundColor: COLORS.node.panel,
         padding: 16,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     pollQuestion: {
         fontSize: 15,
         fontWeight: '600',
-        color: COLORS.node.text,
         marginBottom: 8,
     },
     pollOption: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: 8,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         height: 44,
         justifyContent: 'center',
         overflow: 'hidden',
         position: 'relative'
     },
-    pollOptionSelected: { borderColor: COLORS.node.accent, borderWidth: 2 },
+    pollOptionSelected: { borderWidth: 2 },
     pollBar: {
         position: 'absolute',
         top: 0, bottom: 0, left: 0,
@@ -2065,31 +2197,29 @@ const styles = StyleSheet.create({
         flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
         paddingHorizontal: 14
     },
-    pollText: { fontSize: 14, color: COLORS.node.text, fontWeight: '500' },
-    pollPercent: { fontSize: 13, color: COLORS.node.muted, fontWeight: '600', fontFamily: 'monospace' },
-    pollTotal: { fontSize: 12, color: COLORS.node.muted, marginTop: 8 },
+    pollText: { fontSize: 14, fontWeight: '500' },
+    pollPercent: { fontSize: 13, fontWeight: '600', fontFamily: 'monospace' },
+    pollTotal: { fontSize: 12, marginTop: 8 },
     modalOverlay: {
         flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center'
     },
     menuContainer: {
-        width: 280, backgroundColor: COLORS.node.panel, borderRadius: 12, padding: 8,
-        borderWidth: 1, borderColor: COLORS.node.border
+        width: 280, borderRadius: 12, padding: 8,
+        borderWidth: 1,
     },
     menuItem: {
         flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12,
         borderRadius: 8
     },
-    menuText: { fontSize: 16, color: COLORS.node.text, fontWeight: '500' },
+    menuText: { fontSize: 16, fontWeight: '500' },
     reportTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: COLORS.node.text,
         marginBottom: 4,
         textAlign: 'center',
     },
     reportSubtitle: {
         fontSize: 14,
-        color: COLORS.node.muted,
         marginBottom: 16,
         textAlign: 'center',
     },
@@ -2097,35 +2227,52 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         paddingHorizontal: 16,
         borderRadius: 8,
-        backgroundColor: COLORS.node.bg,
         marginBottom: 8,
     },
     reportOptionText: {
         fontSize: 15,
-        color: COLORS.node.text,
         fontWeight: '500',
     },
+    // Static layout helpers (extracted from inline objects for perf)
+    headerAuthorRow: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+    avatarInitialWhite: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
+    avatarInitialSmallWhite: { color: '#fff', fontSize: 8, fontWeight: 'bold' },
+    flexOne: { flex: 1 },
+    authorBadgeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+    moreBtn: { padding: 8 },
+    contentPadding: { paddingHorizontal: 4, marginBottom: 8 },
+    continueReadingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4 },
+    scrollSortRow: { marginBottom: 12 },
+    scrollSortContent: { gap: 8 },
+    replyRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+    cancelReplyBtn: { marginLeft: 8 },
+    reportCancelItem: { marginTop: 8 },
+    // CommentNode static layout helpers
+    commentWrapper: { position: 'relative' },
+    commentInner: { position: 'relative', zIndex: 10 },
+    collapseBtn: { padding: 2 },
+    repliesContainer: { paddingLeft: 32, gap: 8 },
     commentInputRow: {
         flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 16,
         paddingHorizontal: 8
     },
     commentInput: {
-        flex: 1, backgroundColor: COLORS.node.bg, borderRadius: 20,
+        flex: 1, borderRadius: 20,
         paddingHorizontal: 16, paddingVertical: 8, color: '#fff',
-        borderWidth: 1, borderColor: COLORS.node.border
+        borderWidth: 1,
     },
     sendBtn: {
         padding: 8, backgroundColor: 'rgba(99, 102, 241, 0.1)', borderRadius: 20
     },
     sortChip: {
         paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16,
-        backgroundColor: COLORS.node.bg, borderWidth: 1, borderColor: COLORS.node.border
+        borderWidth: 1,
     },
     sortChipSelected: {
-        backgroundColor: 'rgba(99, 102, 241, 0.1)', borderColor: COLORS.node.accent
+        backgroundColor: 'rgba(99, 102, 241, 0.1)',
     },
-    sortChipText: { fontSize: 12, color: COLORS.node.muted },
-    sortChipTextSelected: { color: COLORS.node.accent, fontWeight: '600' },
+    sortChipText: { fontSize: 12 },
+    sortChipTextSelected: { fontWeight: '600' },
     // Image/Link Preview styles
     linkPreviewContainer: {
         marginTop: 12,
@@ -2135,7 +2282,6 @@ const styles = StyleSheet.create({
     postImage: {
         width: '100%',
         borderRadius: 12,
-        backgroundColor: COLORS.node.bg,
     },
     // YouTube embed styles
     youtubeContainer: {
@@ -2149,7 +2295,6 @@ const styles = StyleSheet.create({
         width: '100%',
         aspectRatio: 16 / 9,
         borderRadius: 12,
-        backgroundColor: COLORS.node.bg,
         overflow: 'hidden',
         position: 'relative',
     },
@@ -2160,7 +2305,6 @@ const styles = StyleSheet.create({
     videoPlaceholder: {
         width: '100%',
         height: '100%',
-        backgroundColor: COLORS.node.panel,
     },
     playButtonOverlay: {
         position: 'absolute',
@@ -2225,16 +2369,13 @@ const styles = StyleSheet.create({
         width: '100%',
     },
     linkPreview: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         overflow: 'hidden',
     },
     linkPreviewImage: {
         width: '100%',
-        height: 180,
-        backgroundColor: COLORS.node.panel,
+        maxHeight: 500,
     },
     linkPreviewContent: {
         padding: 12,
@@ -2242,46 +2383,37 @@ const styles = StyleSheet.create({
     linkPreviewTitle: {
         fontSize: 15,
         fontWeight: '600',
-        color: COLORS.node.text,
         marginBottom: 4,
     },
     linkPreviewDescription: {
         fontSize: 13,
-        color: COLORS.node.muted,
         marginBottom: 6,
         lineHeight: 18,
     },
     linkPreviewDomain: {
         fontSize: 12,
-        color: COLORS.node.accent,
     },
     plainLink: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: 8,
         padding: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     plainLinkText: {
         fontSize: 14,
-        color: COLORS.node.accent,
     },
 });
 
 // Feed-level styles for user search results
 const feedStyles = StyleSheet.create({
     userResultsSection: {
-        backgroundColor: COLORS.node.panel,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         padding: 12,
         marginBottom: 12,
     },
     userResultsTitle: {
         fontSize: 14,
         fontWeight: '600',
-        color: COLORS.node.muted,
         marginBottom: 8,
     },
     userResultItem: {
@@ -2289,7 +2421,6 @@ const feedStyles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 8,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     userResultAvatar: {
         width: 40,
@@ -2300,7 +2431,6 @@ const feedStyles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: COLORS.node.accent,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -2316,11 +2446,9 @@ const feedStyles = StyleSheet.create({
     userResultUsername: {
         fontSize: 15,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     userResultName: {
         fontSize: 13,
-        color: COLORS.node.muted,
         marginTop: 2,
     },
     botBadge: {
@@ -2334,7 +2462,6 @@ const feedStyles = StyleSheet.create({
         fontWeight: 'bold',
         color: '#fff',
     },
-    // External posts divider
     externalDivider: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -2344,27 +2471,22 @@ const feedStyles = StyleSheet.create({
     externalDividerLine: {
         flex: 1,
         height: 1,
-        backgroundColor: COLORS.node.border,
     },
     externalDividerText: {
-        color: COLORS.node.muted,
         fontSize: 12,
         fontWeight: '500',
         paddingHorizontal: 12,
     },
-    // Feed container styles
     feedContainer: {
         flex: 1,
         overflow: 'hidden',
     },
     flatList: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     flexOne: {
         flex: 1,
     },
-    // Web pull-to-refresh styles
     webPullIndicator: {
         position: 'absolute',
         left: 0,
@@ -2378,22 +2500,18 @@ const feedStyles = StyleSheet.create({
         opacity: 0.7,
     },
     refreshingText: {
-        color: COLORS.node.muted,
         fontSize: 12,
         marginTop: 4,
     },
-    // List footer styles
     listFooter: {
         padding: 20,
         alignItems: 'center',
     },
     listFooterText: {
-        color: COLORS.node.muted,
         marginTop: 8,
         fontSize: 12,
     },
     endText: {
-        color: COLORS.node.muted,
         fontSize: 12,
     },
 });

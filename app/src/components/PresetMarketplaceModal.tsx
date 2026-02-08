@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { api } from '../lib/api';
 import type { VibeValidatorSettings } from './ui/VibeValidator';
 
@@ -25,6 +25,7 @@ interface PresetMarketplaceModalProps {
 }
 
 export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ visible, onClose, onInstall }) => {
+    const theme = useAppTheme();
     const [presets, setPresets] = useState<Preset[]>([]);
     const [loading, setLoading] = useState(true);
     const [installing, setInstalling] = useState<string | null>(null);
@@ -64,21 +65,21 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
     };
 
     const renderItem = ({ item }: { item: Preset }) => (
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
+                <Text style={[styles.cardTitle, { color: theme.text }]}>{item.name}</Text>
                 <View style={styles.stats}>
-                    <Ionicons name="download-outline" size={14} color={COLORS.node.muted} />
-                    <Text style={styles.statsText}>{item.downloads}</Text>
+                    <Ionicons name="download-outline" size={14} color={theme.muted} />
+                    <Text style={[styles.statsText, { color: theme.muted }]}>{item.downloads}</Text>
                 </View>
             </View>
 
-            <Text style={styles.description} numberOfLines={2}>{item.description || 'No description'}</Text>
+            <Text style={[styles.description, { color: theme.muted }]} numberOfLines={2}>{item.description || 'No description'}</Text>
 
             <View style={styles.footer}>
-                <Text style={styles.creator}>by @{item.creator.username} (Cred: {item.creator.cred})</Text>
+                <Text style={[styles.creator, { color: theme.accent }]}>by @{item.creator.username} (Cred: {item.creator.cred})</Text>
                 <TouchableOpacity
-                    style={styles.installButton}
+                    style={[styles.installButton, { backgroundColor: theme.accent }]}
                     onPress={() => handleInstall(item)}
                     disabled={!!installing}
                 >
@@ -94,16 +95,16 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
 
     return (
         <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
-            <View style={styles.container}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>Algorithm Marketplace</Text>
+            <View style={[styles.container, { backgroundColor: theme.bg }]}>
+                <View style={[styles.header, { borderBottomColor: theme.border }]}>
+                    <Text style={[styles.title, { color: theme.text }]}>Algorithm Marketplace</Text>
                     <TouchableOpacity onPress={onClose}>
-                        <Ionicons name="close" size={24} color={COLORS.node.text} />
+                        <Ionicons name="close" size={24} color={theme.text} />
                     </TouchableOpacity>
                 </View>
 
                 {loading ? (
-                    <ActivityIndicator size="large" color={COLORS.node.accent} style={{ marginTop: 40 }} />
+                    <ActivityIndicator size="large" color={theme.accent} style={{ marginTop: 40 }} />
                 ) : (
                     <FlatList
                         data={presets}
@@ -111,7 +112,7 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
                         keyExtractor={item => item.id}
                         contentContainerStyle={styles.list}
                         ListEmptyComponent={
-                            <Text style={styles.emptyText}>No presets found. Be the first to publish one!</Text>
+                            <Text style={[styles.emptyText, { color: theme.muted }]}>No presets found. Be the first to publish one!</Text>
                         }
                     />
                 )}
@@ -123,7 +124,6 @@ export const PresetMarketplaceModal: React.FC<PresetMarketplaceModalProps> = ({ 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     header: {
         flexDirection: 'row',
@@ -131,23 +131,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         padding: 16,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.node.border,
     },
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     list: {
         padding: 16,
     },
     card: {
-        backgroundColor: COLORS.node.panel,
         borderRadius: 12,
         padding: 16,
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -158,7 +154,6 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 18,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     stats: {
         flexDirection: 'row',
@@ -166,11 +161,9 @@ const styles = StyleSheet.create({
         gap: 4,
     },
     statsText: {
-        color: COLORS.node.muted,
         fontSize: 12,
     },
     description: {
-        color: COLORS.node.muted,
         marginBottom: 12,
     },
     footer: {
@@ -179,11 +172,9 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     creator: {
-        color: COLORS.node.accent,
         fontSize: 12,
     },
     installButton: {
-        backgroundColor: COLORS.node.accent,
         paddingHorizontal: 16,
         paddingVertical: 8,
         borderRadius: 20,
@@ -194,7 +185,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     emptyText: {
-        color: COLORS.node.muted,
         textAlign: 'center',
         marginTop: 40,
     },

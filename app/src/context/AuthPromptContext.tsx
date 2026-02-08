@@ -1,6 +1,6 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useMemo } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { X } from 'lucide-react-native';
 import type { AuthResponse } from '../lib/api';
 
@@ -36,6 +36,7 @@ export const AuthPromptProvider: React.FC<AuthPromptProviderProps> = ({
   onLogin,
   onRegister,
 }) => {
+  const theme = useAppTheme();
   const [visible, setVisible] = useState(false);
   const [message, setMessage] = useState('Sign in to continue');
 
@@ -60,8 +61,12 @@ export const AuthPromptProvider: React.FC<AuthPromptProviderProps> = ({
     onRegister();
   };
 
+  // Memoize context value so consumers (PostCardInner) don't re-render
+  // when this provider re-renders for unrelated reasons (modal state, theme, etc.)
+  const contextValue = useMemo(() => ({ promptAuth, requireAuth }), [promptAuth, requireAuth]);
+
   return (
-    <AuthPromptContext.Provider value={{ promptAuth, requireAuth }}>
+    <AuthPromptContext.Provider value={contextValue}>
       {children}
 
       <Modal
@@ -71,29 +76,29 @@ export const AuthPromptProvider: React.FC<AuthPromptProviderProps> = ({
         onRequestClose={() => setVisible(false)}
       >
         <View style={styles.overlay}>
-          <View style={styles.modal}>
+          <View style={[styles.modal, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             {/* Close button */}
             <TouchableOpacity
               style={styles.closeButton}
               onPress={() => setVisible(false)}
             >
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
 
             {/* Content */}
-            <Text style={styles.title}>Join the conversation</Text>
-            <Text style={styles.message}>{message}</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Join the conversation</Text>
+            <Text style={[styles.message, { color: theme.muted }]}>{message}</Text>
 
             {/* Buttons */}
-            <TouchableOpacity style={styles.primaryButton} onPress={handleLogin}>
+            <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.accent }]} onPress={handleLogin}>
               <Text style={styles.primaryButtonText}>Sign In</Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleRegister}>
-              <Text style={styles.secondaryButtonText}>Create Account</Text>
+            <TouchableOpacity style={[styles.secondaryButton, { borderColor: theme.border }]} onPress={handleRegister}>
+              <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Create Account</Text>
             </TouchableOpacity>
 
-            <Text style={styles.footnote}>
+            <Text style={[styles.footnote, { color: theme.muted }]}>
               Browse freely without an account
             </Text>
           </View>
@@ -112,14 +117,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modal: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     padding: 24,
     width: '100%',
     maxWidth: 360,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   closeButton: {
     position: 'absolute',
@@ -130,19 +133,16 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: '700',
-    color: COLORS.node.text,
     marginBottom: 8,
     marginTop: 8,
   },
   message: {
     fontSize: 15,
-    color: COLORS.node.muted,
     textAlign: 'center',
     marginBottom: 24,
     lineHeight: 22,
   },
   primaryButton: {
-    backgroundColor: COLORS.node.accent,
     paddingVertical: 14,
     paddingHorizontal: 32,
     borderRadius: 8,
@@ -162,17 +162,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     width: '100%',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   secondaryButtonText: {
-    color: COLORS.node.text,
     fontSize: 16,
     fontWeight: '600',
     textAlign: 'center',
   },
   footnote: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 16,
   },
 });

@@ -9,11 +9,12 @@ import {
   Image,
   ActivityIndicator,
   Platform,
+  Pressable,
 } from 'react-native';
 import { showAlert } from '../lib/alert';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Camera, Trash2, Plus, X } from '../components/ui/Icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import {
   getNodeDetails,
   updateNode,
@@ -45,10 +46,23 @@ const COLOR_PRESETS = [
   '#3b82f6', // Blue
 ];
 
+// Theme token fields editable via Community Theme section
+const CUSTOM_THEME_FIELDS = [
+  { key: 'bg', label: 'Background' },
+  { key: 'panel', label: 'Panel / Card' },
+  { key: 'text', label: 'Text' },
+  { key: 'accent', label: 'Accent' },
+  { key: 'border', label: 'Border' },
+] as const;
+
+const isValidHex = (value: string): boolean =>
+  /^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(value);
+
 export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
   nodeId,
   onBack,
 }) => {
+  const theme = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [nodeData, setNodeData] = useState<NodeDetails | null>(null);
@@ -60,6 +74,16 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
   const [color, setColor] = useState('#6366f1');
   const [rules, setRules] = useState<string[]>([]);
   const [newRule, setNewRule] = useState('');
+
+  // Custom community theme state
+  const [customThemeColors, setCustomThemeColors] = useState<Record<string, string>>({
+    bg: '',
+    panel: '',
+    text: '',
+    accent: '',
+    border: '',
+  });
+  const [savingTheme, setSavingTheme] = useState(false);
 
   // Image upload state
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -80,6 +104,15 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
       setDescription(data.description || '');
       setColor(data.color || '#6366f1');
       setRules(data.rules || []);
+      if (data.customTheme) {
+        setCustomThemeColors({
+          bg: (data.customTheme.bg as string) || '',
+          panel: (data.customTheme.panel as string) || '',
+          text: (data.customTheme.text as string) || '',
+          accent: (data.customTheme.accent as string) || '',
+          border: (data.customTheme.border as string) || '',
+        });
+      }
     } catch (err: unknown) {
       setError(getErrorMessage(err));
     } finally {
@@ -185,11 +218,50 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
     setRules(rules.filter((_, i) => i !== index));
   };
 
+  const updateThemeColor = (key: string, value: string) => {
+    setCustomThemeColors((prev) => ({ ...prev, [key]: value }));
+  };
+
+  const handleSaveTheme = async () => {
+    setSavingTheme(true);
+    try {
+      const themeData: Record<string, string> = {};
+      for (const [key, value] of Object.entries(customThemeColors)) {
+        if (value && isValidHex(value)) {
+          themeData[key] = value;
+        }
+      }
+      await updateNode(nodeId, {
+        customTheme: Object.keys(themeData).length > 0 ? themeData : null,
+      });
+      showAlert('Success', 'Community theme updated');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
+  const handleResetTheme = async () => {
+    setSavingTheme(true);
+    try {
+      await updateNode(nodeId, { customTheme: null });
+      setCustomThemeColors({ bg: '', panel: '', text: '', accent: '', border: '' });
+      showAlert('Success', 'Community theme reset to default');
+    } catch (err: unknown) {
+      showAlert('Error', getErrorMessage(err));
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
+  const hasAnyThemeColor = Object.values(customThemeColors).some((v) => v.trim() !== '');
+
   if (loading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.node.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       </SafeAreaView>
     );
@@ -197,32 +269,32 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
 
   if (error || !nodeData) {
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.header}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <TouchableOpacity onPress={onBack} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.node.text} />
+            <ArrowLeft size={24} color={theme.text} />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Error</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Error</Text>
           <View style={{ width: 32 }} />
         </View>
         <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>{error || 'Node not found'}</Text>
+          <Text style={[styles.errorText, { color: theme.muted }]}>{error || 'Node not found'}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.node.text} />
+          <ArrowLeft size={24} color={theme.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Node Settings</Text>
+        <Text style={[styles.headerTitle, { color: theme.text }]}>Node Settings</Text>
         <TouchableOpacity
           onPress={handleSave}
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+          style={[styles.saveButton, saving && styles.saveButtonDisabled, { backgroundColor: theme.accent }]}
           disabled={saving}
         >
           <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
@@ -231,8 +303,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Banner Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Banner</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Banner</Text>
           <View style={[styles.bannerPreview, { backgroundColor: color }]}>
             {nodeData.banner ? (
               <Image source={{ uri: nodeData.banner }} style={styles.bannerImage} />
@@ -265,8 +337,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
         </View>
 
         {/* Avatar Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Avatar</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Avatar</Text>
           <View style={styles.avatarRow}>
             <View style={[styles.avatarPreview, { backgroundColor: color }]}>
               {nodeData.avatar ? (
@@ -284,14 +356,14 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
             </View>
             <View style={styles.avatarActions}>
               <TouchableOpacity
-                style={styles.avatarButton}
+                style={[styles.avatarButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
                 onPress={() => pickImage('avatar')}
               >
-                <Text style={styles.avatarButtonText}>Upload New</Text>
+                <Text style={[styles.avatarButtonText, { color: theme.text }]}>Upload New</Text>
               </TouchableOpacity>
               {nodeData.avatar && (
                 <TouchableOpacity
-                  style={[styles.avatarButton, styles.avatarButtonDanger]}
+                  style={[styles.avatarButton, styles.avatarButtonDanger, { backgroundColor: theme.panel, borderColor: theme.border }]}
                   onPress={handleDeleteAvatar}
                 >
                   <Text style={styles.avatarButtonTextDanger}>Remove</Text>
@@ -302,27 +374,27 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
         </View>
 
         {/* Name Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Name</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Name</Text>
           <TextInput
-            style={styles.textInput}
+            style={[styles.textInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             value={name}
             onChangeText={setName}
             placeholder="Node name"
-            placeholderTextColor={COLORS.node.muted}
+            placeholderTextColor={theme.muted}
             maxLength={50}
           />
         </View>
 
         {/* Description Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Description</Text>
           <TextInput
-            style={[styles.textInput, styles.textArea]}
+            style={[styles.textInput, styles.textArea, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             value={description}
             onChangeText={setDescription}
             placeholder="What is this node about?"
-            placeholderTextColor={COLORS.node.muted}
+            placeholderTextColor={theme.muted}
             multiline
             numberOfLines={3}
             maxLength={500}
@@ -330,8 +402,8 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
         </View>
 
         {/* Color Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Primary Color</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Primary Color</Text>
           <View style={styles.colorGrid}>
             {COLOR_PRESETS.map((preset) => (
               <TouchableOpacity
@@ -340,7 +412,7 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
                   styles.colorOption,
                   { backgroundColor: preset },
                   color === preset && styles.colorOptionSelected,
-                ]}
+                , { borderColor: theme.text }]}
                 onPress={() => setColor(preset)}
               />
             ))}
@@ -348,18 +420,18 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
         </View>
 
         {/* Rules Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Rules ({rules.length}/10)</Text>
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Rules ({rules.length}/10)</Text>
           <View style={styles.rulesList}>
             {rules.map((rule, index) => (
-              <View key={index} style={styles.ruleItem}>
-                <Text style={styles.ruleNumber}>{index + 1}.</Text>
-                <Text style={styles.ruleText}>{rule}</Text>
+              <View key={index} style={[styles.ruleItem, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+                <Text style={[styles.ruleNumber, { color: theme.muted }]}>{index + 1}.</Text>
+                <Text style={[styles.ruleText, { color: theme.text }]}>{rule}</Text>
                 <TouchableOpacity
                   style={styles.ruleRemoveButton}
                   onPress={() => removeRule(index)}
                 >
-                  <X size={16} color={COLORS.node.muted} />
+                  <X size={16} color={theme.muted} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -367,11 +439,11 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
           {rules.length < 10 && (
             <View style={styles.addRuleRow}>
               <TextInput
-                style={[styles.textInput, styles.ruleInput]}
+                style={[styles.textInput, styles.ruleInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                 value={newRule}
                 onChangeText={setNewRule}
                 placeholder="Add a rule..."
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 maxLength={200}
                 onSubmitEditing={addRule}
               />
@@ -380,10 +452,93 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
                 onPress={addRule}
                 disabled={!newRule.trim()}
               >
-                <Plus size={20} color={newRule.trim() ? '#fff' : COLORS.node.muted} />
+                <Plus size={20} color={newRule.trim() ? '#fff' : theme.muted} />
               </TouchableOpacity>
             </View>
           )}
+        </View>
+
+        {/* Community Theme Section */}
+        <View style={[styles.section, { borderBottomColor: theme.border }]}>
+          <Text style={[styles.sectionTitle, { color: theme.text }]}>Community Theme</Text>
+          <Text style={[styles.sectionSubtitle, { color: theme.muted }]}>
+            Override default theme colors for members browsing this node.
+            Leave a field empty to use the default.
+          </Text>
+
+          <View style={styles.themeFieldsList}>
+            {CUSTOM_THEME_FIELDS.map(({ key, label }) => {
+              const value = customThemeColors[key] || '';
+              const valid = !value || isValidHex(value);
+              return (
+                <View key={key} style={styles.themeFieldRow}>
+                  <View
+                    style={[
+                      styles.themeColorSwatch,
+                      {
+                        backgroundColor: value && isValidHex(value) ? value : theme.panel,
+                        borderColor: valid ? theme.border : '#ef4444',
+                      },
+                    ]}
+                  />
+                  <View style={styles.themeFieldInputWrap}>
+                    <Text style={[styles.themeFieldLabel, { color: theme.textSecondary }]}>
+                      {label}
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.textInput,
+                        styles.themeFieldInput,
+                        {
+                          backgroundColor: theme.panel,
+                          borderColor: valid ? theme.border : '#ef4444',
+                          color: theme.text,
+                        },
+                      ]}
+                      value={value}
+                      onChangeText={(v) => updateThemeColor(key, v)}
+                      placeholder="#hexcolor"
+                      placeholderTextColor={theme.muted}
+                      maxLength={7}
+                      autoCapitalize="none"
+                      autoCorrect={false}
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+
+          <View style={styles.themeActions}>
+            <Pressable
+              onPress={handleSaveTheme}
+              disabled={savingTheme}
+              style={({ pressed }) => [
+                styles.themeActionButton,
+                { backgroundColor: theme.accent, opacity: pressed || savingTheme ? 0.6 : 1 },
+              ]}
+            >
+              <Text style={styles.themeActionButtonText}>
+                {savingTheme ? 'Saving...' : 'Save Theme'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleResetTheme}
+              disabled={savingTheme || !hasAnyThemeColor}
+              style={({ pressed }) => [
+                styles.themeActionButton,
+                styles.themeResetButton,
+                {
+                  borderColor: theme.border,
+                  opacity: pressed || savingTheme || !hasAnyThemeColor ? 0.4 : 1,
+                },
+              ]}
+            >
+              <Text style={[styles.themeResetButtonText, { color: theme.text }]}>
+                Reset Theme
+              </Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Bottom padding */}
@@ -396,7 +551,6 @@ export const NodeSettingsScreen: React.FC<NodeSettingsScreenProps> = ({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   loadingContainer: {
     flex: 1,
@@ -410,7 +564,6 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   errorText: {
-    color: COLORS.node.muted,
     fontSize: 14,
     textAlign: 'center',
   },
@@ -420,7 +573,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   backButton: {
     padding: 4,
@@ -428,12 +580,10 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   saveButton: {
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: COLORS.node.accent,
     borderRadius: 8,
   },
   saveButtonDisabled: {
@@ -450,12 +600,10 @@ const styles = StyleSheet.create({
   section: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   sectionTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 12,
   },
   bannerPreview: {
@@ -524,16 +672,13 @@ const styles = StyleSheet.create({
   avatarButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   avatarButtonDanger: {
     borderColor: '#ef4444',
   },
   avatarButtonText: {
-    color: COLORS.node.text,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -543,14 +688,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   textInput: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingHorizontal: 16,
     paddingVertical: 12,
     fontSize: 14,
-    color: COLORS.node.text,
   },
   textArea: {
     minHeight: 80,
@@ -569,7 +711,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   colorOptionSelected: {
-    borderColor: COLORS.node.text,
   },
   rulesList: {
     gap: 8,
@@ -580,19 +721,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     padding: 12,
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   ruleNumber: {
-    color: COLORS.node.muted,
     fontSize: 14,
     width: 24,
   },
   ruleText: {
     flex: 1,
-    color: COLORS.node.text,
     fontSize: 14,
   },
   ruleRemoveButton: {
@@ -609,12 +746,68 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 8,
-    backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
   addRuleButtonDisabled: {
-    backgroundColor: COLORS.node.panel,
+  },
+  // Community Theme styles
+  sectionSubtitle: {
+    fontSize: 13,
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  themeFieldsList: {
+    gap: 12,
+    marginBottom: 16,
+  },
+  themeFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  themeColorSwatch: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    borderWidth: 2,
+  },
+  themeFieldInputWrap: {
+    flex: 1,
+    gap: 2,
+  },
+  themeFieldLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  themeFieldInput: {
+    paddingVertical: 8,
+    fontSize: 13,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  themeActions: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  themeActionButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  themeActionButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  themeResetButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  themeResetButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

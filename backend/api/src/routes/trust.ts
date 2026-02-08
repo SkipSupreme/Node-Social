@@ -22,7 +22,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /trust/me - Get current user's trust score
    */
   fastify.get('/me', { preHandler: [fastify.authenticate] }, async (request, reply) => {
-    const userId = (request.user as { id: string }).id;
+    const userId = (request.user as { sub: string }).sub;
     const trustScore = await getUserTrustScore(fastify.prisma, userId);
 
     if (!trustScore) {
@@ -163,7 +163,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     '/network',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
       const maxHops = parseInt(request.query.maxHops || '3', 10);
 
       const network = await getTrustNetworkForUser(
@@ -209,7 +209,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.post('/compute', { preHandler: [fastify.authenticate] }, async (request, reply) => {
     const user = await fastify.prisma.user.findUnique({
-      where: { id: (request.user as { id: string }).id },
+      where: { id: (request.user as { sub: string }).sub },
       select: { role: true },
     });
 
@@ -246,7 +246,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const adminUser = await fastify.prisma.user.findUnique({
-        where: { id: (request.user as { id: string }).id },
+        where: { id: (request.user as { sub: string }).sub },
         select: { id: true, role: true },
       });
 
@@ -283,7 +283,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const adminUser = await fastify.prisma.user.findUnique({
-        where: { id: (request.user as { id: string }).id },
+        where: { id: (request.user as { sub: string }).sub },
         select: { role: true },
       });
 
@@ -310,7 +310,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const adminUser = await fastify.prisma.user.findUnique({
-        where: { id: (request.user as { id: string }).id },
+        where: { id: (request.user as { sub: string }).sub },
         select: { role: true },
       });
 

@@ -9,7 +9,7 @@ import {
   Pressable,
 } from 'react-native';
 import { Search, ChevronDown, Menu, X } from './Icons';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 import { VibeValidatorSettings } from './VibeValidator';
 import { getPresetDisplayName, PresetType } from './PresetBottomSheet';
 import { NodeLogo } from './NodeLogo';
@@ -70,6 +70,7 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
   onMenuClick,
   isDesktop = false,
 }) => {
+  const theme = useAppTheme();
   const [mobileSearchActive, setMobileSearchActive] = useState(false);
   const [showFeedSourceModal, setShowFeedSourceModal] = useState(false);
   const currentPresetName = getPresetDisplayName(algoSettings.preset as PresetType);
@@ -88,13 +89,13 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
   // Mobile Layout - Clean header, vibe validator opens as modal via onVibeClick
   if (!isDesktop) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: theme.bg, borderBottomColor: theme.border }]}>
         {!mobileSearchActive ? (
           <View style={styles.mobileHeaderRow}>
             {/* Left: Menu + Logo */}
             <View style={styles.mobileLeft}>
               <TouchableOpacity onPress={onMenuClick} style={styles.menuButton}>
-                <Menu size={24} color={COLORS.node.text} />
+                <Menu size={24} color={theme.text} />
               </TouchableOpacity>
               <NodeLogo size="small" showText={true} />
             </View>
@@ -103,45 +104,45 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
             <View style={styles.mobileRight}>
               <TouchableOpacity
                 onPress={() => setMobileSearchActive(true)}
-                style={styles.iconButton}
+                style={[styles.iconButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
               >
-                <Search size={20} color={COLORS.node.text} />
+                <Search size={20} color={theme.text} />
               </TouchableOpacity>
 
               {/* Feed Source Button */}
               <TouchableOpacity
-                style={styles.sourceButton}
+                style={[styles.sourceButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
                 onPress={() => setShowFeedSourceModal(true)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.sourceButtonText} numberOfLines={1}>
+                <Text style={[styles.sourceButtonText, { color: theme.text }]} numberOfLines={1}>
                   {getButtonDisplayText()}
                 </Text>
-                <ChevronDown size={14} color={COLORS.node.textSecondary} />
+                <ChevronDown size={14} color={theme.textSecondary} />
               </TouchableOpacity>
 
               {/* Vibe Validator Button - always accessible */}
               <TouchableOpacity
-                style={styles.presetButton}
+                style={[styles.presetButton, { backgroundColor: `${theme.accent}15`, borderColor: theme.accent }]}
                 onPress={onVibeClick}
                 activeOpacity={0.7}
               >
-                <Text style={styles.presetButtonText} numberOfLines={1}>
+                <Text style={[styles.presetButtonText, { color: theme.accent }]} numberOfLines={1}>
                   {currentPresetName}
                 </Text>
-                <ChevronDown size={14} color={COLORS.node.accent} />
+                <ChevronDown size={14} color={theme.accent} />
               </TouchableOpacity>
             </View>
           </View>
         ) : (
           // Mobile Search Active
           <View style={styles.mobileSearchRow}>
-            <View style={styles.searchInputWrapper}>
-              <Search size={16} color={COLORS.node.muted} />
+            <View style={[styles.searchInputWrapper, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+              <Search size={16} color={theme.muted} />
               <TextInput
-                style={styles.searchInput}
+                style={[styles.searchInput, { color: theme.text }]}
                 placeholder="Search posts, users, nodes..."
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 value={searchQuery}
                 onChangeText={onSearchChange}
                 onSubmitEditing={onSearch}
@@ -154,9 +155,9 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 setMobileSearchActive(false);
                 onSearchChange('');
               }}
-              style={styles.cancelButton}
+              style={[styles.cancelButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
             >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
+              <Text style={[styles.cancelButtonText, { color: theme.accent }]}>Cancel</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -172,14 +173,14 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
             style={styles.modalOverlay}
             onPress={() => setShowFeedSourceModal(false)}
           >
-            <View style={styles.modalContent}>
+            <View style={[styles.modalContent, { backgroundColor: theme.panel, borderColor: theme.border }]}>
               <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Select Feed</Text>
+                <Text style={[styles.modalTitle, { color: theme.text }]}>Select Feed</Text>
                 <TouchableOpacity
                   onPress={() => setShowFeedSourceModal(false)}
                   style={styles.modalCloseButton}
                 >
-                  <X size={20} color={COLORS.node.muted} />
+                  <X size={20} color={theme.muted} />
                 </TouchableOpacity>
               </View>
 
@@ -188,7 +189,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.sourceOption,
-                    feedSource === 'mixed' && styles.sourceOptionActive,
+                    { backgroundColor: theme.bg, borderColor: theme.border },
+                    feedSource === 'mixed' && { borderColor: theme.accent, backgroundColor: `${theme.accent}10` },
                   ]}
                   onPress={() => handleSourceSelect('mixed')}
                 >
@@ -196,11 +198,12 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                   <View style={styles.sourceOptionText}>
                     <Text style={[
                       styles.sourceOptionTitle,
-                      feedSource === 'mixed' && styles.sourceOptionTitleActive,
+                      { color: theme.text },
+                      feedSource === 'mixed' && { color: theme.accent },
                     ]}>
                       Mixed Feed
                     </Text>
-                    <Text style={styles.sourceOptionDesc}>
+                    <Text style={[styles.sourceOptionDesc, { color: theme.muted }]}>
                       Node Social + Bluesky + Mastodon
                     </Text>
                   </View>
@@ -209,7 +212,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.sourceOption,
-                    feedSource === 'node' && styles.sourceOptionActive,
+                    { backgroundColor: theme.bg, borderColor: theme.border },
+                    feedSource === 'node' && { borderColor: theme.accent, backgroundColor: `${theme.accent}10` },
                   ]}
                   onPress={() => handleSourceSelect('node')}
                 >
@@ -217,11 +221,12 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                   <View style={styles.sourceOptionText}>
                     <Text style={[
                       styles.sourceOptionTitle,
-                      feedSource === 'node' && styles.sourceOptionTitleActive,
+                      { color: theme.text },
+                      feedSource === 'node' && { color: theme.accent },
                     ]}>
                       Node Social Only
                     </Text>
-                    <Text style={styles.sourceOptionDesc}>
+                    <Text style={[styles.sourceOptionDesc, { color: theme.muted }]}>
                       Posts from your network
                     </Text>
                   </View>
@@ -230,7 +235,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.sourceOption,
-                    feedSource === 'bluesky' && styles.sourceOptionActive,
+                    { backgroundColor: theme.bg, borderColor: theme.border },
+                    feedSource === 'bluesky' && { borderColor: theme.accent, backgroundColor: `${theme.accent}10` },
                   ]}
                   onPress={() => handleSourceSelect('bluesky')}
                 >
@@ -238,11 +244,12 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                   <View style={styles.sourceOptionText}>
                     <Text style={[
                       styles.sourceOptionTitle,
-                      feedSource === 'bluesky' && styles.sourceOptionTitleActive,
+                      { color: theme.text },
+                      feedSource === 'bluesky' && { color: theme.accent },
                     ]}>
                       Bluesky
                     </Text>
-                    <Text style={styles.sourceOptionDesc}>
+                    <Text style={[styles.sourceOptionDesc, { color: theme.muted }]}>
                       Trending on Bluesky
                     </Text>
                   </View>
@@ -251,7 +258,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.sourceOption,
-                    feedSource === 'mastodon' && styles.sourceOptionActive,
+                    { backgroundColor: theme.bg, borderColor: theme.border },
+                    feedSource === 'mastodon' && { borderColor: theme.accent, backgroundColor: `${theme.accent}10` },
                   ]}
                   onPress={() => handleSourceSelect('mastodon')}
                 >
@@ -259,11 +267,12 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                   <View style={styles.sourceOptionText}>
                     <Text style={[
                       styles.sourceOptionTitle,
-                      feedSource === 'mastodon' && styles.sourceOptionTitleActive,
+                      { color: theme.text },
+                      feedSource === 'mastodon' && { color: theme.accent },
                     ]}>
                       Mastodon
                     </Text>
-                    <Text style={styles.sourceOptionDesc}>
+                    <Text style={[styles.sourceOptionDesc, { color: theme.muted }]}>
                       Trending on mastodon.social
                     </Text>
                   </View>
@@ -283,9 +292,7 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: COLORS.node.bg,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   // Mobile Styles
   mobileHeaderRow: {
@@ -313,11 +320,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: COLORS.node.panel,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   presetButton: {
     flexDirection: 'row',
@@ -325,13 +330,10 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 8,
-    backgroundColor: `${COLORS.node.accent}15`,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.accent,
   },
   presetButtonText: {
-    color: COLORS.node.accent,
     fontSize: 13,
     fontWeight: '600',
   },
@@ -346,29 +348,23 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingHorizontal: 12,
     paddingVertical: 8,
     gap: 8,
   },
   searchInput: {
     flex: 1,
-    color: COLORS.node.text,
     fontSize: 14,
   },
   cancelButton: {
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   cancelButtonText: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -379,13 +375,10 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 8,
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   sourceButtonText: {
-    color: COLORS.node.text,
     fontSize: 13,
     fontWeight: '500',
   },
@@ -398,13 +391,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContent: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     padding: 20,
     width: '100%',
     maxWidth: 340,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -415,7 +406,6 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   modalCloseButton: {
     padding: 4,
@@ -429,13 +419,7 @@ const styles = StyleSheet.create({
     gap: 12,
     padding: 12,
     borderRadius: 12,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  sourceOptionActive: {
-    borderColor: COLORS.node.accent,
-    backgroundColor: `${COLORS.node.accent}10`,
   },
   sourceOptionIcon: {
     fontSize: 24,
@@ -448,25 +432,9 @@ const styles = StyleSheet.create({
   sourceOptionTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 2,
-  },
-  sourceOptionTitleActive: {
-    color: COLORS.node.accent,
   },
   sourceOptionDesc: {
     fontSize: 12,
-    color: COLORS.node.muted,
-  },
-  hintBox: {
-    marginTop: 16,
-    padding: 12,
-    backgroundColor: `${COLORS.node.accent}10`,
-    borderRadius: 8,
-  },
-  hintText: {
-    fontSize: 13,
-    color: COLORS.node.textSecondary,
-    textAlign: 'center',
   },
 });

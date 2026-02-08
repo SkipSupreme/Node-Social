@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, TextInput, TouchableOpacity, ActivityIndicator, Switch } from 'react-native';
 import { showAlert } from '../lib/alert';
 import { Ionicons } from '@expo/vector-icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { api } from '../lib/api';
 import type { VibeValidatorSettings } from './ui/VibeValidator';
 
@@ -13,6 +13,7 @@ interface SavePresetModalProps {
 }
 
 export const SavePresetModal: React.FC<SavePresetModalProps> = ({ visible, onClose, currentConfig }) => {
+    const theme = useAppTheme();
     const [name, setName] = useState('');
     const [description, setDescription] = useState('');
     const [isPublic, setIsPublic] = useState(false);
@@ -48,45 +49,45 @@ export const SavePresetModal: React.FC<SavePresetModalProps> = ({ visible, onClo
     return (
         <Modal visible={visible} transparent animationType="fade">
             <View style={styles.overlay}>
-                <View style={styles.container}>
+                <View style={[styles.container, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                     <View style={styles.header}>
-                        <Text style={styles.title}>Save Preset</Text>
+                        <Text style={[styles.title, { color: theme.text }]}>Save Preset</Text>
                         <TouchableOpacity onPress={onClose}>
-                            <Ionicons name="close" size={24} color={COLORS.node.text} />
+                            <Ionicons name="close" size={24} color={theme.text} />
                         </TouchableOpacity>
                     </View>
 
                     <View style={styles.form}>
-                        <Text style={styles.label}>Name</Text>
+                        <Text style={[styles.label, { color: theme.text }]}>Name</Text>
                         <TextInput
-                            style={styles.input}
+                            style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                             value={name}
                             onChangeText={setName}
                             placeholder="e.g. Joy Mode"
-                            placeholderTextColor={COLORS.node.muted}
+                            placeholderTextColor={theme.muted}
                         />
 
-                        <Text style={styles.label}>Description</Text>
+                        <Text style={[styles.label, { color: theme.text }]}>Description</Text>
                         <TextInput
-                            style={[styles.input, styles.textArea]}
+                            style={[styles.input, styles.textArea, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                             value={description}
                             onChangeText={setDescription}
                             placeholder="What does this algorithm do?"
-                            placeholderTextColor={COLORS.node.muted}
+                            placeholderTextColor={theme.muted}
                             multiline
                         />
 
                         <View style={styles.switchRow}>
-                            <Text style={styles.label}>Public (Share to Marketplace)</Text>
+                            <Text style={[styles.label, { color: theme.text }]}>Public (Share to Marketplace)</Text>
                             <Switch
                                 value={isPublic}
                                 onValueChange={setIsPublic}
-                                trackColor={{ false: COLORS.node.border, true: COLORS.node.accent }}
+                                trackColor={{ false: theme.border, true: theme.accent }}
                             />
                         </View>
 
                         <TouchableOpacity
-                            style={styles.saveButton}
+                            style={[styles.saveButton, { backgroundColor: theme.accent }]}
                             onPress={handleSave}
                             disabled={saving}
                         >
@@ -111,10 +112,8 @@ const styles = StyleSheet.create({
         padding: 20,
     },
     container: {
-        backgroundColor: COLORS.node.bg,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         padding: 20,
     },
     header: {
@@ -126,23 +125,18 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: COLORS.node.text,
     },
     form: {
         gap: 16,
     },
     label: {
-        color: COLORS.node.text,
         fontWeight: '600',
         marginBottom: 4,
     },
     input: {
-        backgroundColor: COLORS.node.panel,
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         borderRadius: 8,
         padding: 12,
-        color: COLORS.node.text,
     },
     textArea: {
         minHeight: 80,
@@ -155,7 +149,6 @@ const styles = StyleSheet.create({
         marginVertical: 8,
     },
     saveButton: {
-        backgroundColor: COLORS.node.accent,
         padding: 16,
         borderRadius: 12,
         alignItems: 'center',

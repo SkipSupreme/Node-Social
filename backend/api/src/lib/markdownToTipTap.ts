@@ -53,10 +53,10 @@ function parseInlineFormatting(text: string): TipTapNode[] {
     regex.lastIndex = 0;
     while ((match = regex.exec(text)) !== null) {
       const marks: TipTapMark[] = [];
-      let matchedText = match[1];
+      let matchedText = match[1] ?? '';
 
       if (type === 'link') {
-        marks.push({ type: 'link', attrs: { href: match[2] } });
+        marks.push({ type: 'link', attrs: { href: match[2] ?? '' } });
       } else if (type === 'bold') {
         marks.push({ type: 'bold' });
       } else if (type === 'italic') {
@@ -127,7 +127,7 @@ function parseInlineFormatting(text: string): TipTapNode[] {
 function parseLine(line: string): TipTapNode | null {
   // Headers
   const h1Match = line.match(/^# (.+)$/);
-  if (h1Match) {
+  if (h1Match?.[1]) {
     return {
       type: 'heading',
       attrs: { level: 1 },
@@ -136,7 +136,7 @@ function parseLine(line: string): TipTapNode | null {
   }
 
   const h2Match = line.match(/^## (.+)$/);
-  if (h2Match) {
+  if (h2Match?.[1]) {
     return {
       type: 'heading',
       attrs: { level: 2 },
@@ -145,7 +145,7 @@ function parseLine(line: string): TipTapNode | null {
   }
 
   const h3Match = line.match(/^### (.+)$/);
-  if (h3Match) {
+  if (h3Match?.[1]) {
     return {
       type: 'heading',
       attrs: { level: 3 },
@@ -155,7 +155,7 @@ function parseLine(line: string): TipTapNode | null {
 
   // Blockquote
   const quoteMatch = line.match(/^>\s*(.*)$/);
-  if (quoteMatch) {
+  if (quoteMatch?.[1] != null) {
     return {
       type: 'blockquote',
       content: [{
@@ -190,8 +190,10 @@ function parseBulletList(lines: string[]): { node: TipTapNode; consumed: number 
   let i = 0;
 
   while (i < lines.length) {
-    const match = lines[i].match(/^[-*•]\s+(.*)$/);
-    if (!match) break;
+    const currentLine = lines[i];
+    if (!currentLine) break;
+    const match = currentLine.match(/^[-*•]\s+(.*)$/);
+    if (!match || match[1] == null) break;
 
     items.push({
       type: 'listItem',
@@ -217,8 +219,10 @@ function parseOrderedList(lines: string[]): { node: TipTapNode; consumed: number
   let i = 0;
 
   while (i < lines.length) {
-    const match = lines[i].match(/^\d+\.\s+(.*)$/);
-    if (!match) break;
+    const currentLine = lines[i];
+    if (!currentLine) break;
+    const match = currentLine.match(/^\d+\.\s+(.*)$/);
+    if (!match || match[1] == null) break;
 
     items.push({
       type: 'listItem',
@@ -240,13 +244,16 @@ function parseOrderedList(lines: string[]): { node: TipTapNode; consumed: number
  * Parse code block
  */
 function parseCodeBlock(lines: string[]): { node: TipTapNode; consumed: number } | null {
-  if (!lines[0].startsWith('```')) return null;
+  const firstLine = lines[0];
+  if (!firstLine?.startsWith('```')) return null;
 
   const codeLines: string[] = [];
   let i = 1;
 
-  while (i < lines.length && !lines[i].startsWith('```')) {
-    codeLines.push(lines[i]);
+  while (i < lines.length) {
+    const currentLine = lines[i];
+    if (currentLine == null || currentLine.startsWith('```')) break;
+    codeLines.push(currentLine);
     i++;
   }
 
@@ -278,6 +285,7 @@ export function markdownToTipTap(markdown: string): TipTapDoc {
 
   while (i < lines.length) {
     const line = lines[i];
+    if (line == null) { i++; continue; }
 
     // Code block
     if (line.startsWith('```')) {

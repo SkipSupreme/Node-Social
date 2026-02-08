@@ -9,7 +9,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { ArrowLeft, FileText, Trash2, Eye, EyeOff, Ban, Shield, Filter } from '../components/ui/Icons';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { getNodeModLog, ModLogAction } from '../lib/api';
 
 interface ModLogScreenProps {
@@ -34,7 +34,7 @@ function getRelativeTime(dateString: string): string {
 }
 
 // Get icon for action type
-function getActionIcon(action: string) {
+function getActionIcon(action: string, mutedColor: string) {
   switch (action) {
     case 'delete':
       return <Trash2 size={16} color="#ef4444" />;
@@ -45,7 +45,7 @@ function getActionIcon(action: string) {
     case 'ban':
       return <Ban size={16} color="#ef4444" />;
     default:
-      return <FileText size={16} color={COLORS.node.muted} />;
+      return <FileText size={16} color={mutedColor} />;
   }
 }
 
@@ -74,6 +74,7 @@ const ACTION_FILTERS = [
 ];
 
 export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
+  const theme = useAppTheme();
   const [actions, setActions] = useState<ModLogAction[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,20 +133,20 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
         <TouchableOpacity onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={24} color={COLORS.node.text} />
+          <ArrowLeft size={24} color={theme.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>Mod Log</Text>
-          <Text style={styles.headerSubtitle}>n/{nodeName}</Text>
+          <Text style={[styles.headerTitle, { color: theme.text }]}>Mod Log</Text>
+          <Text style={[styles.headerSubtitle, { color: theme.muted }]}>n/{nodeName}</Text>
         </View>
       </View>
 
       {/* Filters */}
-      <View style={styles.filtersContainer}>
+      <View style={[styles.filtersContainer, { backgroundColor: theme.panel, borderBottomColor: theme.border }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filters}>
           {ACTION_FILTERS.map((filter) => (
             <TouchableOpacity
@@ -153,7 +154,7 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
               style={[
                 styles.filterButton,
                 actionFilter === filter.key && styles.filterButtonActive,
-              ]}
+              , { backgroundColor: theme.bg, borderColor: theme.border }, { backgroundColor: theme.accent, borderColor: theme.accent }]}
               onPress={() => handleFilterChange(filter.key)}
             >
               <Text
@@ -172,7 +173,7 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
       {/* Content */}
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={COLORS.node.accent} />
+          <ActivityIndicator size="large" color={theme.accent} />
         </View>
       ) : (
         <ScrollView
@@ -182,7 +183,7 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor={COLORS.node.accent}
+              tintColor={theme.accent}
             />
           }
           onScroll={({ nativeEvent }) => {
@@ -197,9 +198,9 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
         >
           {actions.length === 0 ? (
             <View style={styles.emptyContainer}>
-              <FileText size={48} color={COLORS.node.muted} />
-              <Text style={styles.emptyTitle}>No Mod Actions</Text>
-              <Text style={styles.emptyText}>
+              <FileText size={48} color={theme.muted} />
+              <Text style={[styles.emptyTitle, { color: theme.text }]}>No Mod Actions</Text>
+              <Text style={[styles.emptyText, { color: theme.muted }]}>
                 {actionFilter
                   ? `No "${ACTION_FILTERS.find(f => f.key === actionFilter)?.label}" actions found`
                   : 'This community has no moderation history'}
@@ -208,29 +209,29 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
           ) : (
             <>
               {actions.map((action) => (
-                <View key={action.id} style={styles.actionCard}>
+                <View key={action.id} style={[styles.actionCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                   <View style={styles.actionHeader}>
-                    <View style={styles.actionIconContainer}>
-                      {getActionIcon(action.action)}
+                    <View style={[styles.actionIconContainer, { backgroundColor: theme.bg }]}>
+                      {getActionIcon(action.action, theme.muted)}
                     </View>
                     <View style={styles.actionInfo}>
-                      <Text style={styles.actionLabel}>{getActionLabel(action.action)}</Text>
-                      <Text style={styles.actionTime}>{getRelativeTime(action.createdAt)}</Text>
+                      <Text style={[styles.actionLabel, { color: theme.text }]}>{getActionLabel(action.action)}</Text>
+                      <Text style={[styles.actionTime, { color: theme.muted }]}>{getRelativeTime(action.createdAt)}</Text>
                     </View>
                   </View>
 
                   {action.reason && (
-                    <View style={styles.reasonContainer}>
-                      <Text style={styles.reasonLabel}>Reason:</Text>
-                      <Text style={styles.reasonText}>{action.reason}</Text>
+                    <View style={[styles.reasonContainer, { borderTopColor: theme.border }]}>
+                      <Text style={[styles.reasonLabel, { color: theme.muted }]}>Reason:</Text>
+                      <Text style={[styles.reasonText, { color: theme.text }]}>{action.reason}</Text>
                     </View>
                   )}
 
-                  <View style={styles.actionFooter}>
-                    <Text style={styles.moderatorText}>
-                      Action by <Text style={styles.moderatorName}>@{action.moderatorUsername}</Text>
+                  <View style={[styles.actionFooter, { borderTopColor: theme.border }]}>
+                    <Text style={[styles.moderatorText, { color: theme.muted }]}>
+                      Action by <Text style={[styles.moderatorName, { color: theme.accent }]}>@{action.moderatorUsername}</Text>
                     </Text>
-                    <Text style={styles.targetText}>
+                    <Text style={[styles.targetText, { color: theme.muted }]}>
                       {action.targetType}: {action.targetId.slice(0, 8)}...
                     </Text>
                   </View>
@@ -239,12 +240,12 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
 
               {loadingMore && (
                 <View style={styles.loadingMore}>
-                  <ActivityIndicator size="small" color={COLORS.node.accent} />
+                  <ActivityIndicator size="small" color={theme.accent} />
                 </View>
               )}
 
               {!nextCursor && actions.length > 0 && (
-                <Text style={styles.endText}>End of mod log</Text>
+                <Text style={[styles.endText, { color: theme.muted }]}>End of mod log</Text>
               )}
             </>
           )}
@@ -257,7 +258,6 @@ export function ModLogScreen({ nodeId, nodeName, onBack }: ModLogScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   header: {
     flexDirection: 'row',
@@ -265,8 +265,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
-    backgroundColor: COLORS.node.panel,
   },
   backButton: {
     padding: 8,
@@ -278,17 +276,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
   },
   headerSubtitle: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   filtersContainer: {
-    backgroundColor: COLORS.node.panel,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   filters: {
     paddingHorizontal: 12,
@@ -299,18 +293,13 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
     marginHorizontal: 4,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   filterButtonActive: {
-    backgroundColor: COLORS.node.accent,
-    borderColor: COLORS.node.accent,
   },
   filterText: {
     fontSize: 13,
     fontWeight: '500',
-    color: COLORS.node.muted,
   },
   filterTextActive: {
     color: '#fff',
@@ -333,22 +322,18 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
     marginTop: 16,
   },
   emptyText: {
     fontSize: 14,
-    color: COLORS.node.muted,
     marginTop: 8,
     textAlign: 'center',
   },
   actionCard: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   actionHeader: {
     flexDirection: 'row',
@@ -358,7 +343,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.node.bg,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -369,50 +353,41 @@ const styles = StyleSheet.create({
   actionLabel: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.node.text,
   },
   actionTime: {
     fontSize: 12,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   reasonContainer: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
   },
   reasonLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.node.muted,
     marginBottom: 4,
   },
   reasonText: {
     fontSize: 14,
-    color: COLORS.node.text,
     lineHeight: 20,
   },
   actionFooter: {
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
   moderatorText: {
     fontSize: 12,
-    color: COLORS.node.muted,
   },
   moderatorName: {
-    color: COLORS.node.accent,
     fontWeight: '500',
   },
   targetText: {
     fontSize: 11,
-    color: COLORS.node.muted,
     fontFamily: 'monospace',
   },
   loadingMore: {
@@ -421,7 +396,6 @@ const styles = StyleSheet.create({
   },
   endText: {
     textAlign: 'center',
-    color: COLORS.node.muted,
     fontSize: 13,
     paddingVertical: 16,
   },

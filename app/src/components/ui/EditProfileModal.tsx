@@ -13,9 +13,9 @@ import {
 import { showAlert } from '../../lib/alert';
 import { X, Camera, Link2, Check, Upload } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { COLORS } from '../../constants/theme';
 import { updateProfile, uploadAvatar, AuthResponse } from '../../lib/api';
 import { getErrorMessage } from '../../lib/errors';
+import { useAppTheme } from '../../hooks/useTheme';
 
 type User = AuthResponse['user'];
 
@@ -50,6 +50,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   currentAvatar,
   username,
 }) => {
+  const theme = useAppTheme();
   const [avatarUrl, setAvatarUrl] = useState(currentAvatar || '');
   const [pendingUpload, setPendingUpload] = useState<string | null>(null); // Local URI for preview
   const [loading, setLoading] = useState(false);
@@ -134,22 +135,22 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="fade">
       <View style={styles.overlay}>
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.bg, borderColor: theme.border }]}>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>Edit Profile Picture</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Edit Profile Picture</Text>
             <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <X size={20} color={COLORS.node.muted} />
+              <X size={20} color={theme.muted} />
             </TouchableOpacity>
           </View>
 
           {/* Current Avatar Preview */}
           <View style={styles.previewSection}>
-            <View style={styles.avatarPreview}>
+            <View style={[styles.avatarPreview, { borderColor: theme.accent }]}>
               {displayAvatar ? (
                 <Image source={{ uri: displayAvatar }} style={styles.previewImage} />
               ) : (
-                <View style={styles.placeholderAvatar}>
+                <View style={[styles.placeholderAvatar, { backgroundColor: theme.accent }]}>
                   <Text style={styles.placeholderText}>
                     {username?.[0]?.toUpperCase() || '?'}
                   </Text>
@@ -172,28 +173,28 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           {/* Mode Tabs */}
           <View style={styles.tabRow}>
             <TouchableOpacity
-              style={[styles.tab, mode === 'presets' && styles.tabActive]}
+              style={[styles.tab, { backgroundColor: theme.panel, borderColor: theme.border }, mode === 'presets' && { borderColor: theme.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
               onPress={() => setMode('presets')}
             >
-              <Text style={[styles.tabText, mode === 'presets' && styles.tabTextActive]}>
+              <Text style={[styles.tabText, { color: theme.muted }, mode === 'presets' && { color: theme.accent }]}>
                 Presets
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, mode === 'url' && styles.tabActive]}
+              style={[styles.tab, { backgroundColor: theme.panel, borderColor: theme.border }, mode === 'url' && { borderColor: theme.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
               onPress={() => setMode('url')}
             >
-              <Link2 size={14} color={mode === 'url' ? COLORS.node.accent : COLORS.node.muted} />
-              <Text style={[styles.tabText, mode === 'url' && styles.tabTextActive]}>
+              <Link2 size={14} color={mode === 'url' ? theme.accent : theme.muted} />
+              <Text style={[styles.tabText, { color: theme.muted }, mode === 'url' && { color: theme.accent }]}>
                 URL
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.tab, (mode === 'upload' || pendingUpload) && styles.tabActive]}
+              style={[styles.tab, { backgroundColor: theme.panel, borderColor: theme.border }, (mode === 'upload' || pendingUpload) && { borderColor: theme.accent, backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}
               onPress={handlePickImage}
             >
-              <Camera size={14} color={(mode === 'upload' || pendingUpload) ? COLORS.node.accent : COLORS.node.muted} />
-              <Text style={[styles.tabText, (mode === 'upload' || pendingUpload) && styles.tabTextActive]}>
+              <Camera size={14} color={(mode === 'upload' || pendingUpload) ? theme.accent : theme.muted} />
+              <Text style={[styles.tabText, { color: theme.muted }, (mode === 'upload' || pendingUpload) && { color: theme.accent }]}>
                 Upload
               </Text>
             </TouchableOpacity>
@@ -208,13 +209,14 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
                     key={index}
                     style={[
                       styles.presetItem,
-                      avatarUrl === url && styles.presetItemSelected,
+                      { borderColor: theme.border },
+                      avatarUrl === url && { borderColor: theme.accent },
                     ]}
                     onPress={() => handlePresetSelect(url)}
                   >
                     <Image source={{ uri: url }} style={styles.presetImage} />
                     {avatarUrl === url && (
-                      <View style={styles.checkmark}>
+                      <View style={[styles.checkmark, { backgroundColor: theme.accent }]}>
                         <Check size={12} color="#fff" />
                       </View>
                     )}
@@ -224,17 +226,17 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             </ScrollView>
           ) : mode === 'url' ? (
             <View style={styles.urlSection}>
-              <Text style={styles.urlLabel}>Image URL</Text>
+              <Text style={[styles.urlLabel, { color: theme.text }]}>Image URL</Text>
               <TextInput
-                style={styles.urlInput}
+                style={[styles.urlInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                 value={avatarUrl}
                 onChangeText={handleUrlChange}
                 placeholder="https://example.com/avatar.jpg"
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 autoCapitalize="none"
                 autoCorrect={false}
               />
-              <Text style={styles.urlHint}>
+              <Text style={[styles.urlHint, { color: theme.muted }]}>
                 Paste a direct link to an image. Works with Imgur, Cloudinary, or any image URL.
               </Text>
             </View>
@@ -242,19 +244,19 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
             <View style={styles.uploadSection}>
               {pendingUpload ? (
                 <>
-                  <Text style={styles.uploadInfo}>
+                  <Text style={[styles.uploadInfo, { color: theme.muted }]}>
                     Image selected and ready to upload. The image will be resized to 400x400 and compressed.
                   </Text>
-                  <TouchableOpacity style={styles.changeImageButton} onPress={handlePickImage}>
-                    <Camera size={16} color={COLORS.node.accent} />
-                    <Text style={styles.changeImageText}>Choose different image</Text>
+                  <TouchableOpacity style={[styles.changeImageButton, { backgroundColor: theme.panel, borderColor: theme.border }]} onPress={handlePickImage}>
+                    <Camera size={16} color={theme.accent} />
+                    <Text style={[styles.changeImageText, { color: theme.accent }]}>Choose different image</Text>
                   </TouchableOpacity>
                 </>
               ) : (
-                <TouchableOpacity style={styles.uploadButton} onPress={handlePickImage}>
-                  <Upload size={24} color={COLORS.node.accent} />
-                  <Text style={styles.uploadButtonText}>Choose from Gallery</Text>
-                  <Text style={styles.uploadHint}>Images will be resized and compressed</Text>
+                <TouchableOpacity style={[styles.uploadButton, { backgroundColor: theme.panel, borderColor: theme.border }]} onPress={handlePickImage}>
+                  <Upload size={24} color={theme.accent} />
+                  <Text style={[styles.uploadButtonText, { color: theme.text }]}>Choose from Gallery</Text>
+                  <Text style={[styles.uploadHint, { color: theme.muted }]}>Images will be resized and compressed</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -264,7 +266,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
 
           {/* Actions */}
           <TouchableOpacity
-            style={[styles.saveButton, (loading || uploading) && styles.saveButtonDisabled]}
+            style={[styles.saveButton, { backgroundColor: theme.accent }, (loading || uploading) && styles.saveButtonDisabled]}
             onPress={handleSave}
             disabled={loading || uploading}
           >
@@ -283,7 +285,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onClose} style={styles.cancelButton}>
-            <Text style={styles.cancelText}>Cancel</Text>
+            <Text style={[styles.cancelText, { color: theme.muted }]}>Cancel</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -300,14 +302,12 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   container: {
-    backgroundColor: COLORS.node.bg,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     padding: 20,
     maxHeight: '80%',
     width: '100%',
-    maxWidth: 420, // Desktop-friendly max width
+    maxWidth: 420,
   },
   header: {
     flexDirection: 'row',
@@ -318,7 +318,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
   },
   closeButton: {
     padding: 4,
@@ -333,7 +332,6 @@ const styles = StyleSheet.create({
     borderRadius: 40,
     overflow: 'hidden',
     borderWidth: 3,
-    borderColor: COLORS.node.accent,
   },
   previewImage: {
     width: '100%',
@@ -342,7 +340,6 @@ const styles = StyleSheet.create({
   placeholderAvatar: {
     width: '100%',
     height: '100%',
-    backgroundColor: COLORS.node.accent,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -386,21 +383,11 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
-  },
-  tabActive: {
-    borderColor: COLORS.node.accent,
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
   },
   tabText: {
     fontSize: 13,
-    color: COLORS.node.muted,
     fontWeight: '500',
-  },
-  tabTextActive: {
-    color: COLORS.node.accent,
   },
   presetsContainer: {
     maxHeight: 200,
@@ -417,10 +404,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: COLORS.node.border,
-  },
-  presetItemSelected: {
-    borderColor: COLORS.node.accent,
   },
   presetImage: {
     width: '100%',
@@ -430,7 +413,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: 0,
     right: 0,
-    backgroundColor: COLORS.node.accent,
     borderRadius: 8,
     padding: 2,
   },
@@ -438,23 +420,18 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   urlLabel: {
-    color: COLORS.node.text,
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 8,
   },
   urlInput: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    color: COLORS.node.text,
     fontSize: 14,
   },
   urlHint: {
-    color: COLORS.node.muted,
     fontSize: 12,
     marginTop: 6,
   },
@@ -462,26 +439,21 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   uploadButton: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: COLORS.node.border,
     borderStyle: 'dashed',
     padding: 24,
     alignItems: 'center',
     gap: 8,
   },
   uploadButtonText: {
-    color: COLORS.node.text,
     fontSize: 16,
     fontWeight: '600',
   },
   uploadHint: {
-    color: COLORS.node.muted,
     fontSize: 12,
   },
   uploadInfo: {
-    color: COLORS.node.muted,
     fontSize: 13,
     textAlign: 'center',
     marginBottom: 12,
@@ -493,12 +465,9 @@ const styles = StyleSheet.create({
     gap: 6,
     padding: 12,
     borderRadius: 8,
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   changeImageText: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: '500',
   },
@@ -509,7 +478,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   saveButton: {
-    backgroundColor: COLORS.node.accent,
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
@@ -533,7 +501,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   cancelText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
 });

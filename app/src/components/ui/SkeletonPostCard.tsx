@@ -1,10 +1,10 @@
 // Skeleton loading placeholder for posts
 import React, { useEffect, useRef } from 'react';
 import { View, StyleSheet, Animated, Easing, StyleProp, ViewStyle, DimensionValue } from 'react-native';
-import { COLORS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 // Shimmer animation component
-const ShimmerBlock = ({ width, height, style }: { width: DimensionValue; height: number; style?: StyleProp<ViewStyle> }) => {
+const ShimmerBlock = ({ width, height, style, bgColor }: { width: DimensionValue; height: number; style?: StyleProp<ViewStyle>; bgColor: string }) => {
   const shimmerAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -26,7 +26,7 @@ const ShimmerBlock = ({ width, height, style }: { width: DimensionValue; height:
   });
 
   return (
-    <View style={[styles.shimmerContainer, { width, height }, style]}>
+    <View style={[styles.shimmerContainer, { width, height, backgroundColor: bgColor }, style]}>
       <Animated.View
         style={[
           styles.shimmer,
@@ -40,30 +40,32 @@ const ShimmerBlock = ({ width, height, style }: { width: DimensionValue; height:
 };
 
 export const SkeletonPostCard: React.FC = () => {
+  const theme = useAppTheme();
+
   return (
-    <View style={styles.card}>
+    <View style={[styles.card, { backgroundColor: theme.panel, borderColor: theme.border }]}>
       {/* Header: Avatar + Name */}
       <View style={styles.header}>
-        <ShimmerBlock width={40} height={40} style={styles.avatar} />
+        <ShimmerBlock width={40} height={40} style={styles.avatar} bgColor={theme.bgAlt} />
         <View style={styles.headerText}>
-          <ShimmerBlock width={120} height={14} style={styles.name} />
-          <ShimmerBlock width={80} height={12} style={styles.username} />
+          <ShimmerBlock width={120} height={14} style={styles.name} bgColor={theme.bgAlt} />
+          <ShimmerBlock width={80} height={12} style={styles.username} bgColor={theme.bgAlt} />
         </View>
-        <ShimmerBlock width={40} height={12} style={styles.timestamp} />
+        <ShimmerBlock width={40} height={12} style={styles.timestamp} bgColor={theme.bgAlt} />
       </View>
 
       {/* Content lines */}
       <View style={styles.content}>
-        <ShimmerBlock width="100%" height={14} style={styles.line} />
-        <ShimmerBlock width="90%" height={14} style={styles.line} />
-        <ShimmerBlock width="75%" height={14} style={styles.line} />
+        <ShimmerBlock width="100%" height={14} style={styles.line} bgColor={theme.bgAlt} />
+        <ShimmerBlock width="90%" height={14} style={styles.line} bgColor={theme.bgAlt} />
+        <ShimmerBlock width="75%" height={14} style={styles.line} bgColor={theme.bgAlt} />
       </View>
 
       {/* Action bar */}
-      <View style={styles.actions}>
-        <ShimmerBlock width={50} height={20} style={styles.action} />
-        <ShimmerBlock width={50} height={20} style={styles.action} />
-        <ShimmerBlock width={50} height={20} style={styles.action} />
+      <View style={[styles.actions, { borderTopColor: theme.border }]}>
+        <ShimmerBlock width={50} height={20} style={styles.action} bgColor={theme.bgAlt} />
+        <ShimmerBlock width={50} height={20} style={styles.action} bgColor={theme.bgAlt} />
+        <ShimmerBlock width={50} height={20} style={styles.action} bgColor={theme.bgAlt} />
       </View>
     </View>
   );
@@ -85,12 +87,10 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   card: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 12,
     padding: 12,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   header: {
     flexDirection: 'row',
@@ -126,13 +126,11 @@ const styles = StyleSheet.create({
     gap: 16,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: COLORS.node.border,
   },
   action: {
     borderRadius: 4,
   },
   shimmerContainer: {
-    backgroundColor: COLORS.node.bgAlt,
     overflow: 'hidden',
   },
   shimmer: {

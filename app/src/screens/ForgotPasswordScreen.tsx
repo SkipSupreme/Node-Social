@@ -15,7 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Mail, ArrowLeft, X } from "lucide-react-native";
 import { forgotPassword } from "../lib/api";
 import { getErrorMessage } from "../lib/errors";
-import { COLORS } from "../constants/theme";
+import { useAppTheme } from '../hooks/useTheme';
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
@@ -24,6 +24,7 @@ export const ForgotPasswordScreen: React.FC<{
   onEnterTokenManually?: () => void;
   onClose?: () => void;
 }> = ({ goToLogin, onEnterTokenManually, onClose }) => {
+  const theme = useAppTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -49,11 +50,11 @@ export const ForgotPasswordScreen: React.FC<{
 
   if (success) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
         <NodeNetworkBackground />
         {onClose && (
           <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <X size={24} color={COLORS.node.muted} />
+            <X size={24} color={theme.muted} />
           </TouchableOpacity>
         )}
         <ScrollView
@@ -66,12 +67,12 @@ export const ForgotPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
             <View style={styles.successIconWrapper}>
               <Mail size={32} color="#22C55E" />
             </View>
-            <Text style={styles.title}>Check your email</Text>
-            <Text style={styles.subtitle}>
+            <Text style={[styles.title, { color: theme.text }]}>Check your email</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>
               We sent a password reset link to {email}
             </Text>
           </View>
@@ -82,7 +83,7 @@ export const ForgotPasswordScreen: React.FC<{
             </Text>
           </View>
 
-          <TouchableOpacity style={styles.button} onPress={goToLogin}>
+          <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }]} onPress={goToLogin}>
             <Text style={styles.buttonText}>Back to Sign In</Text>
           </TouchableOpacity>
         </ScrollView>
@@ -91,11 +92,11 @@ export const ForgotPasswordScreen: React.FC<{
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       <NodeNetworkBackground />
       {onClose && (
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <X size={24} color={COLORS.node.muted} />
+          <X size={24} color={theme.muted} />
         </TouchableOpacity>
       )}
       <KeyboardAvoidingView
@@ -108,7 +109,7 @@ export const ForgotPasswordScreen: React.FC<{
         >
           {/* Back Button */}
           <TouchableOpacity onPress={goToLogin} style={styles.backButton}>
-            <ArrowLeft size={24} color={COLORS.node.muted} />
+            <ArrowLeft size={24} color={theme.muted} />
           </TouchableOpacity>
 
           {/* Logo */}
@@ -117,9 +118,9 @@ export const ForgotPasswordScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
-            <Text style={styles.title}>Forgot password?</Text>
-            <Text style={styles.subtitle}>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
+            <Text style={[styles.title, { color: theme.text }]}>Forgot password?</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>
               Enter your email and we'll send you a reset link
             </Text>
           </View>
@@ -127,13 +128,13 @@ export const ForgotPasswordScreen: React.FC<{
           <View style={styles.form}>
             <TextInput
               placeholder="Email"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               autoComplete="email"
               value={email}
               onChangeText={setEmail}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             {error && (
@@ -143,7 +144,7 @@ export const ForgotPasswordScreen: React.FC<{
             )}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: theme.accent }]}
               onPress={onSubmit}
               disabled={loading}
             >
@@ -159,14 +160,14 @@ export const ForgotPasswordScreen: React.FC<{
                 onPress={onEnterTokenManually}
                 style={styles.manualLink}
               >
-                <Text style={styles.linkText}>Enter token manually</Text>
+                <Text style={[styles.linkText, { color: theme.accent }]}>Enter token manually</Text>
               </TouchableOpacity>
             ) : null}
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Remember your password? </Text>
+              <Text style={[styles.footerText, { color: theme.muted }]}>Remember your password? </Text>
               <TouchableOpacity onPress={goToLogin}>
-                <Text style={styles.linkText}>Sign in</Text>
+                <Text style={[styles.linkText, { color: theme.accent }]}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -179,7 +180,6 @@ export const ForgotPasswordScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   closeButton: {
     position: 'absolute',
@@ -235,27 +235,22 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: "600",
-    color: COLORS.node.text,
     marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.node.muted,
     textAlign: 'center',
   },
   form: {
     gap: 16,
   },
   input: {
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.node.text,
   },
   errorContainer: {
     backgroundColor: "rgba(239, 68, 68, 0.1)",
@@ -270,7 +265,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -296,11 +290,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
   linkText: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },

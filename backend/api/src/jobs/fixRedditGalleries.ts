@@ -108,6 +108,10 @@ async function main() {
     }
 
     const redditPostId = match[1];
+    if (!redditPostId) {
+      failed++;
+      continue;
+    }
     console.log(`\n🔍 Checking: ${post.title?.slice(0, 50)}`);
     console.log(`   Reddit ID: ${redditPostId}`);
 

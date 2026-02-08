@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft, Bell, Heart, MessageSquare, UserPlus, AlertTriangle, Ban, Trash2 } from 'lucide-react-native';
-import { COLORS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { getNotifications, markNotificationsRead } from '../lib/api';
 
 /** Notification shape as returned by the API and used in the UI */
@@ -27,6 +27,7 @@ interface NotificationsScreenProps {
 }
 
 export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser }: NotificationsScreenProps) => {
+    const theme = useAppTheme();
     const [notifications, setNotifications] = React.useState<NotificationItem[]>([]);
     const [loading, setLoading] = React.useState(true);
 
@@ -60,7 +61,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
             case 'warning': return <AlertTriangle size={20} color="#f59e0b" />;
             case 'mod_removed': return <Trash2 size={20} color="#ef4444" />;
             case 'banned': return <Ban size={20} color="#ef4444" />;
-            default: return <Bell size={20} color={COLORS.node.accent} />;
+            default: return <Bell size={20} color={theme.accent} />;
         }
     };
 
@@ -95,17 +96,17 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
     };
 
     return (
-        <SafeAreaView style={styles.container}>
-            <View style={styles.header}>
+        <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border, backgroundColor: theme.panel }]}>
                 <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-                    <ArrowLeft size={24} color={COLORS.node.text} />
+                    <ArrowLeft size={24} color={theme.text} />
                 </TouchableOpacity>
                 <Text style={styles.title}>Notifications</Text>
             </View>
 
             {loading ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <ActivityIndicator size="large" color={COLORS.node.accent} />
+                    <ActivityIndicator size="large" color={theme.accent} />
                 </View>
             ) : (
                 <FlatList
@@ -121,7 +122,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
                                     styles.item,
                                     isModNotification && styles.modItem,
                                     clickable && styles.clickableItem,
-                                ]}
+                                , { backgroundColor: theme.panel, borderColor: theme.border }]}
                                 onPress={() => handleNotificationPress(item)}
                                 disabled={!clickable}
                             >
@@ -132,7 +133,7 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
                                     {getIcon(item.type)}
                                 </View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={[styles.itemText, isModNotification && styles.modItemText]}>
+                                    <Text style={[styles.itemText, isModNotification && styles.modItemText, { color: theme.text }]}>
                                         {isModNotification ? (
                                             <>
                                                 <Text style={{ fontWeight: 'bold' }}>{getNotificationPrefix(item)}</Text>
@@ -145,24 +146,24 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
                                         )}
                                     </Text>
                                     <View style={styles.metaRow}>
-                                        <Text style={styles.time}>
+                                        <Text style={[styles.time, { color: theme.muted }]}>
                                             {new Date(item.createdAt).toLocaleDateString()}
                                         </Text>
                                         {clickable && (
-                                            <Text style={styles.viewLink}>
+                                            <Text style={[styles.viewLink, { color: theme.accent }]}>
                                                 {item.postId ? 'View post →' : 'View profile →'}
                                             </Text>
                                         )}
                                     </View>
                                 </View>
-                                {!item.read && <View style={styles.dot} />}
+                                {!item.read && <View style={[styles.dot, { backgroundColor: theme.accent }]} />}
                             </TouchableOpacity>
                         );
                     }}
                     contentContainerStyle={{ padding: 16 }}
                     ListEmptyComponent={
                         <View style={{ padding: 20, alignItems: 'center' }}>
-                            <Text style={{ color: COLORS.node.muted }}>No notifications yet.</Text>
+                            <Text style={{ color: theme.muted }}>No notifications yet.</Text>
                         </View>
                     }
                 />
@@ -172,18 +173,17 @@ export const NotificationsScreen = ({ onBack, onNavigateToPost, onNavigateToUser
 };
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.node.bg },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row', alignItems: 'center', padding: 16,
-        borderBottomWidth: 1, borderBottomColor: COLORS.node.border,
-        backgroundColor: COLORS.node.panel
+        borderBottomWidth: 1,
     },
     backBtn: { marginRight: 16 },
     title: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
     item: {
         flexDirection: 'row', alignItems: 'center', gap: 16, padding: 16,
-        backgroundColor: COLORS.node.panel, marginBottom: 8, borderRadius: 12,
-        borderWidth: 1, borderColor: COLORS.node.border
+ marginBottom: 8, borderRadius: 12,
+        borderWidth: 1,
     },
     modItem: {
         borderColor: '#f59e0b',
@@ -199,7 +199,7 @@ const styles = StyleSheet.create({
     modIconContainer: {
         backgroundColor: 'rgba(245, 158, 11, 0.15)',
     },
-    itemText: { fontSize: 14, color: COLORS.node.text, lineHeight: 20 },
+    itemText: { fontSize: 14, lineHeight: 20 },
     modItemText: {
         color: '#fbbf24',
     },
@@ -209,11 +209,10 @@ const styles = StyleSheet.create({
         marginTop: 4,
         gap: 12,
     },
-    time: { fontSize: 12, color: COLORS.node.muted },
+    time: { fontSize: 12 },
     viewLink: {
         fontSize: 12,
-        color: COLORS.node.accent,
         fontWeight: '500',
     },
-    dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.node.accent }
+    dot: { width: 8, height: 8, borderRadius: 4 }
 });

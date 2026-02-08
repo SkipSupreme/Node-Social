@@ -13,9 +13,9 @@ import {
   Platform,
 } from 'react-native';
 import { X, Plus, Trash2, HelpCircle } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { getMutedWords, addMutedWord, removeMutedWord, clearAllMutedWords, MutedWord } from '../../lib/api';
 import { getErrorMessage } from '../../lib/errors';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface MutedWordsManagerProps {
   visible: boolean;
@@ -26,6 +26,7 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
   visible,
   onClose,
 }) => {
+  const theme = useAppTheme();
   const [mutedWords, setMutedWords] = useState<MutedWord[]>([]);
   const [loading, setLoading] = useState(true);
   const [newWord, setNewWord] = useState('');
@@ -121,39 +122,39 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
 
   // Using absolute positioning instead of Modal to avoid nested modal issues
   return (
-    <View style={styles.fullScreenOverlay}>
+    <View style={[styles.fullScreenOverlay, { backgroundColor: theme.panel }]}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: theme.panel }]}>
           {/* Header */}
-        <View style={styles.header}>
+        <View style={[styles.header, { borderBottomColor: theme.border }]}>
           <View>
-            <Text style={styles.title}>Muted Words</Text>
-            <Text style={styles.subtitle}>Posts containing these words will be hidden</Text>
+            <Text style={[styles.title, { color: theme.text }]}>Muted Words</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>Posts containing these words will be hidden</Text>
           </View>
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <X size={20} color={COLORS.node.text} />
+          <TouchableOpacity style={[styles.closeButton, { backgroundColor: theme.border }]} onPress={onClose}>
+            <X size={20} color={theme.text} />
           </TouchableOpacity>
         </View>
 
         {/* Add Word Input */}
-        <View style={styles.inputSection}>
+        <View style={[styles.inputSection, { borderBottomColor: theme.border }]}>
           <View style={styles.inputRow}>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.bg, color: theme.text, borderColor: theme.border }]}
               value={newWord}
               onChangeText={setNewWord}
               placeholder="Enter word or phrase to mute..."
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               autoCapitalize="none"
               autoCorrect={false}
               onSubmitEditing={handleAddWord}
               returnKeyType="done"
             />
             <TouchableOpacity
-              style={[styles.addButton, (!newWord.trim() || adding) && styles.addButtonDisabled]}
+              style={[styles.addButton, { backgroundColor: theme.accent }, (!newWord.trim() || adding) && [styles.addButtonDisabled, { backgroundColor: theme.muted }]]}
               onPress={handleAddWord}
               disabled={!newWord.trim() || adding}
             >
@@ -170,18 +171,18 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
             style={styles.regexToggle}
             onPress={() => setIsRegex(!isRegex)}
           >
-            <View style={[styles.checkbox, isRegex && styles.checkboxChecked]}>
+            <View style={[styles.checkbox, { borderColor: theme.border }, isRegex && { backgroundColor: theme.accent, borderColor: theme.accent }]}>
               {isRegex && <Text style={styles.checkmark}>✓</Text>}
             </View>
-            <Text style={styles.regexLabel}>Use as regex pattern</Text>
-            <Text style={styles.regexHint}>(advanced)</Text>
+            <Text style={[styles.regexLabel, { color: theme.text }]}>Use as regex pattern</Text>
+            <Text style={[styles.regexHint, { color: theme.muted }]}>(advanced)</Text>
           </TouchableOpacity>
         </View>
 
         {/* Info Box */}
-        <View style={styles.infoBox}>
-          <HelpCircle size={16} color={COLORS.node.accent} />
-          <Text style={styles.infoText}>
+        <View style={[styles.infoBox, { backgroundColor: `${theme.accent}15`, borderColor: `${theme.accent}30` }]}>
+          <HelpCircle size={16} color={theme.accent} />
+          <Text style={[styles.infoText, { color: theme.muted }]}>
             Muted words are case-insensitive and match anywhere in post content or title.
           </Text>
         </View>
@@ -189,26 +190,26 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
         {/* Muted Words List */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={COLORS.node.accent} />
+            <ActivityIndicator size="large" color={theme.accent} />
           </View>
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={fetchMutedWords}>
+            <TouchableOpacity style={[styles.retryButton, { backgroundColor: theme.accent }]} onPress={fetchMutedWords}>
               <Text style={styles.retryText}>Retry</Text>
             </TouchableOpacity>
           </View>
         ) : mutedWords.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No muted words yet</Text>
-            <Text style={styles.emptyHint}>
+            <Text style={[styles.emptyText, { color: theme.text }]}>No muted words yet</Text>
+            <Text style={[styles.emptyHint, { color: theme.muted }]}>
               Add words or phrases above to filter them from your feed
             </Text>
           </View>
         ) : (
           <>
             <View style={styles.listHeader}>
-              <Text style={styles.listCount}>{mutedWords.length} muted word{mutedWords.length !== 1 ? 's' : ''}</Text>
+              <Text style={[styles.listCount, { color: theme.muted }]}>{mutedWords.length} muted word{mutedWords.length !== 1 ? 's' : ''}</Text>
               {mutedWords.length > 0 && (
                 <TouchableOpacity onPress={handleClearAll}>
                   <Text style={styles.clearAllText}>Clear All</Text>
@@ -217,12 +218,12 @@ export const MutedWordsManager: React.FC<MutedWordsManagerProps> = ({
             </View>
             <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
               {mutedWords.map((item) => (
-                <View key={item.id} style={styles.wordItem}>
+                <View key={item.id} style={[styles.wordItem, { backgroundColor: theme.bg, borderColor: theme.border }]}>
                   <View style={styles.wordContent}>
-                    <Text style={styles.wordText}>{item.word}</Text>
+                    <Text style={[styles.wordText, { color: theme.text }]}>{item.word}</Text>
                     {item.isRegex && (
-                      <View style={styles.regexBadge}>
-                        <Text style={styles.regexBadgeText}>regex</Text>
+                      <View style={[styles.regexBadge, { backgroundColor: `${theme.accent}20` }]}>
+                        <Text style={[styles.regexBadgeText, { color: theme.accent }]}>regex</Text>
                       </View>
                     )}
                   </View>
@@ -250,7 +251,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: COLORS.node.panel,
     zIndex: 100,
   },
   keyboardView: {
@@ -258,7 +258,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.panel,
   },
   header: {
     flexDirection: 'row',
@@ -267,27 +266,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingTop: 24,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    color: COLORS.node.text,
   },
   subtitle: {
     fontSize: 13,
-    color: COLORS.node.muted,
     marginTop: 4,
   },
   closeButton: {
     padding: 8,
     borderRadius: 8,
-    backgroundColor: COLORS.node.border,
   },
   inputSection: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   inputRow: {
     flexDirection: 'row',
@@ -296,24 +290,19 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     height: 44,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 10,
     paddingHorizontal: 14,
     fontSize: 15,
-    color: COLORS.node.text,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   addButton: {
     width: 44,
     height: 44,
     borderRadius: 10,
-    backgroundColor: COLORS.node.accent,
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonDisabled: {
-    backgroundColor: COLORS.node.muted,
     opacity: 0.5,
   },
   regexToggle: {
@@ -327,13 +316,8 @@ const styles = StyleSheet.create({
     height: 20,
     borderRadius: 4,
     borderWidth: 2,
-    borderColor: COLORS.node.border,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  checkboxChecked: {
-    backgroundColor: COLORS.node.accent,
-    borderColor: COLORS.node.accent,
   },
   checkmark: {
     color: '#fff',
@@ -342,11 +326,9 @@ const styles = StyleSheet.create({
   },
   regexLabel: {
     fontSize: 13,
-    color: COLORS.node.text,
   },
   regexHint: {
     fontSize: 12,
-    color: COLORS.node.muted,
   },
   infoBox: {
     flexDirection: 'row',
@@ -354,15 +336,12 @@ const styles = StyleSheet.create({
     gap: 10,
     margin: 16,
     padding: 12,
-    backgroundColor: `${COLORS.node.accent}15`,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: `${COLORS.node.accent}30`,
   },
   infoText: {
     flex: 1,
     fontSize: 12,
-    color: COLORS.node.muted,
     lineHeight: 18,
   },
   loadingContainer: {
@@ -384,7 +363,6 @@ const styles = StyleSheet.create({
   retryButton: {
     paddingHorizontal: 20,
     paddingVertical: 10,
-    backgroundColor: COLORS.node.accent,
     borderRadius: 8,
   },
   retryText: {
@@ -400,12 +378,10 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 16,
     fontWeight: '600',
-    color: COLORS.node.text,
     marginBottom: 8,
   },
   emptyHint: {
     fontSize: 13,
-    color: COLORS.node.muted,
     textAlign: 'center',
     lineHeight: 20,
   },
@@ -418,7 +394,6 @@ const styles = StyleSheet.create({
   },
   listCount: {
     fontSize: 13,
-    color: COLORS.node.muted,
     fontWeight: '500',
   },
   clearAllText: {
@@ -436,11 +411,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 14,
-    backgroundColor: COLORS.node.bg,
     borderRadius: 10,
     marginBottom: 8,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   wordContent: {
     flex: 1,
@@ -450,17 +423,14 @@ const styles = StyleSheet.create({
   },
   wordText: {
     fontSize: 14,
-    color: COLORS.node.text,
   },
   regexBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
-    backgroundColor: `${COLORS.node.accent}20`,
     borderRadius: 4,
   },
   regexBadgeText: {
     fontSize: 10,
-    color: COLORS.node.accent,
     fontWeight: '600',
     textTransform: 'uppercase',
   },

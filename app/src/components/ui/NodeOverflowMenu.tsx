@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, Share, Platform } from 'react-native';
 import { VolumeX, Volume2, LogOut, Link2, Flag, X } from './Icons';
-import { COLORS } from '../../constants/theme';
 import { muteNode, unmuteNode, leaveNode } from '../../lib/api';
 import { showAlert, confirmAction } from '../../lib/alert';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface NodeOverflowMenuProps {
   nodeId: string;
@@ -30,6 +30,7 @@ export function NodeOverflowMenu({
   onMuteChange,
   onLeave,
 }: NodeOverflowMenuProps) {
+  const theme = useAppTheme();
   const [loading, setLoading] = useState<string | null>(null);
 
   const handleMuteToggle = async () => {
@@ -135,11 +136,11 @@ export function NodeOverflowMenu({
         onPress={onClose}
       >
         <View style={styles.menuContainer}>
-          <View style={styles.menu}>
-            <View style={styles.header}>
-              <Text style={styles.headerText}>Options</Text>
+          <View style={[styles.menu, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+            <View style={[styles.header, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.headerText, { color: theme.text }]}>Options</Text>
               <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <X size={20} color={COLORS.node.muted} />
+                <X size={20} color={theme.muted} />
               </TouchableOpacity>
             </View>
 
@@ -150,15 +151,15 @@ export function NodeOverflowMenu({
               disabled={loading === 'mute'}
             >
               {isMuted ? (
-                <Volume2 size={20} color={COLORS.node.text} />
+                <Volume2 size={20} color={theme.text} />
               ) : (
-                <VolumeX size={20} color={COLORS.node.text} />
+                <VolumeX size={20} color={theme.text} />
               )}
-              <Text style={styles.menuItemText}>
+              <Text style={[styles.menuItemText, { color: theme.text }]}>
                 {loading === 'mute' ? 'Updating...' : isMuted ? 'Unmute Node' : 'Mute Node'}
               </Text>
             </TouchableOpacity>
-            <Text style={styles.menuItemSubtext}>
+            <Text style={[styles.menuItemSubtext, { color: theme.muted }]}>
               {isMuted ? 'Show posts from this node in your feed' : 'Hide posts from this node in your feed'}
             </Text>
 
@@ -175,7 +176,7 @@ export function NodeOverflowMenu({
                     {loading === 'leave' ? 'Leaving...' : 'Leave Node'}
                   </Text>
                 </TouchableOpacity>
-                <Text style={styles.menuItemSubtext}>
+                <Text style={[styles.menuItemSubtext, { color: theme.muted }]}>
                   Leave this community
                 </Text>
               </>
@@ -183,10 +184,10 @@ export function NodeOverflowMenu({
 
             {/* Share */}
             <TouchableOpacity style={styles.menuItem} onPress={handleShare}>
-              <Link2 size={20} color={COLORS.node.text} />
-              <Text style={styles.menuItemText}>Share Node</Text>
+              <Link2 size={20} color={theme.text} />
+              <Text style={[styles.menuItemText, { color: theme.text }]}>Share Node</Text>
             </TouchableOpacity>
-            <Text style={styles.menuItemSubtext}>
+            <Text style={[styles.menuItemSubtext, { color: theme.muted }]}>
               Copy link to share
             </Text>
 
@@ -195,7 +196,7 @@ export function NodeOverflowMenu({
               <Flag size={20} color="#f59e0b" />
               <Text style={[styles.menuItemText, { color: '#f59e0b' }]}>Report Node</Text>
             </TouchableOpacity>
-            <Text style={styles.menuItemSubtext}>
+            <Text style={[styles.menuItemSubtext, { color: theme.muted }]}>
               Report for violating guidelines
             </Text>
           </View>
@@ -217,11 +218,9 @@ const styles = StyleSheet.create({
     maxWidth: 320,
   },
   menu: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     padding: 16,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   header: {
     flexDirection: 'row',
@@ -230,12 +229,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   headerText: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: COLORS.node.text,
   },
   closeButton: {
     padding: 4,
@@ -249,11 +246,9 @@ const styles = StyleSheet.create({
   menuItemText: {
     fontSize: 16,
     fontWeight: '500',
-    color: COLORS.node.text,
   },
   menuItemSubtext: {
     fontSize: 12,
-    color: COLORS.node.muted,
     marginLeft: 32,
     marginTop: -8,
     marginBottom: 8,

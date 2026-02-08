@@ -12,6 +12,7 @@ import {
 import { showAlert } from '../lib/alert';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuthStore } from '../store/auth';
+import { useThemeStore, type ThemeTokens } from '../store/theme';
 import { updateProfile, getUserStats, api, uploadBanner, followUser, type UserStats, type AuthResponse } from '../lib/api';
 import { getErrorMessage } from '../lib/errors';
 
@@ -20,10 +21,13 @@ type User = AuthResponse["user"] & {
     isFollowing?: boolean;
     location?: string;
     website?: string;
+    customTheme?: Record<string, unknown> | null;
 };
 import { ArrowLeft } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, BREAKPOINTS } from '../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, BREAKPOINTS } from '../constants/theme';
+import { useAppTheme } from '../hooks/useTheme';
 import { EditProfileModal } from '../components/ui/EditProfileModal';
+import { LinkedAccountsModal } from '../components/ui/LinkedAccountsModal';
 import * as ImagePicker from 'expo-image-picker';
 
 // Profile components
@@ -52,6 +56,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     onCredClick,
     onViewTrustGraph,
 }) => {
+    const theme = useAppTheme();
     const { user: authUser, updateUser, logout } = useAuthStore();
     const insets = useSafeAreaInsets();
     const { width, height } = useWindowDimensions();
@@ -66,6 +71,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const [loadingUser, setLoadingUser] = useState(!!userId);
     const [userStats, setUserStats] = useState<UserStats | null>(null);
     const [editModalVisible, setEditModalVisible] = useState(false);
+    const [linkedAccountsVisible, setLinkedAccountsVisible] = useState(false);
     const [showBannerEditor, setShowBannerEditor] = useState(false);
     const [savingBanner, setSavingBanner] = useState(false);
     const [showEraSelector, setShowEraSelector] = useState(false);
@@ -95,6 +101,21 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 
     const user = propUser || fetchedUser || ((!userId || userId === authUser?.id) ? authUser : null);
     const canEdit = isEditable || !!(authUser && user && authUser.id === user.id);
+    const isOtherUser = !!(user && authUser && user.id !== authUser.id);
+
+    // Apply the viewed user's custom theme as a preview (MySpace-style)
+    useEffect(() => {
+        if (!isOtherUser) return;
+
+        const customTheme = (fetchedUser as User | null)?.customTheme;
+        if (customTheme && typeof customTheme === 'object' && Object.keys(customTheme).length > 0) {
+            useThemeStore.getState().setPreviewTheme(customTheme as Partial<ThemeTokens>);
+        }
+
+        return () => {
+            useThemeStore.getState().clearPreview();
+        };
+    }, [isOtherUser, fetchedUser]);
 
     // Fetch user stats for hero
     useEffect(() => {
@@ -216,21 +237,23 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         }
     };
 
+    const screenBg = theme.profileBg || theme.bg;
+
     // Loading state
     if (loadingUser) {
         return (
-            <SafeAreaView style={styles.container} edges={['left', 'right']}>
+            <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]} edges={['left', 'right']}>
                 <View style={[styles.loadingContainer, { marginTop: mobileHeaderOffset }]}>
                     <View style={styles.loadingHeader}>
-                        <TouchableOpacity onPress={onBack} style={styles.loadingBackButton}>
-                            <ArrowLeft color={COLORS.node.text} size={24} />
+                        <TouchableOpacity onPress={onBack} style={[styles.loadingBackButton, { backgroundColor: theme.border }]}>
+                            <ArrowLeft color={theme.text} size={24} />
                         </TouchableOpacity>
-                        <Text style={styles.loadingTitle}>Profile</Text>
+                        <Text style={[styles.loadingTitle, { color: theme.text }]}>Profile</Text>
                         <View style={{ width: 40 }} />
                     </View>
                     <View style={styles.loadingContent}>
-                        <ActivityIndicator color={COLORS.node.accent} size="large" />
-                        <Text style={styles.loadingText}>Loading profile...</Text>
+                        <ActivityIndicator color={theme.accent} size="large" />
+                        <Text style={[styles.loadingText, { color: theme.muted }]}>Loading profile...</Text>
                     </View>
                 </View>
             </SafeAreaView>
@@ -244,7 +267,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
     const eraStyle = ERAS[userEra] || ERAS['Default'];
 
     return (
-        <SafeAreaView style={styles.container} edges={['left', 'right']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: screenBg }]} edges={['left', 'right']}>
             <ScrollView
                 contentContainerStyle={[
                     styles.scrollContent,
@@ -270,6 +293,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                     onFollow={authUser?.id !== user.id ? handleFollow : undefined}
                     onSaveBio={canEdit ? handleSaveBio : undefined}
                     onSaveMeta={canEdit ? handleSaveMeta : undefined}
+                    onLinkedAccounts={authUser?.id === user.id ? () => setLinkedAccountsVisible(true) : undefined}
                     isFollowLoading={followLoading}
                     isOwnProfile={authUser?.id === user.id}
                     showBannerEditor={showBannerEditor}
@@ -309,6 +333,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
                 username={user.username || 'user'}
             />
 
+            {/* Linked Accounts Modal */}
+            <LinkedAccountsModal
+                visible={linkedAccountsVisible}
+                onClose={() => setLinkedAccountsVisible(false)}
+            />
+
             {/* Era Selector Modal */}
             <EraSelector
                 visible={showEraSelector}
@@ -334,7 +364,6 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.node.bg,
     },
     scrollContent: {
         flexGrow: 1,
@@ -354,14 +383,12 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: COLORS.node.border,
         alignItems: 'center',
         justifyContent: 'center',
     },
     loadingTitle: {
         fontSize: TYPOGRAPHY.sizes.h4,
         fontWeight: '600',
-        color: COLORS.node.text,
     },
     loadingContent: {
         flex: 1,
@@ -371,7 +398,6 @@ const styles = StyleSheet.create({
     },
     loadingText: {
         fontSize: TYPOGRAPHY.sizes.body,
-        color: COLORS.node.muted,
     },
 });
 

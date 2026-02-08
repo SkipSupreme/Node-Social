@@ -7,6 +7,9 @@ import {
   createOrUpdateReaction,
   getReactionsForContent,
   deleteReaction,
+  deleteExternalReaction,
+  getReactionsForExternalPost,
+  batchGetExternalPostAggregates,
   getAllVibeVectors,
   validateIntensities,
   type VibeIntensities,
@@ -322,6 +325,151 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
         }
         fastify.log.error({ err: error, commentId }, 'Failed to delete reaction');
         return reply.status(500).send({ error: 'Failed to delete reaction' });
+      }
+    }
+  );
+  // ============================================
+  // External Post Reactions
+  // ============================================
+
+  // Create or update a reaction on an external post
+  fastify.post(
+    '/external-posts/:externalPostId',
+    {
+      onRequest: [fastify.authenticate],
+      config: {
+        rateLimit: {
+          max: 100,
+          timeWindow: '1 minute',
+        },
+      },
+    },
+    async (request, reply) => {
+      const schema = z.object({
+        nodeId: z.string().uuid().optional(),
+        intensities: z.record(z.string(), z.number().min(0).max(1)),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const { externalPostId } = request.params as { externalPostId: string };
+      let { nodeId, intensities } = parsed.data;
+      const userId = (request.user as { sub: string }).sub;
+
+      // Validate externalPostId format
+      if (!externalPostId.startsWith('bsky_') && !externalPostId.startsWith('masto_')) {
+        return reply.status(400).send({ error: 'Invalid externalPostId format — must start with bsky_ or masto_' });
+      }
+
+      if (!validateIntensities(intensities)) {
+        return reply.status(400).send({ error: 'Invalid intensities: values must be between 0.0 and 1.0' });
+      }
+
+      // If no nodeId provided, use global node
+      if (!nodeId) {
+        const globalNode = await fastify.prisma.node.findUnique({ where: { slug: 'global' } });
+        if (!globalNode) {
+          return reply.status(500).send({ error: 'Global node not configured' });
+        }
+        nodeId = globalNode.id;
+      }
+
+      try {
+        const reaction = await createOrUpdateReaction(fastify.prisma, {
+          userId,
+          externalPostId,
+          nodeId,
+          intensities: intensities as VibeIntensities,
+        });
+
+        return reply.status(201).send(reaction);
+      } catch (error) {
+        fastify.log.error({ err: error, externalPostId, nodeId }, 'Failed to create/update external reaction');
+        return reply.status(500).send({ error: 'Failed to create/update reaction' });
+      }
+    }
+  );
+
+  // Get reactions for an external post
+  fastify.get(
+    '/external-posts/:externalPostId',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { externalPostId } = request.params as { externalPostId: string };
+      const userId = (request.user as { sub: string }).sub;
+
+      try {
+        const result = await getReactionsForExternalPost(fastify.prisma, externalPostId, userId);
+        return reply.send(result);
+      } catch (error) {
+        fastify.log.error({ err: error, externalPostId }, 'Failed to get external reactions');
+        return reply.status(500).send({ error: 'Failed to get reactions' });
+      }
+    }
+  );
+
+  // Delete reaction on an external post
+  fastify.delete(
+    '/external-posts/:externalPostId',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const { externalPostId } = request.params as { externalPostId: string };
+      const schema = z.object({
+        nodeId: z.string().uuid().optional(),
+      });
+
+      const parsed = schema.safeParse(request.query);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid query parameters', details: parsed.error });
+      }
+
+      const { nodeId } = parsed.data;
+      const userId = (request.user as { sub: string }).sub;
+
+      try {
+        await deleteExternalReaction(fastify.prisma, userId, externalPostId, nodeId || undefined);
+        return reply.send({ message: 'Reaction deleted successfully' });
+      } catch (error: any) {
+        if (error.message === 'Reaction not found') {
+          return reply.status(404).send({ error: 'Reaction not found' });
+        }
+        fastify.log.error({ err: error, externalPostId }, 'Failed to delete external reaction');
+        return reply.status(500).send({ error: 'Failed to delete reaction' });
+      }
+    }
+  );
+
+  // Batch-fetch aggregates for multiple external posts
+  fastify.post(
+    '/external-posts/aggregates',
+    {
+      onRequest: [fastify.authenticate],
+    },
+    async (request, reply) => {
+      const schema = z.object({
+        ids: z.array(z.string()).max(100),
+      });
+
+      const parsed = schema.safeParse(request.body);
+      if (!parsed.success) {
+        return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
+      }
+
+      const userId = (request.user as { sub: string }).sub;
+
+      try {
+        const result = await batchGetExternalPostAggregates(fastify.prisma, parsed.data.ids, userId);
+        return reply.send(result);
+      } catch (error) {
+        fastify.log.error({ err: error }, 'Failed to batch-fetch external post aggregates');
+        return reply.status(500).send({ error: 'Failed to fetch aggregates' });
       }
     }
   );

@@ -53,9 +53,9 @@ export class HackerNewsHarvester extends BaseHarvester {
             sourceUrl: `https://news.ycombinator.com/item?id=${item.id}`,
             sourceScore: item.score,
             title: item.title,
-            content: item.text || undefined,
-            linkUrl: item.url || undefined,
             suggestedNode: suggestedNode || 'technology', // Default to tech
+            ...(item.text != null && { content: item.text }),
+            ...(item.url != null && { linkUrl: item.url }),
           });
 
         } catch (err) {
@@ -72,7 +72,7 @@ export class HackerNewsHarvester extends BaseHarvester {
       // Use highest story ID as cursor
       const newCursor = storiesToFetch.length > 0 ? String(Math.max(...storiesToFetch)) : undefined;
 
-      return { items, newCursor };
+      return { items, ...(newCursor != null && { newCursor }) };
 
     } catch (err) {
       console.error('  ✗ Hacker News:', err);

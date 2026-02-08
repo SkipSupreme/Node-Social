@@ -8,9 +8,9 @@ import {
   StyleSheet,
   Pressable,
 } from 'react-native';
-import { COLORS } from '../../constants/theme';
 import { VibeValidator, VibeValidatorSettings } from './VibeValidator';
 import { ColumnVibeSettings } from '../../store/columns';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface VibeValidatorModalProps {
   visible: boolean;
@@ -50,6 +50,8 @@ export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({
   onClose,
   columnTitle,
 }) => {
+  const theme = useAppTheme();
+
   if (!visible) {
     return null;
   }
@@ -81,21 +83,21 @@ export const VibeValidatorModal: React.FC<VibeValidatorModalProps> = ({
 
         {/* Modal Content */}
         <Pressable>
-          <View testID="modal-content" style={styles.content}>
+          <View testID="modal-content" style={[styles.content, { backgroundColor: theme.panel, borderColor: theme.border }]}>
             {/* Column title header */}
             {columnTitle && (
-              <View style={styles.columnHeader}>
-                <Text style={styles.columnTitle}>Settings for: {columnTitle}</Text>
+              <View style={[styles.columnHeader, { borderBottomColor: theme.border }]}>
+                <Text style={[styles.columnTitle, { color: theme.muted }]}>Settings for: {columnTitle}</Text>
               </View>
             )}
 
             {/* Close button */}
             <TouchableOpacity
               testID="close-button"
-              style={styles.closeButton}
+              style={[styles.closeButton, { backgroundColor: theme.bg }]}
               onPress={onClose}
             >
-              <Text style={styles.closeText}>×</Text>
+              <Text style={[styles.closeText, { color: theme.text }]}>×</Text>
             </TouchableOpacity>
 
             {/* VibeValidator */}
@@ -124,7 +126,6 @@ const styles = StyleSheet.create({
     width: '90%',
     maxWidth: 480,
     maxHeight: '85%',
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     overflow: 'hidden',
     position: 'relative',
@@ -134,12 +135,10 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   columnTitle: {
     fontSize: 12,
     fontWeight: '600',
-    color: COLORS.node.muted,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -150,7 +149,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: COLORS.node.bg,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
@@ -158,7 +156,6 @@ const styles = StyleSheet.create({
   closeText: {
     fontSize: 22,
     fontWeight: '500',
-    color: COLORS.node.text,
     lineHeight: 24,
   },
 });

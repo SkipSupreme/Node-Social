@@ -6,6 +6,7 @@ import { COLORS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constant
 import { getVouchStats, VouchStats } from '../../lib/api';
 import { VouchModal } from './VouchModal';
 import { RevokeVouchModal } from './RevokeVouchModal';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface VouchSectionProps {
   userId: string;
@@ -27,6 +28,7 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
   onVouchChange,
   onViewTrustGraph,
 }) => {
+  const theme = useAppTheme();
   const { width } = useWindowDimensions();
   const isDesktop = width >= BREAKPOINTS.desktop;
 
@@ -105,7 +107,7 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
   if (loading) {
     return (
       <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
-        <View style={styles.glassBackground} />
+        <View style={[styles.glassBackground, { backgroundColor: `${theme.panel}f5` }]} />
         <View style={styles.loadingContent}>
           <ActivityIndicator color="#22d3ee" />
         </View>
@@ -124,7 +126,7 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
       ]}
     >
       {/* Glass background with glow */}
-      <View style={styles.glassBackground} />
+      <View style={[styles.glassBackground, { backgroundColor: `${theme.panel}f5` }]} />
 
       {/* Animated glow ring */}
       <Animated.View
@@ -147,8 +149,8 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
               <Shield size={20} color="#22d3ee" />
             </View>
             <View>
-              <Text style={styles.title}>Web of Trust</Text>
-              <Text style={styles.subtitle}>Reputation through vouching</Text>
+              <Text style={[styles.title, { color: theme.text }]}>Web of Trust</Text>
+              <Text style={[styles.subtitle, { color: theme.muted }]}>Reputation through vouching</Text>
             </View>
           </View>
 
@@ -162,14 +164,14 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
         </View>
 
         {/* Trust Score Display */}
-        <View style={styles.trustScoreContainer}>
+        <View style={[styles.trustScoreContainer, { backgroundColor: theme.bg }]}>
           <View style={styles.trustScoreLeft}>
             <Text style={styles.trustScoreValue}>
               {stats?.vouchesReceivedCount || 0}
             </Text>
-            <Text style={styles.trustScoreLabel}>Vouchers</Text>
+            <Text style={[styles.trustScoreLabel, { color: theme.muted }]}>Vouchers</Text>
           </View>
-          <View style={styles.trustScoreDivider} />
+          <View style={[styles.trustScoreDivider, { backgroundColor: theme.border }]} />
           <View style={styles.trustScoreRight}>
             <View style={styles.stakeDisplay}>
               <Sparkles size={14} color="#fbbf24" />
@@ -177,21 +179,21 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
                 {stats?.totalStakeReceived || 0}
               </Text>
             </View>
-            <Text style={styles.trustScoreLabel}>Cred Staked</Text>
+            <Text style={[styles.trustScoreLabel, { color: theme.muted }]}>Cred Staked</Text>
           </View>
         </View>
 
         {/* Top Vouchers */}
         {stats && stats.topVouchers.length > 0 && (
           <View style={styles.vouchersSection}>
-            <Text style={styles.vouchersSectionTitle}>Backed by</Text>
+            <Text style={[styles.vouchersSectionTitle, { color: theme.muted }]}>Backed by</Text>
             <View style={styles.vouchersRow}>
               {stats.topVouchers.slice(0, 5).map((v, index) => (
                 <Animated.View
                   key={v.id}
                   style={[
                     styles.voucherAvatar,
-                    { marginLeft: index === 0 ? 0 : -10 },
+                    { marginLeft: index === 0 ? 0 : -10, borderColor: theme.panel },
                   ]}
                 >
                   {v.voucher?.avatar ? (
@@ -209,8 +211,8 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
                 </Animated.View>
               ))}
               {stats.topVouchers.length > 5 && (
-                <View style={[styles.moreCount, { marginLeft: -10 }]}>
-                  <Text style={styles.moreText}>+{stats.topVouchers.length - 5}</Text>
+                <View style={[styles.moreCount, { marginLeft: -10, backgroundColor: theme.bg, borderColor: theme.panel }]}>
+                  <Text style={[styles.moreText, { color: theme.muted }]}>+{stats.topVouchers.length - 5}</Text>
                 </View>
               )}
             </View>
@@ -251,17 +253,17 @@ export const VouchSection: React.FC<VouchSectionProps> = ({
                   ))}
                 </View>
                 <TouchableOpacity
-                  style={styles.customButton}
+                  style={[styles.customButton, { borderColor: theme.border }]}
                   onPress={() => setVouchModalVisible(true)}
                 >
-                  <Text style={styles.customButtonText}>Custom amount...</Text>
+                  <Text style={[styles.customButtonText, { color: theme.muted }]}>Custom amount...</Text>
                 </TouchableOpacity>
               </View>
             ) : (
               /* Can't vouch */
-              <View style={styles.cantVouchBox}>
-                <Shield size={16} color={COLORS.node.muted} />
-                <Text style={styles.cantVouchText}>
+              <View style={[styles.cantVouchBox, { backgroundColor: theme.bg }]}>
+                <Shield size={16} color={theme.muted} />
+                <Text style={[styles.cantVouchText, { color: theme.muted }]}>
                   Need {MIN_CRED_TO_VOUCH}+ cred to vouch
                 </Text>
               </View>
@@ -299,7 +301,6 @@ const styles = StyleSheet.create({
   },
   glassBackground: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: `${COLORS.node.panel}f5`,
     borderWidth: 1,
     borderColor: 'rgba(6, 182, 212, 0.2)',
     borderRadius: RADIUS.xl,
@@ -353,12 +354,10 @@ const styles = StyleSheet.create({
   title: {
     fontSize: TYPOGRAPHY.sizes.h4,
     fontWeight: '700',
-    color: COLORS.node.text,
     letterSpacing: TYPOGRAPHY.letterSpacing.tight,
   },
   subtitle: {
     fontSize: TYPOGRAPHY.sizes.small,
-    color: COLORS.node.muted,
     marginTop: 2,
   },
   graphButton: {
@@ -380,7 +379,6 @@ const styles = StyleSheet.create({
   trustScoreContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.node.bg,
     borderRadius: RADIUS.lg,
     padding: SPACING.lg,
     marginBottom: SPACING.lg,
@@ -396,7 +394,6 @@ const styles = StyleSheet.create({
   trustScoreDivider: {
     width: 1,
     height: 40,
-    backgroundColor: COLORS.node.border,
     marginHorizontal: SPACING.lg,
   },
   trustScoreValue: {
@@ -419,7 +416,6 @@ const styles = StyleSheet.create({
   trustScoreLabel: {
     fontSize: TYPOGRAPHY.sizes.xs,
     fontWeight: '600',
-    color: COLORS.node.muted,
     textTransform: 'uppercase',
     letterSpacing: TYPOGRAPHY.letterSpacing.caps,
     marginTop: 4,
@@ -430,7 +426,6 @@ const styles = StyleSheet.create({
   vouchersSectionTitle: {
     fontSize: TYPOGRAPHY.sizes.xs,
     fontWeight: '600',
-    color: COLORS.node.muted,
     textTransform: 'uppercase',
     letterSpacing: TYPOGRAPHY.letterSpacing.caps,
     marginBottom: SPACING.sm,
@@ -444,7 +439,6 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 18,
     borderWidth: 2,
-    borderColor: COLORS.node.panel,
     overflow: 'hidden',
   },
   avatarImage: {
@@ -466,14 +460,11 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.node.bg,
     borderWidth: 2,
-    borderColor: COLORS.node.panel,
     justifyContent: 'center',
     alignItems: 'center',
   },
   moreText: {
-    color: COLORS.node.muted,
     fontSize: 11,
     fontWeight: '700',
   },
@@ -507,7 +498,6 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     borderRadius: RADIUS.md,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     alignItems: 'center',
     ...Platform.select({
       web: {
@@ -516,7 +506,6 @@ const styles = StyleSheet.create({
     }),
   },
   customButtonText: {
-    color: COLORS.node.muted,
     fontSize: TYPOGRAPHY.sizes.small,
   },
   vouchedRow: {
@@ -562,10 +551,8 @@ const styles = StyleSheet.create({
     gap: SPACING.sm,
     paddingVertical: SPACING.lg,
     borderRadius: RADIUS.md,
-    backgroundColor: COLORS.node.bg,
   },
   cantVouchText: {
-    color: COLORS.node.muted,
     fontSize: TYPOGRAPHY.sizes.small,
   },
 });

@@ -11,7 +11,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { userId: voucheeId } = request.params;
-      const voucherId = (request.user as { id: string }).id;
+      const voucherId = (request.user as { sub: string }).sub;
       const stake = request.body?.stake || DEFAULT_VOUCH_STAKE;
 
       // Can't vouch for yourself
@@ -85,7 +85,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { userId: voucheeId } = request.params;
-      const voucherId = (request.user as { id: string }).id;
+      const voucherId = (request.user as { sub: string }).sub;
 
       const vouch = await fastify.prisma.vouch.findUnique({
         where: {
@@ -132,7 +132,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     '/given',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
       const vouches = await fastify.prisma.vouch.findMany({
         where: {
           voucherId: userId,
@@ -159,7 +159,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     '/received',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
-      const userId = (request.user as { id: string }).id;
+      const userId = (request.user as { sub: string }).sub;
       const vouches = await fastify.prisma.vouch.findMany({
         where: {
           voucheeId: userId,

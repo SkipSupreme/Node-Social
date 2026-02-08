@@ -19,7 +19,7 @@ import { ChevronDown, Check, X } from "lucide-react-native";
 import { register, checkUsername } from "../lib/api";
 import { getErrorMessage } from "../lib/errors";
 import { useAuthStore } from "../store/auth";
-import { COLORS } from "../constants/theme";
+import { useAppTheme } from '../hooks/useTheme';
 import { AuthLogo } from "../components/ui/AuthLogo";
 import { NodeNetworkBackground } from "../components/ui/NodeNetworkBackground";
 
@@ -43,6 +43,7 @@ export const RegisterScreen: React.FC<{
   goToLogin: () => void;
   onClose?: () => void;
 }> = ({ onSuccessLogin, goToLogin, onClose }) => {
+  const theme = useAppTheme();
   const setAuth = useAuthStore((s) => s.setAuth);
   const { width } = useWindowDimensions();
   const isMobile = width < 480;
@@ -176,14 +177,14 @@ export const RegisterScreen: React.FC<{
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.bg }]}>
       {/* Animated node network background */}
       <NodeNetworkBackground />
 
       {/* Close button - only shown when in modal mode */}
       {onClose && (
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-          <X size={24} color={COLORS.node.muted} />
+          <X size={24} color={theme.muted} />
         </TouchableOpacity>
       )}
 
@@ -201,33 +202,33 @@ export const RegisterScreen: React.FC<{
           </View>
 
           <View style={styles.header}>
-            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: COLORS.node.muted }}>social</Text></Text>
-            <Text style={styles.title}>Create your account</Text>
-            <Text style={styles.subtitle}>Join the network of the future</Text>
+            <Text style={styles.brandName}>NODE<Text style={{ fontWeight: '400', color: theme.muted }}>social</Text></Text>
+            <Text style={[styles.title, { color: theme.text }]}>Create your account</Text>
+            <Text style={[styles.subtitle, { color: theme.muted }]}>Join the network of the future</Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.row}>
               <TextInput
                 placeholder="First Name"
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 value={formData.firstName}
                 onChangeText={(t) => handleChange('firstName', t)}
-                style={[styles.input, styles.halfInput]}
+                style={[styles.input, styles.halfInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
               />
               <TextInput
                 placeholder="Last Name"
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 value={formData.lastName}
                 onChangeText={(t) => handleChange('lastName', t)}
-                style={[styles.input, styles.halfInput]}
+                style={[styles.input, styles.halfInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
               />
             </View>
 
             <View>
               <TextInput
                 placeholder="Username"
-                placeholderTextColor={COLORS.node.muted}
+                placeholderTextColor={theme.muted}
                 autoCapitalize="none"
                 value={formData.username}
                 onChangeText={(t) => handleChange('username', t)}
@@ -235,35 +236,35 @@ export const RegisterScreen: React.FC<{
                   styles.input,
                   usernameAvailable === true && styles.inputSuccess,
                   usernameAvailable === false && styles.inputError
-                ]}
+                , { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
               />
-              {checkingUsername && <ActivityIndicator size="small" color={COLORS.node.muted} style={styles.inputIcon} />}
+              {checkingUsername && <ActivityIndicator size="small" color={theme.muted} style={styles.inputIcon} />}
               {usernameAvailable === false && <Text style={styles.fieldError}>Username taken</Text>}
             </View>
 
             <TextInput
               placeholder="Email"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               autoCapitalize="none"
               keyboardType="email-address"
               value={formData.email}
               onChangeText={(t) => handleChange('email', t)}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             {/* Date of Birth - Mobile-friendly layout */}
             <View>
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={[styles.label, { color: theme.muted }]}>Date of Birth</Text>
               <View style={[styles.dateRow, isMobile && styles.dateRowMobile]}>
                 <View style={styles.dateField}>
                   <TextInput
                     placeholder="Day"
-                    placeholderTextColor={COLORS.node.muted}
+                    placeholderTextColor={theme.muted}
                     keyboardType="number-pad"
                     maxLength={2}
                     value={day}
                     onChangeText={handleDayChange}
-                    style={[styles.input, styles.dateInput]}
+                    style={[styles.input, styles.dateInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                     returnKeyType="next"
                   />
                 </View>
@@ -280,19 +281,19 @@ export const RegisterScreen: React.FC<{
                   ]}>
                     {month !== null ? MONTHS[month - 1].label : "Month"}
                   </Text>
-                  <ChevronDown size={18} color={COLORS.node.muted} />
+                  <ChevronDown size={18} color={theme.muted} />
                 </TouchableOpacity>
 
                 <View style={styles.dateField}>
                   <TextInput
                     ref={yearRef}
                     placeholder="Year"
-                    placeholderTextColor={COLORS.node.muted}
+                    placeholderTextColor={theme.muted}
                     keyboardType="number-pad"
                     maxLength={4}
                     value={year}
                     onChangeText={handleYearChange}
-                    style={[styles.input, styles.dateInput]}
+                    style={[styles.input, styles.dateInput, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
                   />
                 </View>
               </View>
@@ -300,20 +301,20 @@ export const RegisterScreen: React.FC<{
 
             <TextInput
               placeholder="Password (min. 8 characters)"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               secureTextEntry
               value={formData.password}
               onChangeText={(t) => handleChange('password', t)}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             <TextInput
               placeholder="Confirm Password"
-              placeholderTextColor={COLORS.node.muted}
+              placeholderTextColor={theme.muted}
               secureTextEntry
               value={formData.confirmPassword}
               onChangeText={(t) => handleChange('confirmPassword', t)}
-              style={styles.input}
+              style={[styles.input, { backgroundColor: theme.panel, borderColor: theme.border, color: theme.text }]}
             />
 
             {error && (
@@ -323,7 +324,7 @@ export const RegisterScreen: React.FC<{
             )}
 
             <TouchableOpacity
-              style={[styles.button, loading && styles.buttonDisabled]}
+              style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: theme.accent }]}
               onPress={onSubmit}
               disabled={loading}
             >
@@ -335,9 +336,9 @@ export const RegisterScreen: React.FC<{
             </TouchableOpacity>
 
             <View style={styles.footer}>
-              <Text style={styles.footerText}>Already have an account? </Text>
+              <Text style={[styles.footerText, { color: theme.muted }]}>Already have an account? </Text>
               <TouchableOpacity onPress={goToLogin}>
-                <Text style={styles.linkText}>Sign in</Text>
+                <Text style={[styles.linkText, { color: theme.accent }]}>Sign in</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -356,9 +357,9 @@ export const RegisterScreen: React.FC<{
           activeOpacity={1}
           onPress={() => setShowMonthPicker(false)}
         >
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Month</Text>
+          <View style={[styles.modalContent, { backgroundColor: theme.panel, borderColor: theme.border }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: theme.border }]}>
+              <Text style={[styles.modalTitle, { color: theme.text }]}>Select Month</Text>
             </View>
             <FlatList
               data={MONTHS}
@@ -368,7 +369,7 @@ export const RegisterScreen: React.FC<{
                   style={[
                     styles.monthOption,
                     month === item.value && styles.monthOptionSelected
-                  ]}
+                  , { backgroundColor: `${theme.accent}15` }]}
                   onPress={() => {
                     setMonth(item.value);
                     setShowMonthPicker(false);
@@ -379,11 +380,11 @@ export const RegisterScreen: React.FC<{
                   <Text style={[
                     styles.monthOptionText,
                     month === item.value && styles.monthOptionTextSelected
-                  ]}>
+                  , { color: theme.accent }]}>
                     {item.label}
                   </Text>
                   {month === item.value && (
-                    <Check size={20} color={COLORS.node.accent} />
+                    <Check size={20} color={theme.accent} />
                   )}
                 </TouchableOpacity>
               )}
@@ -399,7 +400,6 @@ export const RegisterScreen: React.FC<{
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.node.bg,
   },
   closeButton: {
     position: 'absolute',
@@ -439,13 +439,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 18,
     fontWeight: "600",
-    color: COLORS.node.text,
     marginBottom: 4,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
-    color: COLORS.node.muted,
     textAlign: 'center',
   },
   form: {
@@ -460,21 +458,17 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   label: {
-    color: COLORS.node.muted,
     fontSize: 13,
     marginBottom: 8,
     marginLeft: 4,
     fontWeight: '500',
   },
   input: {
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 16,
-    color: COLORS.node.text,
   },
   inputSuccess: {
     borderColor: '#10B981',
@@ -509,9 +503,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   monthPickerButton: {
-    backgroundColor: COLORS.node.panel,
     borderWidth: 1,
-    borderColor: COLORS.node.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 14,
@@ -522,11 +514,9 @@ const styles = StyleSheet.create({
   },
   monthPickerText: {
     fontSize: 16,
-    color: COLORS.node.text,
     flex: 1,
   },
   monthPickerPlaceholder: {
-    color: COLORS.node.muted,
   },
   // Modal styles
   modalOverlay: {
@@ -537,24 +527,20 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   modalContent: {
-    backgroundColor: COLORS.node.panel,
     borderRadius: 16,
     width: '100%',
     maxWidth: 320,
     maxHeight: 400,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: COLORS.node.border,
   },
   modalHeader: {
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: COLORS.node.text,
     textAlign: 'center',
   },
   monthList: {
@@ -567,17 +553,13 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 20,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.node.border,
   },
   monthOptionSelected: {
-    backgroundColor: `${COLORS.node.accent}15`,
   },
   monthOptionText: {
     fontSize: 16,
-    color: COLORS.node.text,
   },
   monthOptionTextSelected: {
-    color: COLORS.node.accent,
     fontWeight: '600',
   },
   errorContainer: {
@@ -593,7 +575,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   button: {
-    backgroundColor: COLORS.node.accent,
     borderRadius: 12,
     paddingVertical: 16,
     alignItems: "center",
@@ -615,11 +596,9 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   footerText: {
-    color: COLORS.node.muted,
     fontSize: 14,
   },
   linkText: {
-    color: COLORS.node.accent,
     fontSize: 14,
     fontWeight: "600",
   },

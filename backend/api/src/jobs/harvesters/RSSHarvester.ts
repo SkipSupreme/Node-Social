@@ -16,13 +16,13 @@ function extractTag(xml: string, tag: string): string | null {
   // Handle both regular tags and CDATA
   const regex = new RegExp(`<${tag}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?</${tag}>`, 'i');
   const match = xml.match(regex);
-  if (match) {
+  if (match && match[1] != null) {
     return match[1].trim();
   }
   // Try self-closing or attribute-based (like Atom links)
   const attrRegex = new RegExp(`<${tag}[^>]*href="([^"]*)"[^>]*/?>`, 'i');
   const attrMatch = xml.match(attrRegex);
-  return attrMatch ? attrMatch[1] : null;
+  return attrMatch?.[1] ?? null;
 }
 
 function parseRSSItems(xml: string): FeedItem[] {
@@ -34,17 +34,22 @@ function parseRSSItems(xml: string): FeedItem[] {
 
   while ((match = itemRegex.exec(xml)) !== null) {
     const itemXml = match[1];
+    if (itemXml == null) continue;
     const title = extractTag(itemXml, 'title');
     const link = extractTag(itemXml, 'link');
 
     if (title && link) {
+      const description = extractTag(itemXml, 'description');
+      const pubDate = extractTag(itemXml, 'pubDate');
+      const guid = extractTag(itemXml, 'guid');
+      const content = extractTag(itemXml, 'content:encoded');
       items.push({
         title,
         link,
-        description: extractTag(itemXml, 'description') || undefined,
-        pubDate: extractTag(itemXml, 'pubDate') || undefined,
-        guid: extractTag(itemXml, 'guid') || undefined,
-        content: extractTag(itemXml, 'content:encoded') || undefined,
+        ...(description != null && { description }),
+        ...(pubDate != null && { pubDate }),
+        ...(guid != null && { guid }),
+        ...(content != null && { content }),
       });
     }
   }
@@ -54,16 +59,20 @@ function parseRSSItems(xml: string): FeedItem[] {
     const entryRegex = /<entry>([\s\S]*?)<\/entry>/gi;
     while ((match = entryRegex.exec(xml)) !== null) {
       const entryXml = match[1];
+      if (entryXml == null) continue;
       const title = extractTag(entryXml, 'title');
       const link = extractTag(entryXml, 'link');
 
       if (title && link) {
+        const description = extractTag(entryXml, 'summary') || extractTag(entryXml, 'content');
+        const pubDate = extractTag(entryXml, 'published') || extractTag(entryXml, 'updated');
+        const guid = extractTag(entryXml, 'id');
         items.push({
           title,
           link,
-          description: extractTag(entryXml, 'summary') || extractTag(entryXml, 'content') || undefined,
-          pubDate: extractTag(entryXml, 'published') || extractTag(entryXml, 'updated') || undefined,
-          guid: extractTag(entryXml, 'id') || undefined,
+          ...(description != null && { description }),
+          ...(pubDate != null && { pubDate }),
+          ...(guid != null && { guid }),
         });
       }
     }
@@ -118,7 +127,7 @@ export class RSSHarvester extends BaseHarvester {
           const sourceId = item.guid || item.link || `${feedUrl}:${item.title}`;
 
           // Extract content
-          const content = item.content || item.description || undefined;
+          const content = item.content || item.description;
 
           // Categorize
           const suggestedNode = categorizeContent(item.title, content) || this.targetNode;
@@ -128,7 +137,7 @@ export class RSSHarvester extends BaseHarvester {
             sourceId: Buffer.from(sourceId).toString('base64').slice(0, 100),
             sourceUrl: item.link,
             title: item.title,
-            content, // No truncation - curator will scrape full article for article domains
+            ...(content != null && { content }), // No truncation - curator will scrape full article for article domains
             linkUrl: item.link,
             suggestedNode,
           });
@@ -153,6 +162,6 @@ export class RSSHarvester extends BaseHarvester {
 // Factory function
 export function createRSSHarvesters(prisma: PrismaClient): RSSHarvester[] {
   return Object.keys(RSS_FEEDS)
-    .filter(node => RSS_FEEDS[node].length > 0)
+    .filter(node => (RSS_FEEDS[node]?.length ?? 0) > 0)
     .map(node => new RSSHarvester(prisma, node));
 }

@@ -9,7 +9,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TrendingUp, Heart, Users, Shield, Flame, Star } from 'lucide-react-native';
-import { COLORS, ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { ERAS, TYPOGRAPHY, SPACING, RADIUS, BREAKPOINTS } from '../../constants/theme';
+import { useAppTheme } from '../../hooks/useTheme';
 
 interface StatConfig {
     icon: React.ReactNode;
@@ -32,6 +33,7 @@ const StatOrb: React.FC<{
     index: number;
     isDesktop: boolean;
 }> = ({ config, index, isDesktop }) => {
+    const theme = useAppTheme();
     const scaleAnim = useRef(new Animated.Value(0.8)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
     const glowAnim = useRef(new Animated.Value(0)).current;
@@ -96,7 +98,7 @@ const StatOrb: React.FC<{
             />
 
             {/* Glass card */}
-            <View style={styles.orbCard}>
+            <View style={[styles.orbCard, { backgroundColor: theme.panel, borderColor: theme.border }]}>
                 {/* Icon container with gradient */}
                 <View style={[styles.iconContainer, { backgroundColor: `${config.color}15` }]}>
                     {config.icon}
@@ -113,7 +115,7 @@ const StatOrb: React.FC<{
                 </Text>
 
                 {/* Label */}
-                <Text style={styles.orbLabel}>{config.label}</Text>
+                <Text style={[styles.orbLabel, { color: theme.muted }]}>{config.label}</Text>
             </View>
         </Animated.View>
     );
@@ -201,12 +203,10 @@ const styles = StyleSheet.create({
         }),
     },
     orbCard: {
-        backgroundColor: COLORS.node.panel, // Solid background for better visibility
         borderRadius: RADIUS.lg,
         padding: SPACING.lg,
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: COLORS.node.border,
         // Shadow for depth
         boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.2)',
         ...Platform.select({
@@ -235,7 +235,6 @@ const styles = StyleSheet.create({
     orbLabel: {
         fontSize: TYPOGRAPHY.sizes.xs,
         fontWeight: '600',
-        color: COLORS.node.muted,
         textTransform: 'uppercase',
         letterSpacing: TYPOGRAPHY.letterSpacing.caps,
         marginTop: SPACING.xs,

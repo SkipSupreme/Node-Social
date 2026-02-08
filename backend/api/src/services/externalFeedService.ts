@@ -111,6 +111,8 @@ export interface ExternalPost {
     displayName: string;
   };
   language?: string | null; // Detected language code (e.g., 'en', 'es', 'ja')
+  cid?: string; // Bluesky CID (needed for like/repost/reply interactions)
+  platformStatusId?: string; // Numeric status ID for Mastodon, DID for Bluesky
 }
 
 export interface ExternalFeedResult {
@@ -235,17 +237,21 @@ export async function fetchBlueskyFeed(
         repostCount: post.repostCount || 0,
         likeCount: post.likeCount || 0,
         isRepost,
-        repostedBy: isRepost && item.reason ? {
-          username: (item.reason as any).by?.handle || '',
-          displayName: (item.reason as any).by?.displayName || '',
-        } : undefined,
+        ...(isRepost && item.reason ? {
+          repostedBy: {
+            username: (item.reason as any).by?.handle || '',
+            displayName: (item.reason as any).by?.displayName || '',
+          },
+        } : {}),
         language: detectLanguage(content),
+        cid: post.cid,
+        platformStatusId: post.author.did,
       };
     });
 
     const result: ExternalFeedResult = {
       posts,
-      nextCursor: data.cursor,
+      ...(data.cursor != null && { nextCursor: data.cursor }),
       platform: 'bluesky',
     };
 
@@ -341,12 +347,14 @@ export async function fetchBlueskyUserPosts(
         likeCount: post.likeCount || 0,
         isRepost: false,
         language: detectLanguage(content),
+        cid: post.cid,
+        platformStatusId: post.author.did,
       };
     });
 
     const result: ExternalFeedResult = {
       posts,
-      nextCursor: data.cursor,
+      ...(data.cursor != null && { nextCursor: data.cursor }),
       platform: 'bluesky',
     };
 
@@ -476,20 +484,23 @@ export async function fetchMastodonFeed(
         repostCount: actualPost.reblogs_count,
         likeCount: actualPost.favourites_count,
         isRepost,
-        repostedBy: isRepost ? {
-          username: post.account.acct,
-          displayName: post.account.display_name || post.account.username,
-        } : undefined,
+        ...(isRepost ? {
+          repostedBy: {
+            username: post.account.acct,
+            displayName: post.account.display_name || post.account.username,
+          },
+        } : {}),
         language: detectLanguage(plainContent),
+        platformStatusId: actualPost.id,
       };
     });
 
     // Use the last post's ID as cursor for pagination
-    const nextCursor = data.length > 0 ? data[data.length - 1].id : undefined;
+    const lastPost = data.length > 0 ? data[data.length - 1] : undefined;
 
     const result: ExternalFeedResult = {
       posts,
-      nextCursor,
+      ...(lastPost != null && { nextCursor: lastPost.id }),
       platform: 'mastodon',
     };
 
@@ -541,8 +552,8 @@ export async function fetchMastodonTrending(
     });
 
     if (!response.ok) {
-      // Fallback to public timeline if trending not available
-      return fetchMastodonFeed(instance, 'public', options);
+      console.error('Mastodon trending API error:', response.status, await response.text());
+      return { posts: [], platform: 'mastodon' };
     }
 
     const data: MastodonPost[] = await response.json();
@@ -586,12 +597,13 @@ export async function fetchMastodonTrending(
         likeCount: post.favourites_count,
         isRepost: false,
         language: detectLanguage(plainContent),
+        platformStatusId: post.id,
       };
     });
 
     const result: ExternalFeedResult = {
       posts,
-      nextCursor: offset + limit > 0 ? String(offset + limit) : undefined,
+      ...(offset + limit > 0 && { nextCursor: String(offset + limit) }),
       platform: 'mastodon',
     };
 
@@ -761,12 +773,11 @@ export async function fetchCombinedFeed(
   const results = await Promise.all(
     sources.map(async source => {
       if (source.platform === 'bluesky') {
-        return fetchBlueskyDiscover({ limit, redis });
+        return fetchBlueskyDiscover({ limit, ...(redis != null && { redis }) });
       } else {
-        return fetchMastodonFeed(
+        return fetchMastodonTrending(
           source.config?.instance || 'mastodon.social',
-          'public',
-          { limit, redis }
+          { limit, ...(redis != null && { redis }) }
         );
       }
     })

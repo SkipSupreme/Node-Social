@@ -16,6 +16,7 @@ export interface CreateReactionParams {
   userId: string;
   postId?: string;
   commentId?: string;
+  externalPostId?: string;
   nodeId: string;
   intensities: VibeIntensities;
 }
@@ -52,11 +53,12 @@ export async function createOrUpdateReaction(
   prisma: PrismaClient,
   params: CreateReactionParams
 ) {
-  const { userId, postId, commentId, nodeId, intensities } = params;
+  const { userId, postId, commentId, externalPostId, nodeId, intensities } = params;
 
-  // Validate: must have either postId or commentId, not both
-  if ((!postId && !commentId) || (postId && commentId)) {
-    throw new Error('Must provide either postId or commentId, not both');
+  // Validate: must have exactly one of postId, commentId, or externalPostId
+  const targetCount = [postId, commentId, externalPostId].filter(Boolean).length;
+  if (targetCount !== 1) {
+    throw new Error('Must provide exactly one of postId, commentId, or externalPostId');
   }
 
   // Validate intensities
@@ -66,11 +68,12 @@ export async function createOrUpdateReaction(
 
   const totalIntensity = calculateTotalIntensity(intensities);
 
-  // Ensure postId or commentId is null for the other
+  // Ensure unused target fields are null
   const reactionData = {
     userId,
     postId: postId || null,
     commentId: commentId || null,
+    externalPostId: externalPostId || null,
     nodeId,
     intensities: intensities as Prisma.InputJsonValue,
     totalIntensity,
@@ -78,12 +81,19 @@ export async function createOrUpdateReaction(
 
   // Use transaction to prevent race condition between findFirst and create/update
   const reaction = await prisma.$transaction(async (tx) => {
+    // Build where clause based on which target is provided
+    const targetWhere = postId
+      ? { postId }
+      : commentId
+        ? { commentId }
+        : { externalPostId: externalPostId! };
+
     // Check if reaction already exists (handle uniqueness manually since Prisma doesn't support conditional uniques)
     const existingReaction = await tx.vibeReaction.findFirst({
       where: {
         userId,
         nodeId,
-        ...(postId ? { postId } : { commentId: commentId! }),
+        ...targetWhere,
       },
     });
 
@@ -132,10 +142,11 @@ export async function createOrUpdateReaction(
     }
   });
 
-  // Update PostMetric if postId exists (fire-and-forget, don't block)
+  // Update metrics (fire-and-forget, don't block)
   if (postId) {
-    // Fire-and-forget: metrics update failure is non-critical
     updatePostMetricsFromReactions(prisma, postId).catch(() => {});
+  } else if (externalPostId) {
+    updateExternalPostMetrics(prisma, externalPostId).catch(() => {});
   }
 
   return reaction;
@@ -458,6 +469,186 @@ async function updatePostMetricsFromReactions(
   }
 
   return metric;
+}
+
+// ============================================
+// External Post Reactions
+// ============================================
+
+/**
+ * Update aggregates for an external post after a reaction change.
+ * Simpler than native post metrics — no moderation queue, no cred, no socket.
+ */
+async function updateExternalPostMetrics(
+  prisma: PrismaClient,
+  externalPostId: string
+) {
+  const reactions = await prisma.vibeReaction.findMany({
+    where: { externalPostId },
+  });
+
+  const aggregates = {
+    insightfulSum: 0,
+    joySum: 0,
+    fireSum: 0,
+    supportSum: 0,
+    shockSum: 0,
+    questionableSum: 0,
+    insightfulCount: 0,
+    joyCount: 0,
+    fireCount: 0,
+    supportCount: 0,
+    shockCount: 0,
+    questionableCount: 0,
+    totalReactors: reactions.length,
+    totalIntensity: 0,
+  };
+
+  for (const reaction of reactions) {
+    const intensities = reaction.intensities as VibeIntensities;
+    for (const [slug, intensity] of Object.entries(intensities)) {
+      const agg = aggregates as unknown as Record<string, number>;
+      const sumKey = `${slug}Sum`;
+      const countKey = `${slug}Count`;
+      if (typeof agg[sumKey] === 'number') {
+        agg[sumKey]! += intensity;
+        if (intensity > 0 && typeof agg[countKey] === 'number') {
+          agg[countKey]! += 1;
+        }
+      }
+      aggregates.totalIntensity += intensity;
+    }
+  }
+
+  // Derive platform from externalPostId prefix
+  const platform = externalPostId.startsWith('bsky_') ? 'bluesky' : 'mastodon';
+
+  // Calculate simple quality + engagement scores
+  const positiveIntensity = aggregates.insightfulSum + aggregates.supportSum + aggregates.joySum + aggregates.fireSum;
+  const negativeIntensity = aggregates.questionableSum;
+  const qualityScore = positiveIntensity - (negativeIntensity * 1.5);
+  const engagementScore = aggregates.totalIntensity;
+
+  await prisma.externalPostVibeAggregate.upsert({
+    where: { externalPostId },
+    update: {
+      ...aggregates,
+      platform,
+      qualityScore,
+      engagementScore,
+      updatedAt: new Date(),
+    },
+    create: {
+      externalPostId,
+      platform,
+      ...aggregates,
+      qualityScore,
+      engagementScore,
+    },
+  });
+}
+
+/**
+ * Get reactions + aggregates for an external post
+ */
+export async function getReactionsForExternalPost(
+  prisma: PrismaClient,
+  externalPostId: string,
+  userId?: string
+) {
+  const [reactions, aggregate] = await Promise.all([
+    prisma.vibeReaction.findMany({
+      where: { externalPostId },
+      take: 1000,
+      include: {
+        user: { select: { id: true } },
+        node: { select: { id: true, slug: true, name: true } },
+      },
+    }),
+    prisma.externalPostVibeAggregate.findUnique({
+      where: { externalPostId },
+    }),
+  ]);
+
+  // Find user's own reaction if authenticated
+  let myReaction: VibeIntensities | null = null;
+  if (userId) {
+    const userReaction = reactions.find(r => r.user.id === userId);
+    if (userReaction) {
+      myReaction = userReaction.intensities as VibeIntensities;
+    }
+  }
+
+  return { reactions, aggregate, myReaction };
+}
+
+/**
+ * Batch-fetch aggregates + user reactions for multiple external posts
+ */
+export async function batchGetExternalPostAggregates(
+  prisma: PrismaClient,
+  externalPostIds: string[],
+  userId?: string
+) {
+  const [aggregates, userReactions] = await Promise.all([
+    prisma.externalPostVibeAggregate.findMany({
+      where: { externalPostId: { in: externalPostIds } },
+    }),
+    userId
+      ? prisma.vibeReaction.findMany({
+          where: {
+            externalPostId: { in: externalPostIds },
+            userId,
+          },
+          select: {
+            externalPostId: true,
+            intensities: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const aggregateMap: Record<string, typeof aggregates[number]> = {};
+  for (const agg of aggregates) {
+    aggregateMap[agg.externalPostId] = agg;
+  }
+
+  const myReactionMap: Record<string, VibeIntensities> = {};
+  for (const r of userReactions) {
+    if (r.externalPostId) {
+      myReactionMap[r.externalPostId] = r.intensities as VibeIntensities;
+    }
+  }
+
+  return { aggregates: aggregateMap, myReactions: myReactionMap };
+}
+
+/**
+ * Delete a user's reaction to an external post
+ */
+export async function deleteExternalReaction(
+  prisma: PrismaClient,
+  userId: string,
+  externalPostId: string,
+  nodeId?: string
+) {
+  const where: Prisma.VibeReactionWhereInput = {
+    userId,
+    externalPostId,
+    ...(nodeId ? { nodeId } : {}),
+  };
+
+  const reaction = await prisma.vibeReaction.findFirst({ where });
+  if (!reaction) {
+    throw new Error('Reaction not found');
+  }
+
+  await prisma.vibeReaction.delete({ where: { id: reaction.id } });
+
+  // Re-aggregate (fire-and-forget)
+  updateExternalPostMetrics(prisma, externalPostId).catch(() => {});
+
+  return { message: 'Reaction deleted' };
 }
 
 /**
