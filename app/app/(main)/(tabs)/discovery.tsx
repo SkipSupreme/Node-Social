@@ -1,13 +1,30 @@
-import { View, Text } from 'react-native';
-import { useAppTheme } from '../../../src/hooks/useTheme';
+import { useCallback } from 'react';
+import { useRouter } from 'expo-router';
+import { DiscoveryScreen } from '../../../src/screens/DiscoveryScreen';
 
-export default function DiscoveryScreen() {
-  const theme = useAppTheme();
+export default function DiscoveryTab() {
+  const router = useRouter();
+
+  const handlePostClick = useCallback(
+    (postOrId: any) => {
+      const postId = typeof postOrId === 'string' ? postOrId : postOrId?.id;
+      if (postId) router.push(`/post/${postId}` as any);
+    },
+    [router]
+  );
+
+  const handleUserClick = useCallback(
+    (userId: string) => {
+      router.push(`/user/${userId}` as any);
+    },
+    [router]
+  );
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
-      <Text style={{ color: theme.text, fontSize: 18 }}>Discovery</Text>
-      <Text style={{ color: theme.muted, fontSize: 14, marginTop: 8 }}>Explore new content</Text>
-    </View>
+    <DiscoveryScreen
+      onBack={() => router.back()}
+      onPostClick={handlePostClick}
+      onUserClick={handleUserClick}
+    />
   );
 }
