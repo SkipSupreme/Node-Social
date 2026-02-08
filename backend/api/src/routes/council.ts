@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import { calculateActivityMultiplier } from '../lib/activityTracker.js';
 
 const COUNCIL_SIZE = 5; // Number of council members per node
 const ACTIVITY_THRESHOLD_DAYS = 30; // Must be active within this many days
@@ -167,18 +168,5 @@ const councilRoutes: FastifyPluginAsync = async (fastify) => {
   );
 };
 
-// Calculate activity multiplier: 100% at 7 days, decaying to 50% at 60+ days
-function calculateActivityMultiplier(lastActiveAt: Date): number {
-  const now = new Date();
-  const daysSinceActive = Math.floor(
-    (now.getTime() - lastActiveAt.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  if (daysSinceActive <= 7) return 1.0;
-  if (daysSinceActive >= 60) return 0.5;
-
-  // Linear decay from 1.0 to 0.5 over 53 days (7-60)
-  return 1.0 - ((daysSinceActive - 7) / 53) * 0.5;
-}
 
 export default councilRoutes;

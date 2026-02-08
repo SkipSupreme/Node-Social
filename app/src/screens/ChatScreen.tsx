@@ -64,19 +64,7 @@ export const ChatScreen = ({ onBack, conversationId, recipient }: ChatScreenProp
     const sendMessage = async () => {
         if (!text.trim() || !currentUser) return;
 
-        // const tempId = Date.now().toString();
-        // const tempMsg = {
-        //     id: tempId,
-        //     content: text,
-        //     senderId: currentUser.id,
-        //     createdAt: new Date().toISOString(),
-        //     sender: currentUser
-        // };
-
-        // Optimistic update removed for simplicity as per thought process
-        // setMessages(prev => [...prev, tempMsg]);
         setText('');
-        // setTimeout(() => flatListRef.current?.scrollToEnd(), 100);
 
         try {
             await api.post(`/conversations/${conversationId}/messages`, { content: text });

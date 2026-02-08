@@ -67,7 +67,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       if (pendingUpload) {
         setUploading(true);
         const result = await uploadAvatar(pendingUpload);
-        console.log('📸 Upload result:', { success: result.success, url: result.url, avatar: result.user?.avatar });
         setUploading(false);
         onSuccess(result.user);
         onClose();

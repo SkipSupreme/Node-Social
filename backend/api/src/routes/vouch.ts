@@ -6,13 +6,21 @@ const DEFAULT_VOUCH_STAKE = 100; // Default stake amount
 
 const vouchRoutes: FastifyPluginAsync = async (fastify) => {
   // POST /vouch/:userId - Vouch for a user
-  fastify.post<{ Params: { userId: string }; Body: { stake?: number } }>(
+  fastify.post<{ Params: { userId: string } }>(
     '/:userId',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const { userId: voucheeId } = request.params;
       const voucherId = (request.user as { sub: string }).sub;
-      const stake = request.body?.stake || DEFAULT_VOUCH_STAKE;
+
+      const bodySchema = z.object({
+        stake: z.number().int().min(1).max(100000).optional(),
+      });
+      const bodyParsed = bodySchema.safeParse(request.body || {});
+      if (!bodyParsed.success) {
+        return reply.status(400).send({ error: 'Invalid input' });
+      }
+      const stake = bodyParsed.data.stake ?? DEFAULT_VOUCH_STAKE;
 
       // Can't vouch for yourself
       if (voucherId === voucheeId) {

@@ -10,6 +10,12 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
     '/search/posts',
     {
       onRequest: [fastify.optionalAuthenticate],
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
     },
     async (request, reply) => {
       const schema = z.object({
@@ -22,7 +28,7 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
 
       const parsed = schema.safeParse(request.query);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid query parameters', details: parsed.error });
+        return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
       const { q, limit, offset, nodeId, authorId } = parsed.data;
@@ -30,10 +36,11 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const index = fastify.meilisearch.index('posts');
 
-        // Build filters
+        // Build filters (escape quotes to prevent filter injection)
+        const escapeFilterValue = (v: string) => v.replace(/"/g, '\\"');
         const filters: string[] = [];
-        if (nodeId) filters.push(`nodeId = "${nodeId}"`);
-        if (authorId) filters.push(`authorId = "${authorId}"`);
+        if (nodeId) filters.push(`nodeId = "${escapeFilterValue(nodeId)}"`);
+        if (authorId) filters.push(`authorId = "${escapeFilterValue(authorId)}"`);
 
         // Search MeiliSearch
         const filter = filters.length > 0 ? filters.join(' AND ') : undefined;
@@ -145,6 +152,12 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
     '/search/users',
     {
       onRequest: [fastify.optionalAuthenticate],
+      config: {
+        rateLimit: {
+          max: 30,
+          timeWindow: '1 minute',
+        },
+      },
     },
     async (request, reply) => {
       const schema = z.object({
@@ -155,7 +168,7 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
 
       const parsed = schema.safeParse(request.query);
       if (!parsed.success) {
-        return reply.status(400).send({ error: 'Invalid query parameters', details: parsed.error });
+        return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
       const { q, limit, offset } = parsed.data;
@@ -222,16 +235,16 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
           hasMore,
         });
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : undefined;
-        const stack = error instanceof Error ? error.stack : undefined;
-        fastify.log.error({ err: error, message, stack }, 'User search failed');
-        return reply.status(500).send({ error: 'Search failed', details: message });
+        fastify.log.error({ err: error }, 'User search failed');
+        return reply.status(500).send({ error: 'Search failed' });
       }
     }
   );
 
-  // Search health check - check MeiliSearch status and sync queue
-  fastify.get('/search/health', async (request, reply) => {
+  // Search health check - check MeiliSearch status and sync queue (authenticated)
+  fastify.get('/search/health', {
+    onRequest: [fastify.authenticate],
+  }, async (request, reply) => {
     const [meiliAvailable, syncHealth] = await Promise.all([
       isMeiliAvailable(fastify),
       getSyncHealth(fastify),
@@ -256,13 +269,22 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
     });
   });
 
-  // Manually trigger retry queue processing (for admin use)
+  // Manually trigger retry queue processing (admin only)
   fastify.post(
     '/search/retry',
     {
       onRequest: [fastify.authenticate],
     },
     async (request, reply) => {
+      const user = await fastify.prisma.user.findUnique({
+        where: { id: (request.user as { sub: string }).sub },
+        select: { role: true },
+      });
+
+      if (user?.role !== 'admin') {
+        return reply.status(403).send({ error: 'Admin access required' });
+      }
+
       const processed = await triggerRetryProcessing(fastify);
       return reply.send({
         processed,

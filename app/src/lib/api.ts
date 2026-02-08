@@ -1768,7 +1768,6 @@ export async function getUserCredHistory(userId: string) {
     return res.transactions || [];
   } catch (error) {
     // Fallback: if endpoint doesn't exist, return empty array
-    console.log('getUserCredHistory not available, using empty array');
     return [];
   }
 }
@@ -1782,7 +1781,6 @@ export async function getUserPosts(userId: string, limit = 10) {
     return res.posts || [];
   } catch (error) {
     // Fallback: if endpoint doesn't exist, return empty array
-    console.log('getUserPosts not available, using empty array');
     return [];
   }
 }
@@ -1806,7 +1804,6 @@ export async function getUserStats(userId: string): Promise<UserStats> {
     });
     return res;
   } catch (error) {
-    console.log('getUserStats not available, using defaults');
     return {
       postsCount: 0,
       commentsCount: 0,
@@ -1846,7 +1843,6 @@ export async function getUserComments(userId: string, limit = 10, cursor?: strin
     });
     return res;
   } catch (error) {
-    console.log('getUserComments not available, using empty array');
     return { comments: [], nextCursor: null };
   }
 }

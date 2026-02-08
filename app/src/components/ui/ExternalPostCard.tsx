@@ -484,26 +484,21 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({
     try {
       let result;
       if (post.platform === 'bluesky') {
-        console.log('Fetching Bluesky thread for:', post.externalId);
         result = await getBlueskyThread(post.externalId);
       } else {
         // Extract instance and status ID from Mastodon post
         // externalUrl is like "https://mastodon.social/@username/123456789"
         // externalId is the ActivityPub URI
-        console.log('Parsing Mastodon URL:', post.externalUrl, 'externalId:', post.externalId);
-
         // Try externalUrl first (web URL format)
         const urlMatch = post.externalUrl.match(/https?:\/\/([^\/]+)\/@[^\/]+\/(\d+)/);
         if (urlMatch) {
           const [, instance, statusId] = urlMatch;
-          console.log('Extracted from URL:', instance, statusId);
           result = await getMastodonThread(instance, statusId);
         } else {
           // Try externalId (ActivityPub URI format)
           const uriMatch = post.externalId.match(/https?:\/\/([^\/]+)\/users\/[^\/]+\/statuses\/(\d+)/);
           if (uriMatch) {
             const [, instance, statusId] = uriMatch;
-            console.log('Extracted from URI:', instance, statusId);
             result = await getMastodonThread(instance, statusId);
           } else {
             console.error('Could not parse Mastodon post URL/ID');
@@ -512,7 +507,6 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({
         }
       }
 
-      console.log('Thread result:', result);
       if (result?.replies) {
         setComments(result.replies);
       }

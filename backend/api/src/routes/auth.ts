@@ -161,8 +161,12 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const { username } = request.query as { username: string };
-      if (!username || username.length < 3) return reply.send({ available: false });
+      const querySchema = z.object({
+        username: z.string().min(3).max(30).regex(/^[a-zA-Z0-9_]+$/, 'Username must be alphanumeric'),
+      });
+      const queryParsed = querySchema.safeParse(request.query);
+      if (!queryParsed.success) return reply.send({ available: false });
+      const { username } = queryParsed.data;
 
       const user = await fastify.prisma.user.findUnique({ where: { username } });
       return reply.send({ available: !user });

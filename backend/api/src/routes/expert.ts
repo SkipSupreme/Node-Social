@@ -1,14 +1,22 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { ExpertService } from '../services/expertService.js';
-import { PrismaClient } from '@prisma/client';
 
 const expertRoutes: FastifyPluginAsync = async (fastify) => {
-    const prisma = new PrismaClient(); // Or inject via fastify
+    // Helper: verify user is node creator or site admin
+    async function verifyNodeAdmin(userId: string, nodeId: string) {
+        const [user, node] = await Promise.all([
+            fastify.prisma.user.findUnique({ where: { id: userId }, select: { role: true } }),
+            fastify.prisma.node.findUnique({ where: { id: nodeId }, select: { creatorId: true } }),
+        ]);
+        if (!node) return { allowed: false as const, reason: 'Node not found' };
+        if (user?.role === 'admin' || node.creatorId === userId) return { allowed: true as const };
+        return { allowed: false as const, reason: 'Only node creator or site admin can modify expert config' };
+    }
 
-    // GET /expert/config
+    // GET /expert/config (authenticated — any member can read)
     fastify.get('/config', {
-        // schema removed
+        onRequest: [fastify.authenticate],
     }, async (request, reply) => {
         const schema = z.object({
             nodeId: z.string().uuid(),
@@ -21,7 +29,7 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
 
         const { nodeId } = parsed.data;
 
-        const config = await prisma.nodeVectorConfig.findUnique({
+        const config = await fastify.prisma.nodeVectorConfig.findUnique({
             where: { nodeId },
         });
 
@@ -38,7 +46,7 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
 
     // PUT /expert/config
     fastify.put('/config', {
-        // schema removed
+        onRequest: [fastify.authenticate],
     }, async (request, reply) => {
         const schema = z.object({
             nodeId: z.string().uuid(),
@@ -51,11 +59,18 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const { nodeId, expertConfig } = parsed.data;
+        const userId = (request.user as { sub: string }).sub;
+
+        // Authorization: node creator or site admin only
+        const auth = await verifyNodeAdmin(userId, nodeId);
+        if (!auth.allowed) {
+            return reply.status(403).send({ error: auth.reason });
+        }
 
         // Validate
         const validated = ExpertService.validateConfig(expertConfig);
 
-        await prisma.nodeVectorConfig.upsert({
+        await fastify.prisma.nodeVectorConfig.upsert({
             where: { nodeId },
             update: { expertConfig: validated as any },
             create: { nodeId, expertConfig: validated as any },
@@ -66,7 +81,7 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
 
     // PUT /expert/rules
     fastify.put('/rules', {
-        // schema removed
+        onRequest: [fastify.authenticate],
     }, async (request, reply) => {
         const schema = z.object({
             nodeId: z.string().uuid(),
@@ -80,6 +95,13 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
         }
 
         const { nodeId, type, rules } = parsed.data;
+        const userId = (request.user as { sub: string }).sub;
+
+        // Authorization: node creator or site admin only
+        const auth = await verifyNodeAdmin(userId, nodeId);
+        if (!auth.allowed) {
+            return reply.status(403).send({ error: auth.reason });
+        }
 
         // Validate
         const validated = ExpertService.validateRules(rules);
@@ -91,7 +113,7 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
             updateData.boostRules = validated as any;
         }
 
-        await prisma.nodeVectorConfig.upsert({
+        await fastify.prisma.nodeVectorConfig.upsert({
             where: { nodeId },
             update: updateData,
             create: { nodeId, ...updateData },

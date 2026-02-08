@@ -78,33 +78,6 @@ export const LoginScreen: React.FC<{
       path: "oauth2redirect/google",
     });
 
-  // Log redirect URI for debugging - CRITICAL for web setup
-  useEffect(() => {
-    if (Platform.OS === "web") {
-      // Always log on web - this is critical for setup
-      console.log("🔴 WEB REDIRECT URI - COPY THIS EXACTLY:");
-      console.log("═══════════════════════════════════════");
-      console.log(redirectUri); // Should be https://node-social.com
-      console.log("═══════════════════════════════════════");
-      console.log("📋 Add this EXACT URI to Google Cloud Console:");
-      console.log("   1. Go to: APIs & Services > Credentials");
-      console.log("   2. Edit your Web Client ID");
-      console.log("   3. Under 'Authorized redirect URIs', click + ADD URI");
-      console.log("   4. Paste: https://node-social.com");
-      console.log("   5. Click SAVE");
-      console.log("   6. Wait 5-10 minutes and try again");
-      console.log("");
-    } else if (__DEV__) {
-      console.log("🔗 Generated Redirect URI:", redirectUri);
-      console.log("📱 Platform:", Platform.OS);
-      console.log("ℹ️  For native apps, redirect URIs are handled automatically");
-      if (Platform.OS === "ios" && googleOAuthConfig.iosClientId) {
-        const clientIdPart = googleOAuthConfig.iosClientId.split(".")[0];
-        const reverseClientId = `com.googleusercontent.apps.${clientIdPart}:/`;
-        console.log("ℹ️  iOS reverse client ID format:", reverseClientId);
-      }
-    }
-  }, [redirectUri]);
 
   // useIdTokenAuthRequest is correct - backend expects idToken, not accessToken
   // This uses PKCE by default and handles the OIDC flow properly

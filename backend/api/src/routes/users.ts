@@ -54,7 +54,24 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
             bannerImage: z.string().url().optional().or(z.literal('')),
             theme: z.string().max(50).optional(),
             era: z.string().optional(),
-            customCss: z.string().max(5000).optional(),
+            customCss: z.string().max(5000).optional().refine(
+                (css) => {
+                    if (!css) return true;
+                    const lower = css.toLowerCase();
+                    // Block data exfiltration (url), code execution (expression, javascript),
+                    // external resource loading (@import), legacy browser exploits (behavior, -moz-binding)
+                    const dangerous = [
+                        '@import', 'javascript:', 'expression(', 'behavior:',
+                        '-moz-binding', '@charset',
+                    ];
+                    if (dangerous.some(pattern => lower.includes(pattern))) return false;
+                    // Block url() — primary data exfiltration vector
+                    // Allows common safe values that happen to contain "url" as substring
+                    if (/url\s*\(/i.test(css)) return false;
+                    return true;
+                },
+                { message: 'CSS contains disallowed patterns (url(), @import, expression(), javascript:, etc.)' }
+            ),
             customTheme: z.record(z.string(), z.unknown()).optional(),
             location: z.string().max(100).optional().or(z.literal('')),
             website: z.string().max(200).optional().or(z.literal('')),
@@ -651,9 +668,12 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 const parts = bot.avatar.split('/uploads/');
                 const oldFilename = parts[1];
                 if (oldFilename) {
-                    try {
-                        await fs.unlink(path.join(UPLOADS_DIR, oldFilename));
-                    } catch { /* ignore */ }
+                    const oldPath = path.resolve(UPLOADS_DIR, oldFilename);
+                    if (oldPath.startsWith(UPLOADS_DIR + path.sep)) {
+                        try {
+                            await fs.unlink(oldPath);
+                        } catch { /* ignore */ }
+                    }
                 }
             }
 

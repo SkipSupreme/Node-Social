@@ -25,7 +25,6 @@ function startTokenRefresh(onExpired: () => void) {
   refreshIntervalId = setInterval(async () => {
     const isValid = await refreshTokenIfNeeded();
     if (!isValid) {
-      console.log('[Auth] Session expired during proactive refresh');
       onExpired();
     }
   }, TOKEN_REFRESH_INTERVAL);

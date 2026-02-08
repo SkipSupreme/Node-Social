@@ -6,6 +6,7 @@
  */
 
 import type { FastifyPluginAsync } from 'fastify';
+import { z } from 'zod';
 import {
   runEigentrust,
   getUserTrustScore,
@@ -116,11 +117,13 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /trust/tier/:tier - Get users in a specific tier
    */
-  fastify.get<{ Params: { tier: string }; Querystring: { limit?: string } }>(
+  fastify.get<{ Params: { tier: string } }>(
     '/tier/:tier',
     async (request, reply) => {
       const { tier } = request.params;
-      const limit = parseInt(request.query.limit || '50', 10) || 50;
+      const querySchema = z.object({ limit: z.coerce.number().min(1).max(100).default(50) });
+      const queryParsed = querySchema.safeParse(request.query);
+      const limit = queryParsed.success ? queryParsed.data.limit : 50;
 
       if (!['gold', 'silver', 'bronze', 'shadow'].includes(tier)) {
         return reply.status(400).send({ error: 'Invalid tier. Must be gold, silver, bronze, or shadow.' });
@@ -159,12 +162,14 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /trust/network - Get current user's trust network for feed personalization
    */
-  fastify.get<{ Querystring: { maxHops?: string } }>(
+  fastify.get(
     '/network',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
       const userId = (request.user as { sub: string }).sub;
-      const maxHops = parseInt(request.query.maxHops || '3', 10) || 3;
+      const networkSchema = z.object({ maxHops: z.coerce.number().min(1).max(5).default(3) });
+      const networkParsed = networkSchema.safeParse(request.query);
+      const maxHops = networkParsed.success ? networkParsed.data.maxHops : 3;
 
       const network = await getTrustNetworkForUser(
         fastify.prisma,
@@ -305,7 +310,7 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /trust/computation-logs - Get recent computation logs (admin only)
    */
-  fastify.get<{ Querystring: { limit?: string } }>(
+  fastify.get(
     '/computation-logs',
     { preHandler: [fastify.authenticate] },
     async (request, reply) => {
@@ -318,7 +323,9 @@ const trustRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(403).send({ error: 'Admin access required' });
       }
 
-      const limit = parseInt(request.query.limit || '10', 10) || 10;
+      const logsSchema = z.object({ limit: z.coerce.number().min(1).max(50).default(10) });
+      const logsParsed = logsSchema.safeParse(request.query);
+      const limit = logsParsed.success ? logsParsed.data.limit : 10;
 
       const logs = await fastify.prisma.trustComputationLog.findMany({
         orderBy: { startedAt: 'desc' },

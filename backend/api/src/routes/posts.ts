@@ -30,6 +30,7 @@ import { syncPostToMeili } from '../lib/searchSync.js';
 import { logModAction } from '../lib/moderation.js';
 import { ExpertService, type ExpertRule } from '../services/expertService.js';
 import { analyzePost } from '../lib/contentIntelligence.js';
+import { validateUrlForSSRF } from '../lib/ssrf.js';
 
 // Helper to extract plain text from TipTap JSON for search indexing and content intelligence
 interface TipTapNode {
@@ -164,6 +165,9 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
           let meta = await fastify.prisma.linkMetadata.findUnique({ where: { url: linkUrl } });
           if (!meta) {
             try {
+              // SSRF protection: validate URL before fetching
+              await validateUrlForSSRF(linkUrl);
+
               const controller = new AbortController();
               const timeout = setTimeout(() => controller.abort(), 5000);
               const res = await fetch(linkUrl, {

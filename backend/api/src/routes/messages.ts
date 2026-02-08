@@ -84,7 +84,11 @@ export default async function messagesRoutes(app: FastifyInstance) {
     app.post('/conversations', { onRequest: [app.authenticate] }, async (req, reply) => {
         const user = req.user as unknown as UserPayload;
         const userId = user.id;
-        const { recipientId } = z.object({ recipientId: z.string() }).parse(req.body);
+        const recipientParsed = z.object({ recipientId: z.string().uuid() }).safeParse(req.body);
+        if (!recipientParsed.success) {
+            return reply.status(400).send({ error: 'Invalid input' });
+        }
+        const { recipientId } = recipientParsed.data;
 
         if (userId === recipientId) {
             return reply.status(400).send({ error: 'Cannot message yourself' });
@@ -128,7 +132,11 @@ export default async function messagesRoutes(app: FastifyInstance) {
         const user = req.user as unknown as UserPayload;
         const userId = user.id;
         const { id } = req.params as { id: string };
-        const { content } = z.object({ content: z.string().min(1) }).parse(req.body);
+        const bodyParsed = z.object({ content: z.string().min(1).max(10000) }).safeParse(req.body);
+        if (!bodyParsed.success) {
+            return reply.status(400).send({ error: 'Invalid input' });
+        }
+        const { content } = bodyParsed.data;
 
         // Verify participation
         const participation = await app.prisma.conversationParticipant.findUnique({
