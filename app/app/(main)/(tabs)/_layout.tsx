@@ -1,19 +1,24 @@
+import { useWindowDimensions } from 'react-native';
 import { Tabs } from 'expo-router';
 import { Home, Compass, Bell, User } from 'lucide-react-native';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 
 export default function TabsLayout() {
   const theme = useAppTheme();
+  const { width } = useWindowDimensions();
+  const isDesktop = width >= 1024;
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarStyle: {
-          backgroundColor: theme.bg,
-          borderTopColor: theme.border,
-          borderTopWidth: 1,
-        },
+        tabBarStyle: isDesktop
+          ? { display: 'none' }
+          : {
+              backgroundColor: theme.bg,
+              borderTopColor: theme.border,
+              borderTopWidth: 1,
+            },
         tabBarActiveTintColor: theme.accent,
         tabBarInactiveTintColor: theme.muted,
         tabBarLabelStyle: {

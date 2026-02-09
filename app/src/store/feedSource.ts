@@ -7,8 +7,10 @@ type FeedSource = "node" | "bluesky" | "mastodon" | "mixed";
 
 interface FeedSourceState {
   feedSource: FeedSource;
+  selectedNodeId: string | null;
   hydrated: boolean;
   setFeedSource: (source: FeedSource) => void;
+  setSelectedNodeId: (nodeId: string | null) => void;
   hydrate: () => Promise<void>;
 }
 
@@ -18,7 +20,12 @@ const VALID_SOURCES: FeedSource[] = ["node", "bluesky", "mastodon", "mixed"];
 
 export const useFeedSourceStore = create<FeedSourceState>((set) => ({
   feedSource: "node",
+  selectedNodeId: null,
   hydrated: false,
+
+  setSelectedNodeId: (nodeId) => {
+    set({ selectedNodeId: nodeId });
+  },
 
   setFeedSource: (source) => {
     set({ feedSource: source });
