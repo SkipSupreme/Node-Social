@@ -12,8 +12,9 @@ model User {
   email                    String    @unique
   password                 String // stored Argon2id hash
   emailVerified            Boolean   @default(false)
-  emailVerificationToken   String? // Email verification token
+  emailVerificationToken   String? // Email verification token (hashed)
   emailVerificationExpires DateTime? // When verification token expires
+  emailVerificationAttempts Int       @default(0) // Failed verification attempts (lockout after 5)
   resetToken               String? // Password reset token
   resetTokenExpires        DateTime? // When reset token expires
   createdAt                DateTime  @default(now())

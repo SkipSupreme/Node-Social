@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 import { useAuthPrompt } from '../../../src/context/AuthPromptContext';
@@ -17,32 +17,41 @@ export default function NotificationsTab() {
   }, []);
 
   const handleNavigateToPost = useCallback(
-    (postId: string) => {
-      router.push(`/post/${postId}` as any);
-    },
+    (postId: string) => router.push(`/post/${postId}` as any),
     [router]
   );
 
   const handleNavigateToUser = useCallback(
-    (userId: string) => {
-      router.push(`/user/${userId}` as any);
-    },
+    (userId: string) => router.push(`/user/${userId}` as any),
     [router]
   );
 
+  const handleBack = useCallback(() => router.back(), [router]);
+
   if (!user) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: theme.muted, fontSize: 16 }}>Sign in to see notifications</Text>
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <Text style={[styles.emptyText, { color: theme.muted }]}>Sign in to see notifications</Text>
       </View>
     );
   }
 
   return (
     <NotificationsScreen
-      onBack={() => router.back()}
+      onBack={handleBack}
       onNavigateToPost={handleNavigateToPost}
       onNavigateToUser={handleNavigateToUser}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+  },
+});

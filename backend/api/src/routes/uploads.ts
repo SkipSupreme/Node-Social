@@ -39,8 +39,15 @@ async function safeDeleteUpload(url: string | null | undefined): Promise<void> {
     if (!url || !url.includes('/uploads/')) return;
     const oldFilename = url.split('/uploads/')[1];
     if (!oldFilename) return;
+    if (oldFilename.includes('..')) {
+        console.warn('[SECURITY] Path traversal attempt blocked in upload URL:', url);
+        return;
+    }
     const resolved = path.resolve(UPLOADS_DIR, oldFilename);
-    if (!resolved.startsWith(UPLOADS_DIR + path.sep)) return;
+    if (!resolved.startsWith(UPLOADS_DIR + path.sep)) {
+        console.warn('[SECURITY] Path traversal escaped uploads dir:', url);
+        return;
+    }
     try { await fs.unlink(resolved); } catch { /* file may not exist */ }
 }
 

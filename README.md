@@ -1,6 +1,6 @@
 # Node Social
 
-Node Social is a Fastify + Prisma backend with an Expo (React Native) client. This repository mirrors the state captured in `docs/FINAL_PLAN.md`, which is the source of truth for product scope, architecture, and roadmap. Update that plan whenever implementation details change.
+Node Social is a Fastify + Prisma backend with an Expo (React Native) client. The source of truth for product scope, architecture, and roadmap is `docs/NODE_SOCIAL_BIBLE.md`.
 
 ## Requirements
 - Node.js 22.11.0 (pinned via `.nvmrc`).
@@ -99,5 +99,5 @@ The seed creates the default `global` node and demo content (requires Docker ser
 - If SecureStore or deep links break, rebuild the Expo dev client (`npm run build:ios:local`).
 
 ## More documentation
-- Full architecture, roadmap, and implementation details: `docs/FINAL_PLAN.md`.
-- Historical references live in `docs/archive/`.
+- Full architecture, roadmap, and implementation details: `docs/NODE_SOCIAL_BIBLE.md`.
+- TypeScript patterns and conventions: `docs/TYPESCRIPT_GUIDE.md`.

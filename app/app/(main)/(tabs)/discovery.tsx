@@ -20,9 +20,11 @@ export default function DiscoveryTab() {
     [router]
   );
 
+  const handleBack = useCallback(() => router.back(), [router]);
+
   return (
     <DiscoveryScreen
-      onBack={() => router.back()}
+      onBack={handleBack}
       onPostClick={handlePostClick}
       onUserClick={handleUserClick}
     />

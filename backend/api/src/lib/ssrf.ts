@@ -1,4 +1,6 @@
 import dns from 'dns/promises';
+import http from 'http';
+import https from 'https';
 import net from 'net';
 
 /**
@@ -41,22 +43,16 @@ export function isPrivateIP(ip: string): boolean {
 }
 
 /**
- * Validate a URL is safe to fetch (not targeting internal/private networks).
- *
- * Known limitation: DNS rebinding (TOCTOU) — we resolve DNS here for validation,
- * but fetch() resolves DNS again independently. An attacker's DNS server could
- * return a public IP for the first resolution and a private IP for the second.
- * Mitigating this fully requires a custom http.Agent with a pinned lookup callback.
+ * Resolve a hostname and validate that all addresses are public (not private/reserved).
+ * Returns the first validated IP and its address family for DNS pinning.
  */
-export async function validateUrlForSSRF(urlString: string): Promise<void> {
+async function validateAndResolve(urlString: string): Promise<{ parsed: URL; pinnedIp: string; family: 4 | 6 }> {
     const parsed = new URL(urlString);
 
-    // Only allow http and https
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
         throw new Error('Only HTTP and HTTPS protocols are allowed');
     }
 
-    // Resolve both A (IPv4) and AAAA (IPv6) records
     const [v4Result, v6Result] = await Promise.allSettled([
         dns.resolve4(parsed.hostname),
         dns.resolve6(parsed.hostname),
@@ -75,4 +71,109 @@ export async function validateUrlForSSRF(urlString: string): Promise<void> {
             throw new Error('URL resolves to a private/reserved IP address');
         }
     }
+
+    const pinnedIp = allAddresses[0]!;
+    return { parsed, pinnedIp, family: net.isIPv4(pinnedIp) ? 4 : 6 };
+}
+
+/**
+ * Make a single HTTP(S) request with DNS pinned to a pre-validated IP.
+ * Does NOT follow redirects — the caller handles redirect re-validation.
+ */
+function fetchWithPinnedDns(
+    urlString: string,
+    pinnedIp: string,
+    family: 4 | 6,
+    options: { headers?: Record<string, string>; signal?: AbortSignal },
+): Promise<Response> {
+    const parsed = new URL(urlString);
+    const isHttps = parsed.protocol === 'https:';
+    const mod = isHttps ? https : http;
+
+    return new Promise<Response>((resolve, reject) => {
+        const reqOptions: http.RequestOptions & { lookup: Function } = {
+            method: 'GET',
+            headers: options.headers,
+            signal: options.signal,
+            // Pin DNS to the validated IP, preventing rebinding between validation and connect
+            lookup: (
+                _hostname: string,
+                _opts: unknown,
+                cb: (err: Error | null, address: string, family: number) => void,
+            ) => {
+                cb(null, pinnedIp, family);
+            },
+        };
+
+        const req = mod.request(urlString, reqOptions, (res) => {
+            const chunks: Buffer[] = [];
+            res.on('data', (chunk: Buffer) => chunks.push(chunk));
+            res.on('end', () => {
+                const body = Buffer.concat(chunks);
+                const responseHeaders = new Headers();
+                for (const [key, value] of Object.entries(res.headers)) {
+                    if (value !== undefined) {
+                        if (Array.isArray(value)) {
+                            value.forEach(v => responseHeaders.append(key, v));
+                        } else {
+                            responseHeaders.set(key, value);
+                        }
+                    }
+                }
+                resolve(new Response(body, {
+                    status: res.statusCode ?? 200,
+                    statusText: res.statusMessage ?? '',
+                    headers: responseHeaders,
+                }));
+            });
+            res.on('error', reject);
+        });
+        req.on('error', reject);
+        req.end();
+    });
+}
+
+const MAX_REDIRECTS = 5;
+
+/**
+ * Fetch a URL with full SSRF protection including DNS pinning.
+ *
+ * Unlike validateUrlForSSRF() + fetch(), this function eliminates the
+ * DNS rebinding (TOCTOU) vulnerability by pinning the validated IP address
+ * directly into the HTTP(S) request's DNS lookup callback.
+ *
+ * Redirects are followed (up to 5 hops) with re-validation at each step.
+ */
+export async function ssrfSafeFetch(
+    urlString: string,
+    options: { headers?: Record<string, string>; signal?: AbortSignal } = {},
+): Promise<Response> {
+    let currentUrl = urlString;
+
+    for (let i = 0; i <= MAX_REDIRECTS; i++) {
+        const { pinnedIp, family } = await validateAndResolve(currentUrl);
+        const response = await fetchWithPinnedDns(currentUrl, pinnedIp, family, options);
+
+        // Follow redirects with re-validation on each hop
+        if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get('location');
+            if (!location) return response;
+            currentUrl = new URL(location, currentUrl).toString();
+            continue;
+        }
+
+        return response;
+    }
+
+    throw new Error('Too many redirects');
+}
+
+/**
+ * Validate a URL is safe to fetch (not targeting internal/private networks).
+ *
+ * @deprecated Use ssrfSafeFetch() instead, which combines validation + fetch
+ * with DNS pinning to prevent rebinding attacks (TOCTOU).
+ */
+export async function validateUrlForSSRF(urlString: string): Promise<void> {
+    await validateAndResolve(urlString);
 }

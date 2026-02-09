@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 import { useAuthPrompt } from '../../../src/context/AuthPromptContext';
@@ -20,19 +20,32 @@ export default function ProfileTab() {
     router.push('/cred-history' as any);
   }, [router]);
 
+  const handleBack = useCallback(() => router.back(), [router]);
+
   if (!user) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: theme.muted, fontSize: 16 }}>Sign in to see your profile</Text>
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <Text style={[styles.emptyText, { color: theme.muted }]}>Sign in to see your profile</Text>
       </View>
     );
   }
 
   return (
     <ProfileScreen
-      onBack={() => router.back()}
+      onBack={handleBack}
       isEditable
       onCredClick={handleCredClick}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+  },
+});

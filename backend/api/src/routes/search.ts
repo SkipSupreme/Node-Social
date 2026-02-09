@@ -36,11 +36,17 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
       try {
         const index = fastify.meilisearch.index('posts');
 
-        // Build filters (escape quotes to prevent filter injection)
-        const escapeFilterValue = (v: string) => v.replace(/"/g, '\\"');
+        // Build filters with UUID validation (defense-in-depth beyond Zod schema)
+        const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+        const safeFilterValue = (v: string): string => {
+          if (!UUID_RE.test(v)) {
+            throw new Error('Invalid filter value: expected UUID');
+          }
+          return v;
+        };
         const filters: string[] = [];
-        if (nodeId) filters.push(`nodeId = "${escapeFilterValue(nodeId)}"`);
-        if (authorId) filters.push(`authorId = "${escapeFilterValue(authorId)}"`);
+        if (nodeId) filters.push(`nodeId = "${safeFilterValue(nodeId)}"`);
+        if (authorId) filters.push(`authorId = "${safeFilterValue(authorId)}"`);
 
         // Search MeiliSearch
         const filter = filters.length > 0 ? filters.join(' AND ') : undefined;

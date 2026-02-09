@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, memo } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Image } from "react-native";
 import { MessageSquare, BarChart2, Hexagon, Zap, ExternalLink } from "lucide-react-native";
 import { Post, votePoll } from "../lib/api";
@@ -14,7 +14,7 @@ type PostCardProps = {
   onAuthorClick?: (authorId: string) => void;
 };
 
-export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCardProps) => {
+const PostCardInner = ({ post: initialPost, onPress, onAuthorClick }: PostCardProps) => {
   const theme = useAppTheme();
   const { user } = useAuthStore();
 
@@ -104,21 +104,32 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
     }
   };
 
-  const totalVotes = post.poll?.options.reduce((acc, opt) => acc + (opt._count?.votes || 0), 0) || 0;
+  const totalVotes = useMemo(
+    () => post.poll?.options.reduce((acc, opt) => acc + (opt._count?.votes || 0), 0) || 0,
+    [post.poll?.options]
+  );
   const hasVoted = post.poll?.votes && post.poll.votes.length > 0;
 
   // Get era styling
   const authorEra = post.author.era || 'Default';
   const eraStyle = ERAS[authorEra] || ERAS['Default'];
 
+  const handlePress = useCallback(() => {
+    onPress?.(post);
+  }, [onPress, post]);
+
+  const handleAuthorPress = useCallback(() => {
+    onAuthorClick?.(post.author.id);
+  }, [onAuthorClick, post.author.id]);
+
   return (
     <TouchableOpacity
       style={[styles.container, ts.container]}
-      onPress={() => onPress?.(post)}
+      onPress={handlePress}
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.authorSection} onPress={() => onAuthorClick?.(post.author.id)}>
+        <TouchableOpacity style={styles.authorSection} onPress={handleAuthorPress}>
           {/* Avatar with purple border */}
           <View style={[styles.avatarContainer, ts.avatarBorder]}>
             {post.author.avatar ? (
@@ -189,8 +200,8 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
                   hasVoted && ts.pollOptionVoted,
                   isSelected && ts.pollOptionSelected,
                 ]}
-                onPress={() => !hasVoted && handleVote(option.id)}
-                disabled={hasVoted || voting}
+                onPress={() => handleVote(option.id)}
+                disabled={hasVoted || voting || !option.id}
               >
                 {hasVoted && (
                   <View style={[styles.progressBar, { width: `${percentage}%` }]} />
@@ -227,7 +238,7 @@ export const PostCard = ({ post: initialPost, onPress, onAuthorClick }: PostCard
           }}
         >
           <ExternalLink size={14} color={theme.muted} />
-          <Text style={{ color: theme.accent, fontSize: 13 }} numberOfLines={1}>
+          <Text style={[styles.linkText, ts.accentColor]} numberOfLines={1}>
             {new URL(post.linkUrl).hostname}
           </Text>
         </TouchableOpacity>
@@ -415,4 +426,15 @@ const styles = StyleSheet.create({
   statText: {
     fontSize: 14,
   },
+  linkText: {
+    fontSize: 13,
+  },
+});
+
+export const PostCard = memo(PostCardInner, (prev, next) => {
+  return (
+    prev.post.id === next.post.id &&
+    prev.post.commentCount === next.post.commentCount &&
+    prev.post.poll?.votes?.length === next.post.poll?.votes?.length
+  );
 });

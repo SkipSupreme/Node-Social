@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Modal, useWindowDimensions, StyleSheet } from 'react-native';
 import { Slot, useRouter, usePathname } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { CreatePostModal } from '../../src/components/ui/CreatePostModal';
 import { EditPostModal } from '../../src/components/ui/EditPostModal';
 import { NodeInfoSheet } from '../../src/components/ui/NodeInfoSheet';
 import { AddColumnModal } from '../../src/components/ui/AddColumnModal';
+import { startConversation } from '../../src/lib/api';
 import type { UIPost } from '../../src/components/ui/Feed';
 
 export default function MainLayout() {
@@ -52,18 +53,24 @@ export default function MainLayout() {
   }, []);
 
   // Derive feedMode from current pathname
-  const feedMode = pathname === '/discovery' ? 'discovery' as const
-    : pathname === '/following' ? 'following' as const
-    : 'global' as const;
+  const feedMode = useMemo(() =>
+    pathname === '/discovery' ? 'discovery' as const
+      : pathname === '/following' ? 'following' as const
+      : 'global' as const,
+    [pathname]
+  );
 
   // Derive currentView from pathname for sidebar highlighting
-  const currentView = pathname.startsWith('/settings') ? 'settings'
-    : pathname.startsWith('/messages') ? 'messages'
-    : pathname.startsWith('/governance') ? 'governance'
-    : pathname === '/saved' ? 'saved'
-    : pathname.startsWith('/notifications') || pathname === '/notifications' ? 'notifications'
-    : pathname.startsWith('/user') ? 'profile'
-    : 'feed';
+  const currentView = useMemo(() =>
+    pathname.startsWith('/settings') ? 'settings'
+      : pathname.startsWith('/messages') ? 'messages'
+      : pathname.startsWith('/governance') ? 'governance'
+      : pathname === '/saved' ? 'saved'
+      : pathname.startsWith('/notifications') || pathname === '/notifications' ? 'notifications'
+      : pathname.startsWith('/user') ? 'profile'
+      : 'feed',
+    [pathname]
+  );
 
   // --- Sidebar navigation callbacks ---
   const handleNodeSelect = useCallback((nodeId: string | null) => {
@@ -134,8 +141,14 @@ export default function MainLayout() {
     if (selectedNodeId) router.push(`/node/${selectedNodeId}/mod-log` as any);
   }, [selectedNodeId, router]);
 
-  const handleStartChat = useCallback((userId: string) => {
-    router.push('/messages' as any);
+  const handleStartChat = useCallback(async (userId: string) => {
+    try {
+      const conversation = await startConversation(userId);
+      router.push(`/messages/${conversation.id}` as any);
+    } catch (error) {
+      console.error('Failed to start conversation:', error);
+      router.push('/messages' as any);
+    }
   }, [router]);
 
   // --- Modal callbacks ---
@@ -158,37 +171,65 @@ export default function MainLayout() {
     }
   }, [nodeInfoNodeId, closeNodeInfo, setSelectedNodeId, router]);
 
+  // --- Mobile sidebar callbacks (combine action + close sidebar) ---
+  const mobileNodeSelect = useCallback((nodeId: string | null) => {
+    handleNodeSelect(nodeId); closeSidebar();
+  }, [handleNodeSelect, closeSidebar]);
+
+  const mobileNodeInfo = useCallback((nodeId: string) => {
+    useModalStore.getState().openNodeInfo(nodeId); closeSidebar();
+  }, [closeSidebar]);
+
+  const mobileFeedModeSelect = useCallback((mode: 'global' | 'discovery' | 'following') => {
+    handleFeedModeSelect(mode); closeSidebar();
+  }, [handleFeedModeSelect, closeSidebar]);
+
+  const mobileProfileClick = useCallback(() => { handleProfileClick(); closeSidebar(); }, [handleProfileClick, closeSidebar]);
+  const mobileSettingsClick = useCallback(() => { handleSettingsClick(); closeSidebar(); }, [handleSettingsClick, closeSidebar]);
+  const mobileSavedClick = useCallback(() => { handleSavedClick(); closeSidebar(); }, [handleSavedClick, closeSidebar]);
+  const mobileNewPostClick = useCallback(() => { handleNewPostClick(); closeSidebar(); }, [handleNewPostClick, closeSidebar]);
+  const mobileGovernanceClick = useCallback(() => { handleGovernanceClick(); closeSidebar(); }, [handleGovernanceClick, closeSidebar]);
+  const mobileNotificationsClick = useCallback(() => { handleNotificationsClick(); closeSidebar(); }, [handleNotificationsClick, closeSidebar]);
+  const mobileMessagesClick = useCallback(() => { handleMessagesClick(); closeSidebar(); }, [handleMessagesClick, closeSidebar]);
+  const mobileSearch = useCallback((q: string) => { handleSearch(q); closeSidebar(); }, [handleSearch, closeSidebar]);
+
+  const handleOpenNodeInfo = useCallback((nodeId: string) => {
+    useModalStore.getState().openNodeInfo(nodeId);
+  }, []);
+
+  const handleToggleCollapse = useCallback(() => setSidebarCollapsed((c) => !c), []);
+
   // --- Render ---
   if (!isDesktop) {
     // Mobile: just the route content + modals
     return (
-      <View style={{ flex: 1 }}>
+      <View style={styles.flex1}>
         <Slot />
 
         {/* Mobile sidebar modal */}
         <Modal visible={isSidebarOpen} animationType="slide" presentationStyle="pageSheet">
-          <View style={{ flex: 1, backgroundColor: theme.bg }}>
+          <View style={[styles.flex1, { backgroundColor: theme.bg }]}>
             <Sidebar
               nodes={nodes ?? []}
               onClose={closeSidebar}
               isDesktop={false}
               user={user ?? undefined}
               selectedNodeId={selectedNodeId}
-              onNodeSelect={(nodeId) => { handleNodeSelect(nodeId); closeSidebar(); }}
-              onNodeInfo={(nodeId) => { useModalStore.getState().openNodeInfo(nodeId); closeSidebar(); }}
+              onNodeSelect={mobileNodeSelect}
+              onNodeInfo={mobileNodeInfo}
               feedMode={feedMode}
-              onFeedModeSelect={(mode) => { handleFeedModeSelect(mode); closeSidebar(); }}
-              onProfileClick={() => { handleProfileClick(); closeSidebar(); }}
-              onSettingsClick={() => { handleSettingsClick(); closeSidebar(); }}
-              onSavedClick={() => { handleSavedClick(); closeSidebar(); }}
-              onNewPostClick={() => { handleNewPostClick(); closeSidebar(); }}
-              onGovernanceClick={() => { handleGovernanceClick(); closeSidebar(); }}
-              onNotificationsClick={() => { handleNotificationsClick(); closeSidebar(); }}
-              onMessagesClick={() => { handleMessagesClick(); closeSidebar(); }}
+              onFeedModeSelect={mobileFeedModeSelect}
+              onProfileClick={mobileProfileClick}
+              onSettingsClick={mobileSettingsClick}
+              onSavedClick={mobileSavedClick}
+              onNewPostClick={mobileNewPostClick}
+              onGovernanceClick={mobileGovernanceClick}
+              onNotificationsClick={mobileNotificationsClick}
+              onMessagesClick={mobileMessagesClick}
               unreadNotifications={0}
               unreadMessages={0}
               currentView={currentView}
-              onSearch={(q) => { handleSearch(q); closeSidebar(); }}
+              onSearch={mobileSearch}
             />
           </View>
         </Modal>
@@ -229,7 +270,7 @@ export default function MainLayout() {
           user={user ?? undefined}
           selectedNodeId={selectedNodeId}
           onNodeSelect={handleNodeSelect}
-          onNodeInfo={(nodeId) => useModalStore.getState().openNodeInfo(nodeId)}
+          onNodeInfo={handleOpenNodeInfo}
           feedMode={feedMode}
           onFeedModeSelect={handleFeedModeSelect}
           onProfileClick={handleProfileClick}
@@ -245,7 +286,7 @@ export default function MainLayout() {
           isMultiColumnEnabled={isMultiColumnEnabled}
           currentView={currentView}
           collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
+          onToggleCollapse={handleToggleCollapse}
           onSearch={handleSearch}
         />
       </View>
@@ -304,6 +345,9 @@ export default function MainLayout() {
 }
 
 const styles = StyleSheet.create({
+  flex1: {
+    flex: 1,
+  },
   desktopContainer: {
     flex: 1,
     flexDirection: 'row',

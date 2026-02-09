@@ -1,4 +1,5 @@
-import { View, ActivityIndicator } from 'react-native';
+import { useMemo, useCallback } from 'react';
+import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { ChatScreen } from '../../../src/screens/ChatScreen';
@@ -6,10 +7,12 @@ import { getConversations } from '../../../src/lib/api';
 import { useAuthStore } from '../../../src/store/auth';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export default function ChatRoute() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { user } = useAuthStore();
+  const user = useAuthStore((s) => s.user);
   const theme = useAppTheme();
 
   // Reuse cached conversations query to get recipient info
@@ -19,16 +22,33 @@ export default function ChatRoute() {
     staleTime: 30_000,
   });
 
-  const conversation = conversations?.find((c) => c.id === id);
-  // Find the other participant (not the current user)
-  const otherParticipant = conversation?.participants.find(
-    (p) => p.userId !== user?.id
-  )?.user ?? conversation?.participants[0]?.user;
+  const otherParticipant = useMemo(() => {
+    const conversation = conversations?.find((c) => c.id === id);
+    if (!conversation) return undefined;
+    return conversation.participants.find(
+      (p) => p.userId !== user?.id
+    )?.user ?? conversation.participants[0]?.user;
+  }, [conversations, id, user?.id]);
 
-  if (!id || isLoading || !otherParticipant) {
+  const handleBack = useCallback(() => router.back(), [router]);
+
+  if (!id || !UUID_RE.test(id)) {
+    router.back();
+    return null;
+  }
+
+  if (isLoading) {
     return (
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
-        <ActivityIndicator size="large" color="#6366f1" />
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <ActivityIndicator size="large" color={theme.accent} />
+      </View>
+    );
+  }
+
+  if (!otherParticipant) {
+    return (
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
+        <Text style={[styles.emptyText, { color: theme.muted }]}>Conversation not found</Text>
       </View>
     );
   }
@@ -41,7 +61,18 @@ export default function ChatRoute() {
         username: otherParticipant.username,
         avatar: otherParticipant.avatar,
       }}
-      onBack={() => router.back()}
+      onBack={handleBack}
     />
   );
 }
+
+const styles = StyleSheet.create({
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
+  },
+});

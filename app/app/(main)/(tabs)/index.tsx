@@ -1,5 +1,5 @@
-import { useCallback, useMemo } from 'react';
-import { View, ActivityIndicator, useWindowDimensions } from 'react-native';
+import { useCallback, useMemo, useRef } from 'react';
+import { View, ActivityIndicator, useWindowDimensions, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 import { useAuthStore } from '../../../src/store/auth';
@@ -20,7 +20,10 @@ export default function FeedScreen() {
   const user = useAuthStore((s) => s.user);
   const openCreatePost = useModalStore((s) => s.openCreatePost);
   const openEditPost = useModalStore((s) => s.openEditPost);
+  const isAddColumnOpen = useModalStore((s) => s.isAddColumnOpen);
+  const closeAddColumn = useModalStore((s) => s.closeAddColumn);
   const selectedNodeId = useFeedSourceStore((s) => s.selectedNodeId);
+  const setSelectedNodeId = useFeedSourceStore((s) => s.setSelectedNodeId);
   const isMultiColumnEnabled = useColumnsStore((s) => s.isMultiColumnEnabled);
 
   const { data: nodes } = useNodes();
@@ -34,22 +37,34 @@ export default function FeedScreen() {
     feedMode: 'global',
   });
 
+  // Use ref for feedQuery to avoid stale closures without causing re-renders
+  const feedQueryRef = useRef(feedQuery);
+  feedQueryRef.current = feedQuery;
+
   // Flatten pages into a single posts array
   const posts = useMemo(
     () => feedQuery.data?.pages.flatMap((p) => p.posts) ?? [],
     [feedQuery.data]
   );
 
-  const externalPosts = useMemo(
-    () => feedQuery.data?.pages.flatMap((p) => p.externalPosts) ?? [],
-    [feedQuery.data]
-  );
+  const externalPosts = useMemo(() => {
+    const all = feedQuery.data?.pages.flatMap((p) => p.externalPosts) ?? [];
+    const seen = new Set<string>();
+    return all.filter((p) => {
+      if (seen.has(p.id)) return false;
+      seen.add(p.id);
+      return true;
+    });
+  }, [feedQuery.data]);
 
-  // Determine hasMore from the last page
-  const lastPage = feedQuery.data?.pages[feedQuery.data.pages.length - 1];
-  const hasMore = lastPage?.hasMore ?? true;
+  // Memoize hasMore to avoid recalculation on every render
+  const hasMore = useMemo(() => {
+    const pages = feedQuery.data?.pages;
+    if (!pages || pages.length === 0) return true;
+    return pages[pages.length - 1]?.hasMore ?? true;
+  }, [feedQuery.data]);
 
-  // Navigation callbacks
+  // --- Stable navigation callbacks ---
   const handlePostClick = useCallback(
     (postOrId: any) => {
       const postId = typeof postOrId === 'string' ? postOrId : postOrId?.id;
@@ -72,7 +87,7 @@ export default function FeedScreen() {
     [router]
   );
 
-  // Modal callbacks
+  // --- Stable modal callbacks ---
   const handleEdit = useCallback(
     (post: any) => {
       openEditPost(post);
@@ -87,27 +102,42 @@ export default function FeedScreen() {
     [openCreatePost]
   );
 
-  // Feed action callbacks
+  // --- Stable feed action callbacks (use ref to avoid feedQuery in deps) ---
   const handlePostAction = useCallback(
     (_postId: string, _action: string) => {
-      // Post actions will trigger cache invalidation via mutations
-      // For now, refetch the feed
-      feedQuery.refetch();
+      feedQueryRef.current.refetch();
     },
-    [feedQuery]
+    []
   );
 
   const handleSaveToggle = useCallback(
     (_postId: string, _saved: boolean) => {
       // Save toggle is handled by the PostCard internally via useToggleSave
-      // The cache invalidation in the hook will update the feed
     },
     []
   );
 
+  const handleLoadMore = useCallback(() => {
+    const q = feedQueryRef.current;
+    if (q.hasNextPage && !q.isFetchingNextPage) {
+      q.fetchNextPage();
+    }
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    feedQueryRef.current.refetch();
+  }, []);
+
+  const handleNodeClick = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+    },
+    [setSelectedNodeId]
+  );
+
   if (feedQuery.isLoading) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={[styles.center, { backgroundColor: theme.bg }]}>
         <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
@@ -116,7 +146,7 @@ export default function FeedScreen() {
   // Desktop multi-column mode
   if (isDesktop && isMultiColumnEnabled) {
     return (
-      <View style={{ flex: 1, backgroundColor: theme.bg }}>
+      <View style={[styles.flex1, { backgroundColor: theme.bg }]}>
         <MultiColumnContainer
           currentUser={user}
           nodes={nodes ?? []}
@@ -126,9 +156,9 @@ export default function FeedScreen() {
           onUserClick={handleUserClick}
           onPostAction={handlePostAction}
           onSaveToggle={handleSaveToggle}
-          onNodeClick={(nodeId) => useFeedSourceStore.getState().setSelectedNodeId(nodeId)}
-          showAddModal={useModalStore.getState().isAddColumnOpen}
-          onCloseAddModal={useModalStore.getState().closeAddColumn}
+          onNodeClick={handleNodeClick}
+          showAddModal={isAddColumnOpen}
+          onCloseAddModal={closeAddColumn}
           onQuoteExternalPost={handleQuoteExternalPost}
           onEdit={handleEdit}
         />
@@ -137,7 +167,7 @@ export default function FeedScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.bg }}>
+    <View style={[styles.flex1, { backgroundColor: theme.bg }]}>
       <Feed
         posts={posts}
         externalPosts={externalPosts}
@@ -148,18 +178,25 @@ export default function FeedScreen() {
         onAuthorClick={handleAuthorClick}
         onSaveToggle={handleSaveToggle}
         globalNodeId={globalNodeId}
-        onLoadMore={() => {
-          if (feedQuery.hasNextPage && !feedQuery.isFetchingNextPage) {
-            feedQuery.fetchNextPage();
-          }
-        }}
+        onLoadMore={handleLoadMore}
         hasMore={hasMore}
         loadingMore={feedQuery.isFetchingNextPage}
         onUserClick={handleUserClick}
-        onRefresh={() => feedQuery.refetch()}
+        onRefresh={handleRefresh}
         refreshing={feedQuery.isRefetching}
         onQuoteExternalPost={handleQuoteExternalPost}
       />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  flex1: {
+    flex: 1,
+  },
+  center: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

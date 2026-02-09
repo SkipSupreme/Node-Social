@@ -2,7 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import * as cheerio from 'cheerio';
 import { getErrorMessage } from '../lib/errors.js';
-import { validateUrlForSSRF } from '../lib/ssrf.js';
+import { ssrfSafeFetch } from '../lib/ssrf.js';
 
 const MAX_RESPONSE_SIZE = 5 * 1024 * 1024; // 5MB
 
@@ -30,13 +30,6 @@ const metadataRoutes: FastifyPluginAsync = async (fastify) => {
 
             const { url } = parsed.data;
 
-            // SSRF protection: validate URL before fetching
-            try {
-                await validateUrlForSSRF(url);
-            } catch (error) {
-                return reply.status(400).send({ error: 'URL not allowed' });
-            }
-
             // Check cache first
             const cached = await fastify.prisma.linkMetadata.findUnique({
                 where: { url },
@@ -47,11 +40,11 @@ const metadataRoutes: FastifyPluginAsync = async (fastify) => {
             }
 
             try {
-                // Fetch URL with timeout
+                // SSRF-safe fetch with DNS pinning (prevents rebinding attacks)
                 const controller = new AbortController();
                 const timeout = setTimeout(() => controller.abort(), 5000);
 
-                const response = await fetch(url, {
+                const response = await ssrfSafeFetch(url, {
                     headers: {
                         'User-Agent': 'NodeSocialBot/1.0 (+https://node-social.com)',
                     },
@@ -112,6 +105,11 @@ const metadataRoutes: FastifyPluginAsync = async (fastify) => {
             } catch (error: unknown) {
                 if (error instanceof Error && error.name === 'AbortError') {
                     return reply.status(408).send({ error: 'Request timed out' });
+                }
+                // SSRF validation errors (private IP, bad protocol, etc.)
+                const msg = error instanceof Error ? error.message : '';
+                if (msg.includes('private') || msg.includes('protocol') || msg.includes('resolve') || msg.includes('redirects')) {
+                    return reply.status(400).send({ error: 'URL not allowed' });
                 }
                 fastify.log.error({ error, url }, 'Failed to fetch metadata');
                 return reply.status(500).send({ error: 'Failed to fetch metadata' });

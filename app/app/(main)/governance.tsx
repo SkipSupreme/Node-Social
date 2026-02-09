@@ -1,3 +1,4 @@
+import { useCallback, useMemo } from 'react';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GovernanceScreen } from '../../src/screens/GovernanceScreen';
 
@@ -14,18 +15,25 @@ export default function GovernanceRoute() {
   }>();
   const router = useRouter();
 
-  const initialTab = VALID_TABS.includes(params.tab as TabId)
-    ? (params.tab as TabId)
-    : undefined;
+  const initialTab = useMemo(
+    () => VALID_TABS.includes(params.tab as TabId) ? (params.tab as TabId) : undefined,
+    [params.tab]
+  );
+
+  const handleBack = useCallback(() => router.back(), [router]);
+  const handleUserClick = useCallback(
+    (userId: string) => router.push(`/user/${userId}` as any),
+    [router]
+  );
 
   return (
     <GovernanceScreen
-      onBack={() => router.back()}
+      onBack={handleBack}
       initialTab={initialTab}
       nodeId={params.nodeId}
       nodeName={params.nodeName}
       userId={params.userId}
-      onUserClick={(userId) => router.push(`/user/${userId}`)}
+      onUserClick={handleUserClick}
     />
   );
 }

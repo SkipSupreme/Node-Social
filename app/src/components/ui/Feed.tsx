@@ -482,7 +482,7 @@ const FormattedContent = ({ content, style }: FormattedContentProps) => {
 
     // Memoize themed style overrides to avoid per-render allocations on web
     const ts = useMemo(() => ({
-        linkStyle: StyleSheet.create({ s: { color: theme.accent, textDecorationLine: 'underline' as const } }).s,
+        linkStyle: { color: theme.accent, textDecorationLine: 'underline' as const } as TextStyle,
         textColor: theme.text,
         mutedColor: theme.muted,
     }), [theme]);
@@ -1272,13 +1272,51 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
         }
     };
 
+    const handleToggleExpand = useCallback(() => setIsExpanded(v => !v), []);
+    const handleAuthorClick = useCallback(() => onAuthorClick?.(post.author.id), [onAuthorClick, post.author.id]);
+    const handlePostPress = useCallback(() => onPress?.(post), [onPress, post]);
+    const handleShowMenu = useCallback(() => setMenuVisible(true), []);
+    const handleToggleComments = useCallback(() => setShowComments(v => !v), []);
+    const handleVibeComplete = useCallback((intensities: Record<string, number>) => {
+        setPost(prev => ({
+            ...prev,
+            myReaction: {
+                insightful: intensities.Insightful / 100,
+                joy: intensities.Joy / 100,
+                fire: intensities.Fire / 100,
+                support: intensities.Support / 100,
+                shock: intensities.Shock / 100,
+                questionable: intensities.Questionable / 100,
+            },
+            vibeAggregate: {
+                ...prev.vibeAggregate,
+                insightfulSum: (prev.vibeAggregate?.insightfulSum || 0) + intensities.Insightful / 100,
+                joySum: (prev.vibeAggregate?.joySum || 0) + intensities.Joy / 100,
+                fireSum: (prev.vibeAggregate?.fireSum || 0) + intensities.Fire / 100,
+                supportSum: (prev.vibeAggregate?.supportSum || 0) + intensities.Support / 100,
+                shockSum: (prev.vibeAggregate?.shockSum || 0) + intensities.Shock / 100,
+                questionableSum: (prev.vibeAggregate?.questionableSum || 0) + intensities.Questionable / 100,
+            }
+        }));
+    }, []);
+    const handleOpenLink = useCallback(() => {
+        if (post.linkUrl) Linking.openURL(post.linkUrl);
+    }, [post.linkUrl]);
+
+    // Memoize content height style to avoid inline object creation during render
+    const contentHeightStyle = useMemo(() => {
+        const isLong = (post.content?.length || 0) > 6000;
+        if (!isLong) return undefined;
+        return isExpanded ? undefined : { maxHeight: 400, overflow: 'hidden' as const };
+    }, [isExpanded, post.content?.length]);
+
     return (
         <View style={[styles.card, ts.card]}>
-            <TouchableOpacity activeOpacity={0.9} style={styles.cardContent} onPress={() => setIsExpanded(!isExpanded)}>
+            <TouchableOpacity activeOpacity={0.9} style={styles.cardContent} onPress={handleToggleExpand}>
 
                 <View style={styles.postHeader}>
                     <View style={styles.headerAuthorRow}>
-                        <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)} style={[styles.avatarContainer, ts.avatarBorder]}>
+                        <TouchableOpacity onPress={handleAuthorClick} style={[styles.avatarContainer, ts.avatarBorder]}>
                             {post.author.avatar ? (
                                 <Image source={{ uri: post.author.avatar }} style={styles.avatarImage} />
                             ) : (
@@ -1291,7 +1329,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         </TouchableOpacity>
                         <View style={styles.flexOne}>
                             <View style={styles.authorBadgeRow}>
-                                <TouchableOpacity onPress={() => onAuthorClick?.(post.author.id)}>
+                                <TouchableOpacity onPress={handleAuthorClick}>
                                     <Text style={[styles.usernameLarge, ts.textColor]}>{post.author.username}</Text>
                                 </TouchableOpacity>
                                 <View style={[styles.badge, ts.badgeBg]}>
@@ -1304,13 +1342,13 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                             <Text style={[styles.subtext, ts.mutedColor]}>{post.node.name} • {timeAgo(post.createdAt)}</Text>
                         </View>
                     </View>
-                    <TouchableOpacity onPress={() => setMenuVisible(true)} style={styles.moreBtn}>
+                    <TouchableOpacity onPress={handleShowMenu} style={styles.moreBtn}>
                         <MoreHorizontal size={16} color={theme.muted} />
                     </TouchableOpacity>
                 </View>
 
                 <View style={styles.contentPadding}>
-                    <TouchableOpacity onPress={() => onPress?.(post)} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={handlePostPress} activeOpacity={0.7}>
                         <Text style={styles.title}>
                             {post.expertGated && <Shield size={12} color="#f87171" style={{ marginRight: 4 }} />}
                             {post.title}
@@ -1319,7 +1357,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
 
                     {/* Render content based on format */}
                     {(post.content || post.contentJson) && (
-                        <View style={{ maxHeight: isExpanded ? undefined : ((post.content?.length || 0) > 6000 ? 400 : undefined), overflow: 'hidden' }}>
+                        <View style={contentHeightStyle}>
                             {post.contentFormat === 'tiptap' && post.contentJson ? (
                                 <TipTapContent content={post.contentJson} />
                             ) : post.content ? (
@@ -1477,7 +1515,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                     {/* Comments button - shows full comments section */}
                     <TouchableOpacity
                         style={[styles.pillBtn, ts.pillBtn, showComments && ts.pillBtnActive]}
-                        onPress={() => setShowComments(!showComments)}
+                        onPress={handleToggleComments}
                     >
                         <MessageSquare size={20} color={showComments ? theme.accent : theme.muted} />
                         <Text style={[styles.pillText, ts.mutedColor, showComments && { color: '#fff' }]}>{post.commentCount}</Text>
@@ -1489,30 +1527,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                         nodeId={post.node.id || globalNodeId}
                         initialReaction={post.myReaction}
                         buttonLabel="Vibe"
-                        onComplete={(intensities) => {
-                            // Update local vibeAggregate optimistically
-                            // Convert 0-100 intensities to sum format for display
-                            setPost(prev => ({
-                                ...prev,
-                                myReaction: {
-                                    insightful: intensities.Insightful / 100,
-                                    joy: intensities.Joy / 100,
-                                    fire: intensities.Fire / 100,
-                                    support: intensities.Support / 100,
-                                    shock: intensities.Shock / 100,
-                                    questionable: intensities.Questionable / 100,
-                                },
-                                vibeAggregate: {
-                                    ...prev.vibeAggregate,
-                                    insightfulSum: (prev.vibeAggregate?.insightfulSum || 0) + intensities.Insightful / 100,
-                                    joySum: (prev.vibeAggregate?.joySum || 0) + intensities.Joy / 100,
-                                    fireSum: (prev.vibeAggregate?.fireSum || 0) + intensities.Fire / 100,
-                                    supportSum: (prev.vibeAggregate?.supportSum || 0) + intensities.Support / 100,
-                                    shockSum: (prev.vibeAggregate?.shockSum || 0) + intensities.Shock / 100,
-                                    questionableSum: (prev.vibeAggregate?.questionableSum || 0) + intensities.Questionable / 100,
-                                }
-                            }));
-                        }}
+                        onComplete={handleVibeComplete}
                     />
 
                     <TouchableOpacity style={[styles.pillBtn, ts.pillBtn]} onPress={handleSave}>
@@ -1529,7 +1544,7 @@ const PostCardInner = ({ post: initialPost, currentUser, onPostAction, onVibeChe
                     {post.linkUrl && (
                         <TouchableOpacity
                             style={[styles.linkPillBtn, ts.pillBtn]}
-                            onPress={() => Linking.openURL(post.linkUrl!)}
+                            onPress={handleOpenLink}
                         >
                             <Link2 size={14} color={theme.muted} />
                             <Text style={[styles.linkPillText, ts.mutedColor]} numberOfLines={1}>

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PortalProvider, PortalHost } from '@gorhom/portal';
 import { useAuthStore } from '../src/store/auth';
 import { useThemeStore, type ThemeTokens } from '../src/store/theme';
+import { useFeedSourceStore } from '../src/store/feedSource';
 import { LoginScreen } from '../src/screens/LoginScreen';
 import { RegisterScreen } from '../src/screens/RegisterScreen';
 import { ForgotPasswordScreen } from '../src/screens/ForgotPasswordScreen';
@@ -106,8 +107,9 @@ export default function RootLayout() {
   // Load auth from storage
   useEffect(() => { loadFromStorage(); }, []);
 
-  // Hydrate theme store
+  // Hydrate theme store and feed source store
   useEffect(() => { useThemeStore.getState().hydrate(); }, []);
+  useEffect(() => { useFeedSourceStore.getState().hydrate(); }, []);
 
   // Sync user's custom theme
   useEffect(() => {
@@ -119,7 +121,7 @@ export default function RootLayout() {
   if (loading) {
     return (
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.bg }}>
-        <ActivityIndicator size="large" color="#6366f1" />
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
