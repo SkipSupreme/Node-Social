@@ -1,9 +1,10 @@
 import { useCallback } from 'react';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { DiscoveryScreen } from '../../../src/screens/DiscoveryScreen';
 
 export default function DiscoveryTab() {
   const router = useRouter();
+  const { q } = useLocalSearchParams<{ q?: string }>();
 
   const handlePostClick = useCallback(
     (postOrId: any) => {
@@ -27,6 +28,7 @@ export default function DiscoveryTab() {
       onBack={handleBack}
       onPostClick={handlePostClick}
       onUserClick={handleUserClick}
+      initialQuery={q}
     />
   );
 }

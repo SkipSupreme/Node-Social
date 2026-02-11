@@ -6,7 +6,7 @@ import sharp from 'sharp';
 
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
-const AVATAR_SIZE = 400;
+const AVATAR_SIZE = 200; // 44px display × ~4.5x DPR ceiling
 const BANNER_WIDTH = 1200;
 const BANNER_HEIGHT = 400;
 const JPEG_QUALITY = 70;
@@ -96,19 +96,19 @@ const uploadsRoutes: FastifyPluginAsync = async (fastify) => {
                 });
             }
 
-            // Process image with sharp: resize and convert to JPEG at 70% quality
+            // Process image with sharp: resize and convert to WebP
             // Flatten with white background to handle transparent PNGs
             const processedImage = await sharp(buffer)
-                .flatten({ background: { r: 255, g: 255, b: 255 } }) // White background for transparency
+                .flatten({ background: { r: 255, g: 255, b: 255 } })
                 .resize(AVATAR_SIZE, AVATAR_SIZE, {
                     fit: 'cover',
                     position: 'center',
                 })
-                .jpeg({ quality: JPEG_QUALITY })
+                .webp({ quality: JPEG_QUALITY })
                 .toBuffer();
 
             // Generate unique filename
-            const filename = `avatar_${userId}_${randomUUID()}.jpg`;
+            const filename = `avatar_${userId}_${randomUUID()}.webp`;
             const filepath = path.join(UPLOADS_DIR, filename);
 
             // Delete old avatar if exists
@@ -194,17 +194,17 @@ const uploadsRoutes: FastifyPluginAsync = async (fastify) => {
                 });
             }
 
-            // Process banner: resize to cover and convert to JPEG
+            // Process banner: resize to cover and convert to WebP
             const processedImage = await sharp(buffer)
-                .flatten({ background: { r: 30, g: 30, b: 46 } }) // Dark background for transparency
+                .flatten({ background: { r: 30, g: 30, b: 46 } })
                 .resize(BANNER_WIDTH, BANNER_HEIGHT, {
                     fit: 'cover',
                     position: 'center',
                 })
-                .jpeg({ quality: JPEG_QUALITY })
+                .webp({ quality: JPEG_QUALITY })
                 .toBuffer();
 
-            const filename = `banner_${userId}_${randomUUID()}.jpg`;
+            const filename = `banner_${userId}_${randomUUID()}.webp`;
             const filepath = path.join(UPLOADS_DIR, filename);
 
             // Delete old banner if exists

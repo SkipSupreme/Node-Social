@@ -64,6 +64,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     '/',
     {
       onRequest: [fastify.authenticate],
+      preHandler: [fastify.requireVerified],
       config: {
         rateLimit: {
           max: 10,
@@ -1227,6 +1228,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     '/:id/vote',
     {
       onRequest: [fastify.authenticate],
+      preHandler: [fastify.requireVerified],
     },
     async (request, reply) => {
       const { id } = request.params as { id: string };

@@ -292,14 +292,14 @@ export const Sidebar = ({
 
                 {/* Desktop: Collapse button */}
                 {isDesktop && onToggleCollapse && (
-                    <TouchableOpacity onPress={onToggleCollapse} style={styles.collapseButton} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={onToggleCollapse} style={styles.collapseButton} activeOpacity={0.7} accessibilityLabel="Collapse sidebar" accessibilityRole="button">
                         <Text style={styles.collapseIcon}>←</Text>
                     </TouchableOpacity>
                 )}
 
                 {/* Mobile: Close button */}
                 {!isDesktop && onClose && (
-                    <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+                    <TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Close sidebar" accessibilityRole="button">
                         <X size={20} color={theme.muted} />
                     </TouchableOpacity>
                 )}
@@ -322,7 +322,7 @@ export const Sidebar = ({
                             returnKeyType="search"
                         />
                         {searchQuery.length > 0 && (
-                            <TouchableOpacity onPress={() => setSearchQuery('')}>
+                            <TouchableOpacity onPress={() => setSearchQuery('')} accessibilityLabel="Clear search" accessibilityRole="button">
                                 <X size={16} color={theme.muted} />
                             </TouchableOpacity>
                         )}
@@ -366,7 +366,7 @@ export const Sidebar = ({
 
             <ScrollView style={{ flex: 1 }}>
                 <View style={styles.navSection}>
-                    {/* New Post Button (Desktop) */}
+                    {/* New Post Button (Desktop only — mobile uses center tab) */}
                     {isDesktop && (
                         <TouchableOpacity
                             style={[styles.navItem, { backgroundColor: theme.accent, marginBottom: 8, justifyContent: 'center' }]}

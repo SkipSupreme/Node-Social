@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StatusBar, ActivityIndicator, Modal, Text, Pressable } from 'react-native';
+import { View, StatusBar, ActivityIndicator, Modal, Text, Pressable, Platform } from 'react-native';
 import { Slot } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -19,13 +19,31 @@ import { SocketProvider } from '../src/context/SocketContext';
 import { AuthPromptProvider } from '../src/context/AuthPromptContext';
 import { ToastContainer } from '../src/components/ui/Toast';
 
+// Suppress harmless "useNativeDriver" warning on web — RN Animated falls back to JS driver automatically
+if (Platform.OS === 'web') {
+  const origWarn = console.warn;
+  console.warn = (...args: unknown[]) => {
+    const msg = typeof args[0] === 'string' ? args[0] : '';
+    if (msg.includes('useNativeDriver')) return;
+    origWarn.apply(console, args);
+  };
+}
+
 // ── QueryClient ─────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30 * 1000,
       gcTime: 5 * 60 * 1000,
-      retry: 2,
+      retry: (failureCount, error) => {
+        // Don't retry auth-related errors — the session is gone, retrying won't help
+        if (error instanceof Error &&
+            (error.message.includes('Session expired') ||
+             error.message.includes('Authentication required'))) {
+          return false;
+        }
+        return failureCount < 2;
+      },
       refetchOnWindowFocus: false,
       refetchOnReconnect: true,
     },
@@ -80,6 +98,7 @@ export default function RootLayout() {
   const [authModal, setAuthModal] = useState<'login' | 'register' | 'forgot-password' | null>(null);
   const [resetToken, setResetToken] = useState<string | null>(null);
   const [verifyToken, setVerifyToken] = useState<string | null>(null);
+  const [showVerifyModal, setShowVerifyModal] = useState(false);
   const emailForVerification = user?.email ?? '';
 
   // Deep linking
@@ -87,7 +106,7 @@ export default function RootLayout() {
     const handleDeepLink = (event: { url: string }) => {
       const { path, queryParams } = Linking.parse(event.url);
       const isValidToken = (t: unknown): t is string =>
-        typeof t === 'string' && /^[a-f0-9]{64}$/.test(t);
+        typeof t === 'string' && (/^[a-f0-9]{64}$/.test(t) || /^[0-9]{6}$/.test(t));
 
       if (path === 'reset-password' && isValidToken(queryParams?.token)) {
         setResetToken(queryParams.token);
@@ -138,6 +157,7 @@ export default function RootLayout() {
                 user={user}
                 onLogin={() => setAuthModal('login')}
                 onRegister={() => setAuthModal('register')}
+                onVerify={() => setShowVerifyModal(true)}
               >
                 <SocketProvider>
                   <Slot />
@@ -194,6 +214,23 @@ export default function RootLayout() {
                     onLogout={async () => {
                       await logout();
                       setVerifyToken(null);
+                    }}
+                  />
+                </View>
+              </Modal>
+
+              {/* Verify Email Modal - user-initiated (soft block) */}
+              <Modal visible={showVerifyModal} animationType="slide" presentationStyle="pageSheet">
+                <View style={{ flex: 1, backgroundColor: theme.bg }}>
+                  <VerifyEmailScreen
+                    email={emailForVerification}
+                    onVerified={async () => {
+                      await markEmailVerified();
+                      setShowVerifyModal(false);
+                    }}
+                    onLogout={async () => {
+                      await logout();
+                      setShowVerifyModal(false);
                     }}
                   />
                 </View>

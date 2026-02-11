@@ -10,6 +10,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
     '/posts/:postId/comments',
     {
       onRequest: [fastify.authenticate],
+      preHandler: [fastify.requireVerified],
       config: {
         rateLimit: {
           max: 20,

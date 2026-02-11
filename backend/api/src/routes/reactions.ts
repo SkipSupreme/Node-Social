@@ -38,6 +38,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
     '/posts/:postId',
     {
       onRequest: [fastify.authenticate],
+      preHandler: [fastify.requireVerified],
       config: {
         rateLimit: {
           max: 100, // Allow frequent reaction updates
@@ -129,6 +130,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
     '/comments/:commentId',
     {
       onRequest: [fastify.authenticate],
+      preHandler: [fastify.requireVerified],
       config: {
         rateLimit: {
           max: 100,

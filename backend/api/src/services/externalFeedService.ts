@@ -213,7 +213,7 @@ export async function fetchBlueskyFeed(
       // Extract media URLs from embeds
       const mediaUrls: string[] = [];
       if (post.embed?.images) {
-        post.embed.images.forEach(img => mediaUrls.push(img.fullsize || img.thumb));
+        post.embed.images.forEach(img => mediaUrls.push(img.thumb || img.fullsize));
       }
 
       const content = post.record.text;
@@ -322,7 +322,7 @@ export async function fetchBlueskyUserPosts(
       const post = item.post;
       const mediaUrls: string[] = [];
       if (post.embed?.images) {
-        post.embed.images.forEach(img => mediaUrls.push(img.fullsize || img.thumb));
+        post.embed.images.forEach(img => mediaUrls.push(img.thumb || img.fullsize));
       }
 
       const content = post.record.text;
@@ -448,7 +448,7 @@ export async function fetchMastodonFeed(
 
       const mediaUrls = actualPost.media_attachments
         .filter(m => ['image', 'gifv', 'video'].includes(m.type))
-        .map(m => m.url || m.preview_url);
+        .map(m => m.preview_url || m.url);
 
       // Strip HTML tags from content for plain text
       const plainContent = actualPost.content
@@ -561,7 +561,7 @@ export async function fetchMastodonTrending(
     const posts: ExternalPost[] = data.map(post => {
       const mediaUrls = post.media_attachments
         .filter(m => ['image', 'gifv', 'video'].includes(m.type))
-        .map(m => m.url || m.preview_url);
+        .map(m => m.preview_url || m.url);
 
       const plainContent = post.content
         .replace(/<br\s*\/?>/gi, '\n')

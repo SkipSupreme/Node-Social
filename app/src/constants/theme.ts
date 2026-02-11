@@ -10,11 +10,11 @@ export const COLORS = {
         panelHover: '#1a1b21',
         border: '#23252b',
         borderLight: '#2e3138',
-        accent: '#6366f1',  // Indigo
-        accentGlow: 'rgba(99, 102, 241, 0.4)',
+        accent: '#7073f4',  // Indigo (WCAG AA 5.1:1 on bg)
+        accentGlow: 'rgba(112, 115, 244, 0.4)',
         text: '#f1f5f9',    // Brighter white
         textSecondary: '#cbd5e1',
-        muted: '#64748b',
+        muted: '#6b7d96',   // Bumped from #64748b for WCAG AA 4.7:1 on bg
         mutedLight: '#94a3b8'
     },
     vibe: {

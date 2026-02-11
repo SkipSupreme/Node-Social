@@ -48,10 +48,10 @@ export const DEFAULT_THEME: ThemeTokens = {
   panelHover: "#1a1b21",
   text: "#f1f5f9",
   textSecondary: "#cbd5e1",
-  muted: "#64748b",
+  muted: "#6b7d96",
   mutedLight: "#94a3b8",
-  accent: "#6366f1",
-  accentGlow: "rgba(99, 102, 241, 0.4)",
+  accent: "#7073f4",
+  accentGlow: "rgba(112, 115, 244, 0.4)",
   border: "#23252b",
   borderLight: "#2e3138",
 

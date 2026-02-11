@@ -653,14 +653,14 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 await fs.mkdir(UPLOADS_DIR, { recursive: true });
             }
 
-            // Process avatar: square, resize to 400x400
+            // Process avatar: square, resize to 200x200, WebP for smaller files
             const processedImage = await sharp(buffer)
                 .flatten({ background: { r: 30, g: 30, b: 46 } })
-                .resize(400, 400, { fit: 'cover', position: 'center' })
-                .jpeg({ quality: 80 })
+                .resize(200, 200, { fit: 'cover', position: 'center' })
+                .webp({ quality: 80 })
                 .toBuffer();
 
-            const filename = `bot_avatar_${botId}_${randomUUID()}.jpg`;
+            const filename = `bot_avatar_${botId}_${randomUUID()}.webp`;
             const filepath = path.join(UPLOADS_DIR, filename);
 
             // Delete old avatar if it's a local upload

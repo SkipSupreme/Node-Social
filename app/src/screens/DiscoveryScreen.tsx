@@ -14,11 +14,12 @@ interface DiscoveryScreenProps {
     onBack: () => void;
     onPostClick?: (post: Post) => void;
     onUserClick?: (userId: string) => void;
+    initialQuery?: string;
 }
 
-export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryScreenProps) => {
+export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery }: DiscoveryScreenProps) => {
     const theme = useAppTheme();
-    const [query, setQuery] = useState('');
+    const [query, setQuery] = useState(initialQuery ?? '');
     const [activeTab, setActiveTab] = useState<SearchTab>('posts');
 
     // Post results
@@ -39,6 +40,42 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick }: DiscoveryS
     useEffect(() => {
         loadTrending();
     }, []);
+
+    // Auto-search when navigated to with an initialQuery (e.g. from FeedHeader search)
+    useEffect(() => {
+        if (initialQuery && initialQuery.trim()) {
+            setQuery(initialQuery);
+            // Trigger search with the initial query directly since setQuery is async
+            (async () => {
+                setLoading(true);
+                setSearched(true);
+                setPostOffset(0);
+                setUserOffset(0);
+                setPostHasMore(true);
+                setUserHasMore(true);
+                try {
+                    const [postsData, usersData] = await Promise.all([
+                        searchPosts(initialQuery.trim(), PAGE_SIZE, 0),
+                        searchUsers(initialQuery.trim(), PAGE_SIZE, 0),
+                    ]);
+                    setPostResults(postsData.posts || []);
+                    setPostHasMore(postsData.hasMore ?? (postsData.posts?.length === PAGE_SIZE));
+                    setPostOffset(PAGE_SIZE);
+                    setUserResults(usersData.users || []);
+                    setUserHasMore(usersData.hasMore ?? (usersData.users?.length === PAGE_SIZE));
+                    setUserOffset(PAGE_SIZE);
+                } catch (error) {
+                    console.error('Initial search failed:', error);
+                    setPostResults([]);
+                    setUserResults([]);
+                    setPostHasMore(false);
+                    setUserHasMore(false);
+                } finally {
+                    setLoading(false);
+                }
+            })();
+        }
+    }, [initialQuery]);
 
     const loadTrending = async () => {
         try {

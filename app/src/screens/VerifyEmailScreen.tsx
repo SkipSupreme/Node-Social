@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -30,7 +31,7 @@ export const VerifyEmailScreen: React.FC<Props> = ({
   onLogout,
 }) => {
   const theme = useAppTheme();
-  const [manualToken, setManualToken] = useState("");
+  const [code, setCode] = useState("");
   const [verifying, setVerifying] = useState(false);
   const [resending, setResending] = useState(false);
   const [status, setStatus] = useState<{ type: StatusType; message: string } | null>(
@@ -51,9 +52,9 @@ export const VerifyEmailScreen: React.FC<Props> = ({
   }, [status]);
 
   const handleVerify = useCallback(
-    async (token: string) => {
-      if (!token.trim()) {
-        setStatus({ type: "error", message: "Verification token is required" });
+    async (value: string) => {
+      if (!value.trim()) {
+        setStatus({ type: "error", message: "Verification code is required" });
         return;
       }
 
@@ -61,17 +62,17 @@ export const VerifyEmailScreen: React.FC<Props> = ({
       setStatus(null);
 
       try {
-        await verifyEmail(token.trim());
+        await verifyEmail(value.trim());
         setStatus({
           type: "success",
-          message: "Email verified! You're all set to continue.",
+          message: "Email verified! You're all set.",
         });
-        setManualToken("");
+        setCode("");
         await onVerified();
       } catch (error: unknown) {
         setStatus({
           type: "error",
-          message: getErrorMessage(error, "Verification failed. Double-check the token."),
+          message: getErrorMessage(error, "Verification failed. Check the code and try again."),
         });
       } finally {
         setVerifying(false);
@@ -81,14 +82,25 @@ export const VerifyEmailScreen: React.FC<Props> = ({
     [onTokenConsumed, onVerified]
   );
 
+  const handleCodeChange = useCallback((text: string) => {
+    // Only allow digits
+    const digits = text.replace(/\D/g, '').slice(0, 6);
+    setCode(digits);
+    // Auto-submit when 6 digits entered
+    if (digits.length === 6) {
+      handleVerify(digits);
+    }
+  }, [handleVerify]);
+
   const handleResend = useCallback(async () => {
     setResending(true);
     setStatus(null);
     try {
       await resendVerificationEmail(email);
+      setCode("");
       setStatus({
         type: "info",
-        message: "If the account is unverified, we've sent a new email.",
+        message: "A new code has been sent to your email.",
       });
     } catch (error: unknown) {
       setStatus({
@@ -111,25 +123,26 @@ export const VerifyEmailScreen: React.FC<Props> = ({
       <View style={styles.header}>
         <Text style={[styles.title, { color: theme.text }]}>Verify your email</Text>
         <Text style={[styles.subtitle, { color: theme.muted }]}>
-          We sent a verification link to{" "}
-          <Text style={[styles.boldEmail, { color: theme.text }]}>{email}</Text>. Confirm your email to unlock
-          the full experience.
+          We sent a 6-digit code to{" "}
+          <Text style={[styles.boldEmail, { color: theme.text }]}>{email}</Text>
         </Text>
       </View>
 
       <View style={[styles.card, { backgroundColor: theme.panel, borderColor: theme.border }]}>
-        <Text style={[styles.cardTitle, { color: theme.text }]}>Enter verification token</Text>
+        <Text style={[styles.cardTitle, { color: theme.text }]}>Enter verification code</Text>
         <Text style={[styles.cardSubtitle, { color: theme.muted }]}>
-          Tap the link in your inbox or paste the code from the email.
+          The code expires in 15 minutes.
         </Text>
         <TextInput
-          value={manualToken}
-          onChangeText={setManualToken}
-          placeholder="Paste token"
+          value={code}
+          onChangeText={handleCodeChange}
+          placeholder="000000"
           placeholderTextColor="#94A3B8"
-          autoCapitalize="none"
-          autoCorrect={false}
-          style={[styles.input, { borderColor: theme.border, color: theme.text, backgroundColor: theme.bg }]}
+          keyboardType="number-pad"
+          maxLength={6}
+          autoFocus
+          textContentType="oneTimeCode"
+          style={[styles.codeInput, { borderColor: theme.border, color: theme.text, backgroundColor: theme.bg }]}
         />
 
         {status && statusStyles && (
@@ -139,14 +152,14 @@ export const VerifyEmailScreen: React.FC<Props> = ({
         )}
 
         <TouchableOpacity
-          style={[styles.primaryButton, verifying && styles.disabledButton, { backgroundColor: theme.accent }]}
-          onPress={() => handleVerify(manualToken)}
-          disabled={verifying}
+          style={[styles.primaryButton, (verifying || code.length < 6) && styles.disabledButton, { backgroundColor: theme.accent }]}
+          onPress={() => handleVerify(code)}
+          disabled={verifying || code.length < 6}
         >
           {verifying ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.primaryButtonText}>Verify token</Text>
+            <Text style={styles.primaryButtonText}>Verify</Text>
           )}
         </TouchableOpacity>
 
@@ -158,7 +171,7 @@ export const VerifyEmailScreen: React.FC<Props> = ({
           {resending ? (
             <ActivityIndicator color="#2563EB" />
           ) : (
-            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>Resend email</Text>
+            <Text style={[styles.secondaryButtonText, { color: theme.accent }]}>Resend code</Text>
           )}
         </TouchableOpacity>
 
@@ -205,12 +218,16 @@ const styles = StyleSheet.create({
   cardSubtitle: {
     fontSize: 14,
   },
-  input: {
+  codeInput: {
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    fontSize: 16,
+    paddingVertical: 18,
+    fontSize: 32,
+    fontWeight: "700",
+    letterSpacing: 12,
+    textAlign: "center",
+    fontFamily: Platform.OS === "ios" ? "Menlo" : "monospace",
   },
   primaryButton: {
     borderRadius: 12,

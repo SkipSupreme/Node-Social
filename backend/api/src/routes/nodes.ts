@@ -429,14 +429,14 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
 
       const buffer = await data.toBuffer();
 
-      // Process avatar: square, resize
+      // Process avatar: square, resize, WebP for smaller files
       const processedImage = await sharp(buffer)
         .flatten({ background: { r: 30, g: 30, b: 46 } })
         .resize(NODE_AVATAR_SIZE, NODE_AVATAR_SIZE, { fit: 'cover', position: 'center' })
-        .jpeg({ quality: JPEG_QUALITY })
+        .webp({ quality: JPEG_QUALITY })
         .toBuffer();
 
-      const filename = `node_avatar_${id}_${randomUUID()}.jpg`;
+      const filename = `node_avatar_${id}_${randomUUID()}.webp`;
       const filepath = path.join(UPLOADS_DIR, filename);
 
       // Delete old avatar if exists
@@ -499,14 +499,14 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
 
       const buffer = await data.toBuffer();
 
-      // Process banner
+      // Process banner — WebP for smaller files
       const processedImage = await sharp(buffer)
         .flatten({ background: { r: 30, g: 30, b: 46 } })
         .resize(NODE_BANNER_WIDTH, NODE_BANNER_HEIGHT, { fit: 'cover', position: 'center' })
-        .jpeg({ quality: JPEG_QUALITY })
+        .webp({ quality: JPEG_QUALITY })
         .toBuffer();
 
-      const filename = `node_banner_${id}_${randomUUID()}.jpg`;
+      const filename = `node_banner_${id}_${randomUUID()}.webp`;
       const filepath = path.join(UPLOADS_DIR, filename);
 
       // Delete old banner if exists

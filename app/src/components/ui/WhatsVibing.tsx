@@ -13,6 +13,7 @@ import {
   type NodeRecommendation,
 } from '../../lib/api';
 import { useAppTheme } from '../../hooks/useTheme';
+import { useAuthStore } from '../../store/auth';
 
 interface WhatsVibingProps {
   onNodeClick: (nodeId: string) => void;
@@ -21,6 +22,7 @@ interface WhatsVibingProps {
 export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
   const theme = useAppTheme();
   const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
 
   // Fetch trending data
   const { data: vibesData, isLoading: vibesLoading } = useQuery({
@@ -42,6 +44,7 @@ export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
     queryFn: getDiscoverNodes,
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000,
+    enabled: !!user, // Requires authentication
   });
 
   const handleJoinNode = async (nodeId: string) => {
@@ -304,7 +307,7 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 12,
-    color: '#525252',
+    color: '#7c7c7c',
     marginTop: 4,
     textAlign: 'center',
   },

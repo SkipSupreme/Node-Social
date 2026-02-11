@@ -45,9 +45,7 @@ interface AppleAuthError {
   message?: string;
 }
 
-// TEMPORARILY DISABLED: OAuth login buttons
-// Re-enable when all tester emails are added to Google/Apple developer console
-const SHOW_OAUTH_BUTTONS = false;
+const SHOW_OAUTH_BUTTONS = true;
 
 // CRITICAL: Must be called at top level (outside component) to dismiss auth popup
 WebBrowser.maybeCompleteAuthSession();
@@ -156,27 +154,16 @@ export const LoginScreen: React.FC<{
       return;
     }
 
-    // Debug logging to help diagnose issues
-    console.log("Google OAuth Response:", googleResponse);
-
     if (googleResponse.type === "success") {
-      // Try multiple possible locations for the id_token
       const successResponse = googleResponse as unknown as GoogleIdTokenSuccessResponse;
       const params = successResponse.params;
       const token =
         params?.id_token ||
-        params?.idToken ||
-        params?.token ||
         successResponse.authentication?.idToken;
 
       if (token) {
-        console.log("Found Google id_token, proceeding with login");
         handleGoogleCredential(token);
       } else {
-        console.error("Google token not found in response:", {
-          params,
-          fullResponse: googleResponse,
-        });
         setGoogleLoading(false);
         setError("Missing Google token. Please try again.");
       }
@@ -222,35 +209,11 @@ export const LoginScreen: React.FC<{
       return;
     }
 
-    // Debug logging with exact redirect URI for Google Cloud Console
-    console.log("Starting Google login:", {
-      redirectUri,
-      hasAndroidClientId: !!googleOAuthConfig.androidClientId,
-      hasIosClientId: !!googleOAuthConfig.iosClientId,
-      hasWebClientId: !!googleOAuthConfig.webClientId,
-      platform: Platform.OS,
-      requestUrl: googleRequest.url,
-    });
-
-    // Log OAuth configuration info (only in dev mode)
-    if (__DEV__) {
-      if (Platform.OS === "web") {
-        console.log("⚠️ For web: Register this redirect URI in Google Cloud Console:");
-        console.log("   Redirect URI:", redirectUri);
-        console.log("   Go to: Web Client > Authorized redirect URIs");
-      } else {
-        console.log("ℹ️  For native apps: Redirect URIs are handled automatically");
-      }
-    }
-
     setError(null);
     setGoogleLoading(true);
     try {
-      const result = await promptGoogleSignIn();
-      console.log("Google sign-in prompt result:", result);
-      // Note: The actual response comes through googleResponse, not the prompt result
+      await promptGoogleSignIn();
     } catch (err) {
-      console.error("Error prompting Google sign-in:", err);
       setGoogleLoading(false);
       setError("Unable to open Google sign-in. Please try again.");
     }
@@ -286,21 +249,6 @@ export const LoginScreen: React.FC<{
 
       // CRITICAL: Apple only returns email and fullName on FIRST login
       // Subsequent logins return null for these fields
-      // We MUST capture and send this data immediately - it cannot be retrieved again
-      const isFirstLogin = !!(credential.email || credential.fullName);
-
-      if (isFirstLogin) {
-        console.log("🍎 Apple Sign-In - FIRST LOGIN detected");
-        console.log("📧 Email:", credential.email);
-        console.log("👤 Full Name:", credential.fullName);
-        // Backend should handle storing this data
-      } else {
-        console.log("🍎 Apple Sign-In - Returning user (email/name not provided)");
-      }
-
-      // Send identityToken to backend for verification
-      // CRITICAL: Also send email and fullName if available (first login only)
-      // Backend will extract user ID from token and handle account creation/linking
       const data = await loginWithApple(
         credential.identityToken,
         credential.email,

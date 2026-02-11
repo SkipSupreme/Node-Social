@@ -1792,7 +1792,6 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         refreshingText: { color: theme.muted },
     }), [theme]);
 
-    const prefetchedRef = useRef<Set<string>>(new Set());
     const flatListRef = useRef<FlatList<FeedItem>>(null);
 
     // Web pull-to-refresh state
@@ -1869,25 +1868,9 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         return posts.map(p => ({ type: 'node' as const, data: p }));
     }, [posts, externalPosts]);
 
-    // Prefetch images for smoother scrolling
-    useEffect(() => {
-        if (posts.length === 0) return;
-
-        const imagesToPrefetch: string[] = [];
-
-        posts.forEach(post => {
-            if (prefetchedRef.current.has(post.id)) return;
-            prefetchedRef.current.add(post.id);
-
-            if (post.mediaUrl) imagesToPrefetch.push(post.mediaUrl);
-            if (post.linkMeta?.image) imagesToPrefetch.push(post.linkMeta.image);
-            if (post.author?.avatar) imagesToPrefetch.push(post.author.avatar);
-        });
-
-        imagesToPrefetch.forEach(url => {
-            Image.prefetch(url).catch(() => {});
-        });
-    }, [posts]);
+    // Image prefetch removed — it eagerly downloads ALL images (including offscreen)
+    // which competes with LCP on slow connections. The browser handles visible images
+    // naturally and offscreen images load on scroll.
 
     const handleEndReached = useCallback(() => {
         if (hasMore && !loadingMore && onLoadMore) {

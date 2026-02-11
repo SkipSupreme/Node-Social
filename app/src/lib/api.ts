@@ -271,9 +271,9 @@ export async function refreshTokenIfNeeded(): Promise<boolean> {
     return false; // No token, not logged in
   }
 
-  // Refresh if token is expired or will expire within 10 minutes
-  // Token has 1-hour expiry, proactive refresh runs every 50 minutes
-  if (isTokenExpired(token) || isTokenExpiringSoon(token, 10)) {
+  // Refresh if token is expired or will expire within 5 minutes
+  // Token has 15-minute expiry, proactive refresh runs every ~10 minutes
+  if (isTokenExpired(token) || isTokenExpiringSoon(token, 5)) {
     const newToken = await refreshAccessToken();
     return newToken !== null;
   }
@@ -324,6 +324,15 @@ async function refreshAccessToken(): Promise<string | null> {
       if (!refreshToken) {
         isRefreshing = false;
         onRefreshed(""); // Resolve queue with empty (will fail)
+        return null;
+      }
+    } else {
+      // On web, refresh uses httpOnly cookies — but if there's no stored access token,
+      // the user was never authenticated, so don't bother calling refresh
+      const storedToken = await storage.getItem("token");
+      if (!storedToken) {
+        isRefreshing = false;
+        onRefreshed("");
         return null;
       }
     }
@@ -407,6 +416,10 @@ async function request<T>(
   const isAuthEndpoint = path.includes("/auth/login") || path.includes("/auth/register");
 
   if (res.status === 401 && retry && !isAuthEndpoint) {
+    // Only attempt refresh if user had a token — unauthenticated visitors should not trigger refresh
+    if (!token) {
+      throw new Error("Authentication required");
+    }
     const newToken = await refreshAccessToken();
     if (!newToken) {
       throw new Error("Session expired. Please sign in again.");
@@ -724,10 +737,10 @@ export function loginWithApple(
   });
 }
 
-export function verifyEmail(token: string) {
+export function verifyEmail(code: string) {
   return request<{ message: string; user?: AuthResponse["user"] }>("/auth/verify-email", {
     method: "POST",
-    body: JSON.stringify({ token }),
+    body: JSON.stringify({ code }),
   });
 }
 

@@ -22,6 +22,32 @@ import { getBlueskyThread, getMastodonThread } from '../../lib/api';
 import { VibeBar, type VibeAggregateData } from '../VibeBar';
 import { VibeRadialWheel } from '../VibeRadialWheel';
 
+// Downsize external image URLs for feed display (smaller downloads)
+const toFeedSizeUrl = (url: string): string => {
+  // Bluesky: feed_fullsize → feed_thumbnail (~100-200KB vs 700KB+)
+  if (url.includes('cdn.bsky.app/img/feed_fullsize/')) {
+    return url.replace('/feed_fullsize/', '/feed_thumbnail/');
+  }
+  // Mastodon: /original/ → /small/ (~50-200KB vs 2.5MB+)
+  if (url.includes('/media_attachments/') && url.includes('/original/')) {
+    return url.replace('/original/', '/small/');
+  }
+  return url;
+};
+
+// Convert thumbnail/preview URLs back to full-size for zoom modal
+const toFullSizeUrl = (url: string): string => {
+  // Bluesky: feed_thumbnail → feed_fullsize
+  if (url.includes('cdn.bsky.app/img/feed_thumbnail/')) {
+    return url.replace('/feed_thumbnail/', '/feed_fullsize/');
+  }
+  // Mastodon: /small/ → /original/
+  if (url.includes('/media_attachments/') && url.includes('/small/')) {
+    return url.replace('/small/', '/original/');
+  }
+  return url;
+};
+
 interface ExternalPostCardProps {
   post: ExternalPost;
   onPress?: () => void;
@@ -40,22 +66,12 @@ interface ExternalPostCardProps {
 }
 
 // Auto-sizing image component that respects aspect ratio
+// Uses onLoad to get dimensions from the already-downloaded image instead of
+// a separate Image.getSize() call which would double-download each image.
 const AutoSizeImage = ({ uri, maxHeight = 500, isGrid = false }: { uri: string; maxHeight?: number; isGrid?: boolean }) => {
   const theme = useAppTheme();
   const [aspectRatio, setAspectRatio] = useState(16 / 9);
   const [error, setError] = useState(false);
-
-  useEffect(() => {
-    Image.getSize(
-      uri,
-      (width, height) => {
-        setAspectRatio(width / height);
-      },
-      () => {
-        // Keep default aspect ratio on error
-      }
-    );
-  }, [uri]);
 
   if (error) return null;
 
@@ -86,6 +102,12 @@ const AutoSizeImage = ({ uri, maxHeight = 500, isGrid = false }: { uri: string; 
       ]}
       resizeMode="contain"
       onError={() => setError(true)}
+      onLoad={(e: any) => {
+        const source = e.nativeEvent?.source;
+        const w = source?.width || e.target?.naturalWidth;
+        const h = source?.height || e.target?.naturalHeight;
+        if (w && h) setAspectRatio(w / h);
+      }}
     />
   );
 };
@@ -97,16 +119,6 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
   const [aspectRatio, setAspectRatio] = useState(16 / 9);
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
-
-  useEffect(() => {
-    Image.getSize(
-      uri,
-      (width, height) => {
-        setAspectRatio(width / height);
-      },
-      () => {}
-    );
-  }, [uri]);
 
   return (
     <>
@@ -124,6 +136,12 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
             },
           ]}
           resizeMode="contain"
+          onLoad={(e: any) => {
+            const source = e.nativeEvent?.source;
+            const w = source?.width || e.target?.naturalWidth;
+            const h = source?.height || e.target?.naturalHeight;
+            if (w && h) setAspectRatio(w / h);
+          }}
         />
       </TouchableOpacity>
 
@@ -148,7 +166,7 @@ const ZoomableImage = ({ uri, maxHeight = 500 }: { uri: string; maxHeight?: numb
             onPress={() => setModalVisible(false)}
           >
             <Image
-              source={{ uri }}
+              source={{ uri: toFullSizeUrl(uri) }}
               style={{
                 width: screenWidth,
                 height: screenWidth / aspectRatio,
@@ -171,22 +189,8 @@ const ImageGallery = ({ urls, maxHeight = 500 }: { urls: string[]; maxHeight?: n
   const screenWidth = Dimensions.get('window').width;
   const screenHeight = Dimensions.get('window').height;
 
-  useEffect(() => {
-    // Preload all image sizes
-    urls.forEach((uri, index) => {
-      Image.getSize(
-        uri,
-        (width, height) => {
-          setAspectRatios(prev => {
-            const newRatios = [...prev];
-            newRatios[index] = width / height;
-            return newRatios;
-          });
-        },
-        () => {}
-      );
-    });
-  }, [urls]);
+  // Aspect ratios are populated lazily via onLoad in the modal gallery
+  // instead of eagerly fetching every image's dimensions with Image.getSize().
 
   if (urls.length === 0) return null;
 
@@ -263,13 +267,25 @@ const ImageGallery = ({ urls, maxHeight = 500 }: { urls: string[]; maxHeight?: n
                   onPress={() => setModalVisible(false)}
                 >
                   <Image
-                    source={{ uri: url }}
+                    source={{ uri: toFullSizeUrl(url) }}
                     style={{
                       width: screenWidth,
                       height: screenWidth / ratio,
                       maxHeight: screenHeight * 0.85,
                     }}
                     resizeMode="contain"
+                    onLoad={(e: any) => {
+                      const source = e.nativeEvent?.source;
+                      const w = source?.width || e.target?.naturalWidth;
+                      const h = source?.height || e.target?.naturalHeight;
+                      if (w && h) {
+                        setAspectRatios(prev => {
+                          const newRatios = [...prev];
+                          newRatios[index] = w / h;
+                          return newRatios;
+                        });
+                      }
+                    }}
                   />
                 </TouchableOpacity>
               );
@@ -539,9 +555,9 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({
         >
           {/* Header with avatar, name, platform badge */}
           <View style={styles.header}>
-            <TouchableOpacity onPress={handleOpenProfile} style={styles.authorSection}>
+            <TouchableOpacity onPress={handleOpenProfile} style={styles.authorSection} accessibilityLabel={`View profile of ${post.author.displayName || post.author.username || 'user'}`} accessibilityRole="button">
               {post.author.avatar ? (
-                <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+                <Image source={{ uri: post.author.avatar }} style={styles.avatar} accessibilityLabel={`${post.author.displayName || post.author.username || 'User'} avatar`} />
               ) : (
                 <View style={[styles.avatar, styles.avatarPlaceholder, { backgroundColor: theme.bgAlt }]}>
                   <Text style={[styles.avatarInitial, { color: theme.textSecondary }]}>
@@ -570,7 +586,7 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({
           {/* Media - opens in-app viewer */}
           {post.mediaUrls.length > 0 && (
             <View style={styles.mediaContainer}>
-              <ImageGallery urls={post.mediaUrls} maxHeight={500} />
+              <ImageGallery urls={post.mediaUrls.map(toFeedSizeUrl)} maxHeight={500} />
             </View>
           )}
         </TouchableOpacity>
@@ -630,6 +646,8 @@ const ExternalPostCardInner: React.FC<ExternalPostCardProps> = ({
               style={[styles.stat, (externalReposted || repostedToNode || showRepostMenu) && [styles.statActive, { backgroundColor: `${theme.accent}15` }]]}
               onPress={handleRepostPress}
               disabled={interactionLoading === 'repost'}
+              accessibilityLabel={`Repost, ${formatCount(post.repostCount)} reposts`}
+              accessibilityRole="button"
             >
               {interactionLoading === 'repost' ? (
                 <ActivityIndicator size={14} color={theme.accent} />

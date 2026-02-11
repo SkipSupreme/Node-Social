@@ -203,7 +203,7 @@ export default function MainLayout() {
   if (!isDesktop) {
     // Mobile: just the route content + modals
     return (
-      <View style={styles.flex1}>
+      <View style={styles.flex1} role="main">
         <Slot />
 
         {/* Mobile sidebar modal */}
@@ -263,7 +263,7 @@ export default function MainLayout() {
   return (
     <View style={[styles.desktopContainer, { backgroundColor: theme.bg }]}>
       {/* Left sidebar */}
-      <View style={[styles.sidebar, sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded, { borderRightColor: theme.border }]}>
+      <View role="navigation" style={[styles.sidebar, sidebarCollapsed ? styles.sidebarCollapsed : styles.sidebarExpanded, { borderRightColor: theme.border }]}>
         <Sidebar
           nodes={nodes ?? []}
           isDesktop={true}
@@ -292,13 +292,13 @@ export default function MainLayout() {
       </View>
 
       {/* Main content */}
-      <View style={styles.mainContent}>
+      <View role="main" style={styles.mainContent}>
         <Slot />
       </View>
 
       {/* Right panel -- hidden in multi-column mode */}
       {!isMultiColumnEnabled && (
-        <View style={[styles.rightPanel, { borderLeftColor: theme.border }]}>
+        <View role="complementary" style={[styles.rightPanel, { borderLeftColor: theme.border }]}>
           {selectedNodeId ? (
             <NodeLandingPage
               nodeId={selectedNodeId}

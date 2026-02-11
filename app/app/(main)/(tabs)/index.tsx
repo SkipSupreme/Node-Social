@@ -1,16 +1,25 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { View, ActivityIndicator, useWindowDimensions, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAppTheme } from '../../../src/hooks/useTheme';
 import { useAuthStore } from '../../../src/store/auth';
 import { useModalStore } from '../../../src/store/modal';
 import { useFeedSourceStore } from '../../../src/store/feedSource';
-import { useColumnsStore } from '../../../src/store/columns';
+import { useColumnsStore, ColumnVibeSettings } from '../../../src/store/columns';
 import { useFeed } from '../../../src/hooks/useFeed';
 import { useNodes } from '../../../src/hooks/useNodes';
 import { Feed } from '../../../src/components/ui/Feed';
+import { FeedHeader } from '../../../src/components/ui/FeedHeader';
+import { VibeValidatorModal } from '../../../src/components/ui/VibeValidatorModal';
 import { MultiColumnContainer } from '../../../src/components/ui/MultiColumnContainer';
+import type { FeedSourceType } from '../../../src/components/ui/FeedHeader';
 import type { ExternalPost } from '../../../src/lib/api';
+
+// Default vibe settings (matches FeedColumn.tsx)
+const DEFAULT_VIBE_SETTINGS: ColumnVibeSettings = {
+  preset: 'balanced',
+  weights: { quality: 35, recency: 30, engagement: 20, personalization: 15 },
+};
 
 export default function FeedScreen() {
   const theme = useAppTheme();
@@ -20,11 +29,19 @@ export default function FeedScreen() {
   const user = useAuthStore((s) => s.user);
   const openCreatePost = useModalStore((s) => s.openCreatePost);
   const openEditPost = useModalStore((s) => s.openEditPost);
+  const openSidebar = useModalStore((s) => s.openSidebar);
   const isAddColumnOpen = useModalStore((s) => s.isAddColumnOpen);
   const closeAddColumn = useModalStore((s) => s.closeAddColumn);
   const selectedNodeId = useFeedSourceStore((s) => s.selectedNodeId);
   const setSelectedNodeId = useFeedSourceStore((s) => s.setSelectedNodeId);
+  const feedSource = useFeedSourceStore((s) => s.feedSource);
+  const setFeedSource = useFeedSourceStore((s) => s.setFeedSource);
   const isMultiColumnEnabled = useColumnsStore((s) => s.isMultiColumnEnabled);
+
+  // Mobile: local state for search, vibe settings, and vibe modal
+  const [searchQuery, setSearchQuery] = useState('');
+  const [vibeSettings, setVibeSettings] = useState<ColumnVibeSettings>(DEFAULT_VIBE_SETTINGS);
+  const [showVibeModal, setShowVibeModal] = useState(false);
 
   const { data: nodes } = useNodes();
   const globalNodeId = useMemo(
@@ -32,9 +49,18 @@ export default function FeedScreen() {
     [nodes]
   );
 
+  // Build algo settings from vibe weights for the feed API
+  const algoSettings = useMemo(() => ({
+    qualityWeight: vibeSettings.weights.quality,
+    recencyWeight: vibeSettings.weights.recency,
+    engagementWeight: vibeSettings.weights.engagement,
+    personalizationWeight: vibeSettings.weights.personalization,
+  }), [vibeSettings.weights]);
+
   const feedQuery = useFeed({
     nodeId: selectedNodeId,
     feedMode: 'global',
+    algoSettings,
   });
 
   // Use ref for feedQuery to avoid stale closures without causing re-renders
@@ -135,6 +161,23 @@ export default function FeedScreen() {
     [setSelectedNodeId]
   );
 
+  // Mobile: search submit navigates to discovery tab with query
+  const handleSearch = useCallback(() => {
+    const trimmed = searchQuery.trim();
+    if (trimmed) {
+      router.push(`/discovery?q=${encodeURIComponent(trimmed)}` as any);
+      setSearchQuery('');
+    }
+  }, [searchQuery, router]);
+
+  // Mobile: feed source change
+  const handleFeedSourceChange = useCallback(
+    (source: FeedSourceType) => {
+      setFeedSource(source as any);
+    },
+    [setFeedSource]
+  );
+
   if (feedQuery.isLoading) {
     return (
       <View style={[styles.center, { backgroundColor: theme.bg }]}>
@@ -168,6 +211,20 @@ export default function FeedScreen() {
 
   return (
     <View style={[styles.flex1, { backgroundColor: theme.bg }]}>
+      {/* Mobile: FeedHeader with hamburger menu, search, feed source picker, vibe validator */}
+      {!isDesktop && (
+        <FeedHeader
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onSearch={handleSearch}
+          algoSettings={vibeSettings as any}
+          onVibeClick={() => setShowVibeModal(true)}
+          feedSource={feedSource as FeedSourceType}
+          onFeedSourceChange={handleFeedSourceChange}
+          onMenuClick={openSidebar}
+          isDesktop={false}
+        />
+      )}
       <Feed
         posts={posts}
         externalPosts={externalPosts}
@@ -186,6 +243,15 @@ export default function FeedScreen() {
         refreshing={feedQuery.isRefetching}
         onQuoteExternalPost={handleQuoteExternalPost}
       />
+      {/* Mobile: VibeValidatorModal for algorithm tuning */}
+      {!isDesktop && (
+        <VibeValidatorModal
+          visible={showVibeModal}
+          settings={vibeSettings}
+          onUpdate={setVibeSettings}
+          onClose={() => setShowVibeModal(false)}
+        />
+      )}
     </View>
   );
 }

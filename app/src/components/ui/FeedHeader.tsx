@@ -94,10 +94,11 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
           <View style={styles.mobileHeaderRow}>
             {/* Left: Menu + Logo */}
             <View style={styles.mobileLeft}>
-              <TouchableOpacity onPress={onMenuClick} style={styles.menuButton}>
+              <TouchableOpacity onPress={onMenuClick} style={styles.menuButton} accessibilityLabel="Open menu" accessibilityRole="button">
                 <Menu size={24} color={theme.text} />
               </TouchableOpacity>
-              <NodeLogo size="small" showText={true} />
+              <NodeLogo size="small" showText={false} />
+              <Text style={[styles.logoText, { color: theme.text }]}>NODE</Text>
             </View>
 
             {/* Right: Search + Feed Source + Preset */}
@@ -105,6 +106,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
               <TouchableOpacity
                 onPress={() => setMobileSearchActive(true)}
                 style={[styles.iconButton, { backgroundColor: theme.panel, borderColor: theme.border }]}
+                accessibilityLabel="Search"
+                accessibilityRole="button"
               >
                 <Search size={20} color={theme.text} />
               </TouchableOpacity>
@@ -179,6 +182,8 @@ export const FeedHeader: React.FC<FeedHeaderProps> = ({
                 <TouchableOpacity
                   onPress={() => setShowFeedSourceModal(false)}
                   style={styles.modalCloseButton}
+                  accessibilityLabel="Close feed selector"
+                  accessibilityRole="button"
                 >
                   <X size={20} color={theme.muted} />
                 </TouchableOpacity>
@@ -309,6 +314,11 @@ const styles = StyleSheet.create({
   },
   menuButton: {
     padding: 4,
+  },
+  logoText: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   mobileRight: {
     flexDirection: 'row',

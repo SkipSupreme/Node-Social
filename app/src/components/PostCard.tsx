@@ -129,11 +129,11 @@ const PostCardInner = ({ post: initialPost, onPress, onAuthorClick }: PostCardPr
       activeOpacity={onPress ? 0.7 : 1}
     >
       <View style={styles.header}>
-        <TouchableOpacity style={styles.authorSection} onPress={handleAuthorPress}>
+        <TouchableOpacity style={styles.authorSection} onPress={handleAuthorPress} accessibilityLabel={`View profile of ${post.author.username || 'user'}`} accessibilityRole="button">
           {/* Avatar with purple border */}
           <View style={[styles.avatarContainer, ts.avatarBorder]}>
             {post.author.avatar ? (
-              <Image source={{ uri: post.author.avatar }} style={styles.avatar} />
+              <Image source={{ uri: post.author.avatar }} style={styles.avatar} accessibilityLabel={`${post.author.username || 'User'} avatar`} />
             ) : (
               <View style={[styles.avatarPlaceholder, { backgroundColor: eraStyle.bg }]}>
                 <Text style={[styles.avatarText, { color: eraStyle.text }]}>
@@ -244,8 +244,8 @@ const PostCardInner = ({ post: initialPost, onPress, onAuthorClick }: PostCardPr
         </TouchableOpacity>
       ) : null}
 
-      <View style={styles.footer}>
-        <View style={styles.stats}>
+      <View style={styles.footer} accessibilityRole="toolbar">
+        <View style={styles.stats} accessibilityLabel={`${post.commentCount} comments`}>
           <MessageSquare size={20} color={theme.muted} />
           <Text style={[styles.statText, ts.mutedColor]}>{post.commentCount}</Text>
         </View>

@@ -55,6 +55,7 @@ declare module 'fastify' {
   interface FastifyInstance {
     authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
     optionalAuthenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
+    requireVerified: (request: FastifyRequest, reply: FastifyReply) => Promise<void>;
   }
 }
 
@@ -139,10 +140,13 @@ export async function build(): Promise<FastifyInstance> {
   });
 
   // Static file serving for uploads
+  // 30 days + immutable — all uploaded files use UUID filenames, so they never collide
   await app.register(fastifyStatic, {
     root: path.join(process.cwd(), 'uploads'),
     prefix: '/uploads/',
     decorateReply: false,
+    maxAge: 30 * 24 * 60 * 60 * 1000,
+    immutable: true,
   });
 
   app.decorate('authenticate', async function (request: FastifyRequest, reply: FastifyReply) {
@@ -180,6 +184,18 @@ export async function build(): Promise<FastifyInstance> {
         }
       }
       // Don't set request.user - they're anonymous
+    }
+  });
+
+  // Email verification gate — use as preHandler AFTER authenticate
+  app.decorate('requireVerified', async function (request: FastifyRequest, reply: FastifyReply) {
+    const userId = (request.user as { sub: string }).sub;
+    const user = await app.prisma.user.findUnique({
+      where: { id: userId },
+      select: { emailVerified: true },
+    });
+    if (!user?.emailVerified) {
+      return reply.status(403).send({ error: 'Please verify your email to perform this action' });
     }
   });
 

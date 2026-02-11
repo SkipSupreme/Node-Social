@@ -31,6 +31,12 @@ const styles = {
     "display: inline-block; background: #2563EB; color: #FFFFFF; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;",
   footer:
     "color: #94A3B8; font-size: 14px; margin-top: 32px; padding-top: 24px; border-top: 1px solid #E2E8F0;",
+  codeBox:
+    "text-align: center; margin: 32px 0; background: #F1F5F9; padding: 24px; border-radius: 12px;",
+  code:
+    "color: #1E293B; font-family: monospace; font-size: 36px; font-weight: 700; letter-spacing: 8px;",
+  expiry:
+    "color: #94A3B8; font-size: 13px; text-align: center; margin-top: 4px;",
   tokenBox:
     "color: #94A3B8; font-size: 12px; margin-top: 16px; background: #F1F5F9; padding: 12px; border-radius: 6px;",
   token:
@@ -63,17 +69,20 @@ function renderVerificationEmail(payload: VerificationPayload): RenderResult {
   const webUrl = `${FRONTEND_URL}/verify-email?token=${payload.token}`;
 
   const body = `
-    <p style="${styles.body}">Thanks for signing up! Please verify your email address to complete your registration. Tap the button below on your device:</p>
-    <div style="${styles.buttonWrapper}">
-      <a href="${deepLinkUrl}" style="${styles.button}">Verify Email in App</a>
+    <p style="${styles.body}">Thanks for signing up! Enter this code in the app to verify your email:</p>
+    <div style="${styles.codeBox}">
+      <div style="${styles.code}">${payload.token}</div>
+      <p style="${styles.expiry}">This code expires in 15 minutes</p>
     </div>
-    <p style="${styles.footer}">If the button doesn't open the app, copy this link: <a href="${webUrl}">${webUrl}</a></p>
-    <p style="${styles.tokenBox}">You can also copy this token and paste it inside the app:<br><strong style="${styles.token}">${payload.token}</strong></p>
+    <div style="${styles.buttonWrapper}">
+      <a href="${deepLinkUrl}" style="${styles.button}">Or tap to verify in app</a>
+    </div>
+    <p style="${styles.footer}">If the button doesn't work, try this link: <a href="${webUrl}">${webUrl}</a></p>
   `;
 
   return {
-    subject: 'Verify your Node Social email',
-    html: wrapTemplate('Verify your email address', body),
+    subject: 'Your Node Social verification code',
+    html: wrapTemplate('Verify your email', body),
   };
 }
 
