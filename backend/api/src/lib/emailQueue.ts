@@ -4,7 +4,14 @@ import type { EmailTemplate, Prisma } from '@prisma/client';
 import { renderEmailFromTemplate } from './emailTemplates.js';
 
 const resendApiKey = process.env.RESEND_API_KEY || '';
-const resend = new Resend(resendApiKey);
+let resend: Resend | null = null;
+
+function getResendClient(): Resend {
+  if (!resend) {
+    resend = new Resend(resendApiKey);
+  }
+  return resend;
+}
 const RESEND_FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
 
 const PROCESS_INTERVAL_MS = 5_000;
@@ -60,7 +67,7 @@ async function processPendingJobs(fastify: FastifyInstance) {
 
       const { subject, html } = renderEmailFromTemplate(template, payload);
 
-      await resend.emails.send({
+      await getResendClient().emails.send({
         from: RESEND_FROM_EMAIL,
         to,
         subject,
