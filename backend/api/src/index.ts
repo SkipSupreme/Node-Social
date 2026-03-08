@@ -287,7 +287,7 @@ export async function build(): Promise<FastifyInstance> {
 // Start server only when running directly (not imported for tests)
 // Use pathToFileURL for cross-platform compatibility (Windows backslash paths)
 import { pathToFileURL } from 'url';
-const isMainModule = import.meta.url === pathToFileURL(process.argv[1]).href;
+const isMainModule = process.argv[1] ? import.meta.url === pathToFileURL(process.argv[1]).href : false;
 
 if (isMainModule) {
   const port = Number(process.env.PORT) || 3000;
