@@ -170,20 +170,21 @@ export async function build(): Promise<FastifyInstance> {
   // Optional authentication - sets request.user if token valid, but doesn't fail if not
   // Used for public endpoints that have enhanced features for logged-in users
   app.decorate('optionalAuthenticate', async function (request: FastifyRequest, _reply: FastifyReply) {
+    // Extract token manually to avoid @fastify/jwt v10 auto-sending 401 on failed jwtVerify
+    const authHeader = request.headers.authorization;
+    const cookieToken = request.cookies?.accessToken;
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookieToken;
+
+    if (!token) {
+      // No token at all — anonymous user, continue without auth
+      return;
+    }
+
     try {
-      await request.jwtVerify();
+      const decoded = app.jwt.verify(token) as { sub: string; iat: number };
+      (request as any).user = decoded;
     } catch (err) {
-      // Fallback to cookie-based access token
-      const cookieToken = request.cookies?.accessToken;
-      if (cookieToken) {
-        try {
-          await (request.jwtVerify as Function)({ token: cookieToken });
-          return;
-        } catch (cookieErr) {
-          // Silent fail - user stays anonymous
-        }
-      }
-      // Don't set request.user - they're anonymous
+      // Silent fail - user stays anonymous, don't send 401
     }
   });
 
@@ -284,7 +285,9 @@ export async function build(): Promise<FastifyInstance> {
 }
 
 // Start server only when running directly (not imported for tests)
-const isMainModule = import.meta.url === `file://${process.argv[1]}`;
+// Use pathToFileURL for cross-platform compatibility (Windows backslash paths)
+import { pathToFileURL } from 'url';
+const isMainModule = import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMainModule) {
   const port = Number(process.env.PORT) || 3000;

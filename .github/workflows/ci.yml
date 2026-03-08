@@ -50,12 +50,12 @@ jobs:
       - name: Install backend dependencies
         run: |
           cd backend/api
-          npm ci
-      
+          npm ci --legacy-peer-deps
+
       - name: Install app dependencies
         run: |
           cd app
-          npm ci
+          npm ci --legacy-peer-deps
       
       - name: Type check backend
         run: |
