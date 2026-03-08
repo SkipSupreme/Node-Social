@@ -612,7 +612,7 @@ describe('POST /auth/verify-email', () => {
     });
 
     expect(res.statusCode).toBe(400);
-    expect(res.json().error).toBe('Invalid or expired verification token');
+    expect(res.json().error).toBe('Invalid verification code');
   });
 
   it('should reject missing token', async () => {

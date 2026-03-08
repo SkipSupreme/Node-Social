@@ -312,6 +312,14 @@ export async function buildTestApp(): Promise<{
     }
   });
 
+  // Replicate the requireVerified decorator from src/index.ts
+  // In tests, pass through by default — test users are treated as verified.
+  // The real decorator queries prisma.user.findUnique, but that would conflict
+  // with per-test mock setups. Verification gating is tested separately.
+  app.decorate('requireVerified', async function (_request: any, _reply: any) {
+    // no-op: test users are considered email-verified
+  });
+
   // Replicate the CSRF hook from src/index.ts
   app.addHook('onRequest', async (request, reply) => {
     const method = request.method.toUpperCase();
