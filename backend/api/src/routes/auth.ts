@@ -892,7 +892,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       // could be lost, triggering false "reuse detection" and logging users out
       const accessToken = fastify.jwt.sign(
         { sub: tokenRecord.user.id, email: tokenRecord.user.email, emailVerified: tokenRecord.user.emailVerified ?? false },
-        { expiresIn: '1h' }
+        { expiresIn: '15m' }
       );
 
       // Update cookies with new access token and fresh CSRF token (keep same refresh token)

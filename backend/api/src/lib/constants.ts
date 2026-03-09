@@ -8,6 +8,9 @@ export const NOTIFICATION_TYPES = {
   LIKE: 'like',
   MESSAGE: 'message',
   SYSTEM: 'system',
+  MOD_REMOVED: 'mod_removed',
+  WARNING: 'warning',
+  BANNED: 'banned',
 } as const;
 export type NotificationType = typeof NOTIFICATION_TYPES[keyof typeof NOTIFICATION_TYPES];
 

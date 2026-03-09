@@ -437,7 +437,7 @@ async function updatePostMetricsFromReactions(
   // We need to fetch the node ID for the post to pass to checkAndAddToModQueue
   const post = await prisma.post.findUnique({ where: { id: postId }, select: { id: true, nodeId: true, authorId: true } });
   if (post && post.nodeId) {
-    await ModerationService.checkAndAddToModQueue(postId, post.nodeId, aggregates as unknown as PostVibeAggregate);
+    await ModerationService.checkAndAddToModQueue(prisma, postId, post.nodeId, aggregates as unknown as PostVibeAggregate);
 
     // Phase 3: Update User Cred
     // We need to fetch the full post with reactions to calculate cred

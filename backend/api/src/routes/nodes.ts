@@ -113,7 +113,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // List all nodes (with subscriber counts)
-  fastify.get('/', async (request, reply) => {
+  fastify.get('/', { onRequest: [fastify.optionalAuthenticate] }, async (request, reply) => {
     const userId = (request.user as { sub: string } | undefined)?.sub;
 
     const nodes = await fastify.prisma.node.findMany({
@@ -182,21 +182,9 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
   });
 
   // Get a single node by slug or ID - ENHANCED with full details
-  fastify.get('/:idOrSlug', async (request, reply) => {
+  fastify.get('/:idOrSlug', { onRequest: [fastify.optionalAuthenticate] }, async (request, reply) => {
     const { idOrSlug } = request.params as { idOrSlug: string };
-
-    // Try to get user from auth header if present (optional auth)
-    let userId: string | undefined;
-    const authHeader = request.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      try {
-        const token = authHeader.substring(7);
-        const decoded = fastify.jwt.decode<{ sub: string }>(token);
-        userId = decoded?.sub;
-      } catch {
-        // Token invalid, proceed without user
-      }
-    }
+    const userId = (request.user as { sub: string } | undefined)?.sub;
 
     // Try finding by slug first, then ID (if it looks like a UUID)
     let node = await fastify.prisma.node.findUnique({
@@ -390,7 +378,7 @@ const nodeRoutes: FastifyPluginAsync = async (fastify) => {
       return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
     }
 
-    const updateData: any = {};
+    const updateData: Record<string, unknown> = {};
     if (parsed.data.name !== undefined) updateData.name = parsed.data.name;
     if (parsed.data.description !== undefined) updateData.description = parsed.data.description;
     if (parsed.data.color !== undefined) updateData.color = parsed.data.color;

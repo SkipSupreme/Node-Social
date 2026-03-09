@@ -198,21 +198,9 @@ export async function executeVerdict(
         metadata: { appealId: appeal.id },
       },
     });
-  } else {
-    // Burn stake - appellant loses their cred
-    await fastify.prisma.credTransaction.create({
-      data: {
-        userId: appeal.appellantId,
-        amount: -appeal.stake,
-        reason: 'appeal_failed',
-        sourceType: 'appeal',
-        sourceId: appeal.id,
-      },
-    });
-
-    // Note: Stake was already deducted when appeal was created
-    // No need to deduct again
   }
+  // If upheld (appeal fails), stake was already deducted at creation time.
+  // No additional transaction needed — the original appeal_stake record covers it.
 }
 
 /**

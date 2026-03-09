@@ -192,6 +192,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /vouch/user/:userId - Get vouch stats for a user
   fastify.get<{ Params: { userId: string } }>(
     '/user/:userId',
+    { onRequest: [fastify.optionalAuthenticate] },
     async (request, reply) => {
       const { userId } = request.params;
 

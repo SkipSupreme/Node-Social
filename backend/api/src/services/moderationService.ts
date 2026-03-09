@@ -1,7 +1,5 @@
-import { PrismaClient } from '@prisma/client';
-import type { ModQueueItem, Post, PostVibeAggregate, User, Prisma } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import type { PrismaClient, PostVibeAggregate, Prisma } from '@prisma/client';
+import { NOTIFICATION_TYPES } from '../lib/constants.js';
 
 // Constants for Flag Score Calculation
 const WEIGHTS = {
@@ -84,26 +82,18 @@ export class ModerationService {
      * Check if a post needs to be added to or updated in the Mod Queue.
      */
     static async checkAndAddToModQueue(
+        prisma: PrismaClient,
         postId: string,
         nodeId: string,
         aggregate: PostVibeAggregate
     ) {
-        // 1. Get current report count (if we had a reports table, we'd query it)
-        // For now, assume reportCount is 0 or passed in (we'll expand this later)
         const reportCount = 0;
-
-        // 2. Calculate Score
         const result = ModerationService.calculateFlagScore(aggregate, reportCount);
 
-        // 3. If score is low and not already in queue, ignore
         if (result.priority === 'monitor') {
-            // Optionally check if it IS in queue and needs to be resolved/downgraded?
-            // For now, just return
             return;
         }
 
-        // 4. Upsert into ModQueue
-        // We need to find if there's an existing pending/reviewing item
         const existingItem = await prisma.modQueueItem.findFirst({
             where: {
                 postId,
@@ -112,12 +102,11 @@ export class ModerationService {
         });
 
         if (existingItem) {
-            // Update existing item
             await prisma.modQueueItem.update({
                 where: { id: existingItem.id },
                 data: {
                     flagScore: result.score,
-                    weightedFlagScore: result.score, // TODO: Add expert weighting later
+                    weightedFlagScore: result.score,
                     priority: result.priority,
                     questionableRatio: result.breakdown.questionableRatio,
                     shockRatio: result.breakdown.shockRatio,
@@ -127,7 +116,6 @@ export class ModerationService {
                 },
             });
         } else {
-            // Create new item
             await prisma.modQueueItem.create({
                 data: {
                     postId,
@@ -150,6 +138,7 @@ export class ModerationService {
      * Get items from the Mod Queue.
      */
     static async getModQueue(
+        prisma: PrismaClient,
         nodeId?: string,
         status: string = 'pending',
         limit: number = 20,
@@ -163,8 +152,7 @@ export class ModerationService {
         return prisma.modQueueItem.findMany({
             where,
             orderBy: [
-                { priority: 'asc' }, // Critical first (custom sort might be needed if enum is string)
-                // Actually, since priority is string, we might need a mapping or use flagScore desc
+                { priority: 'asc' },
                 { flagScore: 'desc' },
             ],
             take: limit,
@@ -185,6 +173,7 @@ export class ModerationService {
      * Resolve a Mod Queue item.
      */
     static async resolveItem(
+        prisma: PrismaClient,
         itemId: string,
         resolverId: string,
         action: 'approved' | 'removed' | 'warned' | 'banned',
@@ -208,13 +197,11 @@ export class ModerationService {
 
             // 2. Apply action to Post/User
             if (action === 'removed') {
-                // Soft delete post or mark as hidden
                 await tx.post.update({
                     where: { id: item.postId },
                     data: { visibility: 'removed' }
                 });
 
-                // Notify the author their post was removed
                 const post = await tx.post.findUnique({
                     where: { id: item.postId },
                     select: { authorId: true }
@@ -225,7 +212,7 @@ export class ModerationService {
                         data: {
                             userId: post.authorId,
                             actorId: resolverId,
-                            type: 'mod_removed',
+                            type: NOTIFICATION_TYPES.MOD_REMOVED,
                             content: reason || 'Your post was removed by a moderator.',
                             postId: item.postId,
                         }
@@ -234,19 +221,17 @@ export class ModerationService {
             }
 
             if (action === 'warned') {
-                // Get the post to find the author
                 const post = await tx.post.findUnique({
                     where: { id: item.postId },
                     select: { authorId: true }
                 });
 
                 if (post) {
-                    // Create a warning notification for the user
                     await tx.notification.create({
                         data: {
                             userId: post.authorId,
                             actorId: resolverId,
-                            type: 'warning',
+                            type: NOTIFICATION_TYPES.WARNING,
                             content: reason || 'You have received a warning from a moderator.',
                             postId: item.postId,
                         }
@@ -255,14 +240,12 @@ export class ModerationService {
             }
 
             if (action === 'banned') {
-                // Get the post to find the author
                 const post = await tx.post.findUnique({
                     where: { id: item.postId },
                     select: { authorId: true, nodeId: true }
                 });
 
                 if (post && post.nodeId) {
-                    // Ban user from the node by updating their subscription
                     await tx.nodeSubscription.updateMany({
                         where: {
                             userId: post.authorId,
@@ -273,12 +256,11 @@ export class ModerationService {
                         }
                     });
 
-                    // Create a ban notification
                     await tx.notification.create({
                         data: {
                             userId: post.authorId,
                             actorId: resolverId,
-                            type: 'banned',
+                            type: NOTIFICATION_TYPES.BANNED,
                             content: reason || 'You have been banned from this community.',
                             postId: item.postId,
                         }

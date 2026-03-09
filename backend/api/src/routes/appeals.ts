@@ -227,6 +227,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
   // GET /appeals/:id - Get appeal details
   fastify.get<{ Params: { id: string } }>(
     '/:id',
+    { onRequest: [fastify.optionalAuthenticate] },
     async (request, reply) => {
       const { id } = request.params;
 

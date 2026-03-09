@@ -67,7 +67,7 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    const items = await ModerationService.getModQueue(nodeId, status, limit, cursor);
+    const items = await ModerationService.getModQueue(fastify.prisma, nodeId, status, limit, cursor);
 
     // If not site mod, filter items to only their nodes (extra safety)
     const filteredItems = isSiteMod
@@ -129,7 +129,7 @@ const moderationRoutes: FastifyPluginAsync = async (fastify) => {
       }
     }
 
-    await ModerationService.resolveItem(itemId, userId, action, reason);
+    await ModerationService.resolveItem(fastify.prisma, itemId, userId, action, reason);
 
     return { success: true };
   });

@@ -66,9 +66,9 @@ export class ExpertService {
             case 'not_contains':
                 return typeof fieldValue === 'string' && !fieldValue.toLowerCase().includes(String(value).toLowerCase());
             case 'equals':
-                return fieldValue == value;
+                return String(fieldValue) === String(value);
             case 'not_equals':
-                return fieldValue != value;
+                return String(fieldValue) !== String(value);
             case 'gt':
                 return Number(fieldValue) > Number(value);
             case 'lt':

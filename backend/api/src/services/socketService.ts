@@ -13,14 +13,22 @@ export class SocketService {
         this.io.on('connection', (socket: Socket) => {
             console.log(`Socket connected: ${socket.id}`);
 
+            // User room — clients emit join:user with their userId after connecting
+            // so they can receive notification:new events
+            socket.on('join:user', (userId: string) => {
+                socket.join(`user:${userId}`);
+            });
+
+            socket.on('leave:user', (userId: string) => {
+                socket.leave(`user:${userId}`);
+            });
+
             socket.on('join:post', (postId: string) => {
                 socket.join(`post:${postId}`);
-                console.log(`Socket ${socket.id} joined post:${postId}`);
             });
 
             socket.on('leave:post', (postId: string) => {
                 socket.leave(`post:${postId}`);
-                console.log(`Socket ${socket.id} left post:${postId}`);
             });
 
             socket.on('disconnect', () => {

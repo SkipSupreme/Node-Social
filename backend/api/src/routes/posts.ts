@@ -360,7 +360,11 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
         affinity: z.coerce.number().min(0).max(100).optional(),
         trustNetwork: z.coerce.number().min(0).max(100).optional(),
         // Advanced mode - Vector multipliers (JSON string)
-        vectorMultipliers: z.string().optional().transform(v => v ? JSON.parse(v) : undefined),
+        vectorMultipliers: z.string().optional().transform((v, ctx) => {
+          if (!v) return undefined;
+          try { return JSON.parse(v); }
+          catch { ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Invalid JSON for vectorMultipliers' }); return z.NEVER; }
+        }),
         antiAlignmentPenalty: z.coerce.number().min(0).max(100).optional(),
         // Expert mode - Diversity controls
         maxPostsPerAuthor: z.coerce.number().min(1).max(10).optional(),
