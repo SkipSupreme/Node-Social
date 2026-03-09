@@ -8,7 +8,7 @@ import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import type { Prisma } from '@prisma/client';
 import { sendPasswordResetEmail, sendVerificationEmail } from '../lib/email.js';
-import { getErrorMessage, hasFastifyStatusCode, isPrismaError } from '../lib/errors.js';
+import { AppError, getErrorMessage, hasFastifyStatusCode, isPrismaError } from '../lib/errors.js';
 import '@fastify/cookie';
 
 const googleAudience = [
@@ -183,12 +183,13 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
   const generateTokens = async (
     userId: string,
     email: string,
+    emailVerified: boolean,
     parentTokenId?: string | null,
     familyId?: string | null
   ) => {
     // Access token: 15 minutes (standard short-lived JWT; proactive refresh handles renewal)
     const accessToken = fastify.jwt.sign(
-      { sub: userId, email },
+      { sub: userId, email, emailVerified },
       { expiresIn: '15m' }
     );
 
@@ -298,7 +299,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           fastify.log.error({ err, email }, 'Failed to enqueue verification email');
         }
 
-        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, false, null, null);
 
         issueSessionCookies(reply, accessToken, refreshToken);
 
@@ -352,7 +353,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(401).send({ error: 'Invalid credentials' });
       }
 
-      const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+      const { accessToken, refreshToken } = await generateTokens(user.id, user.email, user.emailVerified ?? false, null, null);
 
       issueSessionCookies(reply, accessToken, refreshToken);
 
@@ -500,9 +501,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                 });
 
                 if (existingFederatedIdentity && existingFederatedIdentity.user.id !== user!.id) {
-                  const err = new Error('Google account linking conflict');
-                  (err as any).statusCode = 409;
-                  throw err;
+                  throw new AppError('Google account linking conflict', 409);
                 }
 
                 await tx.federatedIdentity.create({
@@ -515,7 +514,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                 });
               });
             } catch (linkError: unknown) {
-              if (linkError && typeof linkError === 'object' && 'statusCode' in linkError && (linkError as any).statusCode === 409) {
+              if (linkError instanceof AppError && linkError.statusCode === 409) {
                 return reply.status(409).send({
                   error: 'This Google account is already linked to another account. Please sign in with your original method or contact support.',
                 });
@@ -543,7 +542,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, user.emailVerified ?? false, null, null);
 
         issueSessionCookies(reply, accessToken, refreshToken);
 
@@ -727,9 +726,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                 });
 
                 if (existingFederatedIdentity && existingFederatedIdentity.user.id !== user!.id) {
-                  const err = new Error('Apple account linking conflict');
-                  (err as any).statusCode = 409;
-                  throw err;
+                  throw new AppError('Apple account linking conflict', 409);
                 }
 
                 await tx.federatedIdentity.create({
@@ -742,7 +739,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
                 });
               });
             } catch (linkError: unknown) {
-              if (linkError && typeof linkError === 'object' && 'statusCode' in linkError && (linkError as any).statusCode === 409) {
+              if (linkError instanceof AppError && linkError.statusCode === 409) {
                 return reply.status(409).send({
                   error: 'This Apple account is already linked to another account. Please sign in with your original method or contact support.',
                 });
@@ -770,7 +767,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
           }
         }
 
-        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, null, null);
+        const { accessToken, refreshToken } = await generateTokens(user.id, user.email, user.emailVerified ?? false, null, null);
 
         issueSessionCookies(reply, accessToken, refreshToken);
 
@@ -839,7 +836,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
         },
         include: {
           user: {
-            select: { id: true, email: true },
+            select: { id: true, email: true, emailVerified: true },
           },
         },
       });
@@ -894,7 +891,7 @@ const authRoutes: FastifyPluginAsync = async (fastify) => {
       // Token rotation was causing issues with web browsers where cookie updates
       // could be lost, triggering false "reuse detection" and logging users out
       const accessToken = fastify.jwt.sign(
-        { sub: tokenRecord.user.id, email: tokenRecord.user.email },
+        { sub: tokenRecord.user.id, email: tokenRecord.user.email, emailVerified: tokenRecord.user.emailVerified ?? false },
         { expiresIn: '1h' }
       );
 

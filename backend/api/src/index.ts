@@ -40,13 +40,14 @@ import externalAccountRoutes from './routes/external-accounts.js';
 import themeRoutes from './routes/themes.js';
 import { registerEmailQueue } from './lib/emailQueue.js';
 import { trackUserActivity } from './lib/activityTracker.js';
+import { extractBearerToken } from './lib/auth.js';
 import { startRetryProcessor, stopRetryProcessor } from './lib/searchSync.js';
 
 // Tell @fastify/jwt what shape our JWT payload has
 declare module '@fastify/jwt' {
   interface FastifyJWT {
-    payload: { sub: string; email: string };
-    user: { sub: string; email: string };
+    payload: { sub: string; email: string; emailVerified: boolean };
+    user: { sub: string; email: string; emailVerified: boolean };
   }
 }
 
@@ -170,32 +171,21 @@ export async function build(): Promise<FastifyInstance> {
   // Optional authentication - sets request.user if token valid, but doesn't fail if not
   // Used for public endpoints that have enhanced features for logged-in users
   app.decorate('optionalAuthenticate', async function (request: FastifyRequest, _reply: FastifyReply) {
-    // Extract token manually to avoid @fastify/jwt v10 auto-sending 401 on failed jwtVerify
-    const authHeader = request.headers.authorization;
-    const cookieToken = request.cookies?.accessToken;
-    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : cookieToken;
-
-    if (!token) {
-      // No token at all — anonymous user, continue without auth
-      return;
-    }
+    const token = extractBearerToken(request);
+    if (!token) return;
 
     try {
-      const decoded = app.jwt.verify(token) as { sub: string; iat: number };
+      const decoded = app.jwt.verify(token) as { sub: string; email: string; emailVerified: boolean; iat: number };
       (request as any).user = decoded;
     } catch (err) {
       // Silent fail - user stays anonymous, don't send 401
     }
   });
 
-  // Email verification gate — use as preHandler AFTER authenticate
+  // Email verification gate — checks the emailVerified claim in the JWT
+  // No DB query needed; the claim is set at login and refreshed at token renewal
   app.decorate('requireVerified', async function (request: FastifyRequest, reply: FastifyReply) {
-    const userId = (request.user as { sub: string }).sub;
-    const user = await app.prisma.user.findUnique({
-      where: { id: userId },
-      select: { emailVerified: true },
-    });
-    if (!user?.emailVerified) {
+    if (!request.user?.emailVerified) {
       return reply.status(403).send({ error: 'Please verify your email to perform this action' });
     }
   });

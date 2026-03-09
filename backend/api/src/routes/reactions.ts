@@ -3,6 +3,7 @@
 
 import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
+import { NOTIFICATION_TYPES } from '../lib/constants.js';
 import {
   createOrUpdateReaction,
   getReactionsForContent,
@@ -110,7 +111,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
             data: {
               userId: post.authorId,
               actorId: userId,
-              type: 'like', // or 'reaction'
+              type: NOTIFICATION_TYPES.LIKE,
               content: `reacted to your post`,
               postId: post.id
             }

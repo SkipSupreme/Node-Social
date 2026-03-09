@@ -59,7 +59,7 @@ const trendingRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get('/discover/nodes', {
     preHandler: [fastify.authenticate],
   }, async (request, reply) => {
-    const userId = (request as any).user.id;
+    const userId = (request.user as { sub: string }).sub;
     // Get all nodes (limit=50 to show everything)
     const recommendations = await getNodeRecommendations(fastify.prisma, userId, 50);
 

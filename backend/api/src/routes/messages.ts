@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { NOTIFICATION_TYPES } from '../lib/constants.js';
 
 interface UserPayload {
     id: string;
@@ -184,7 +185,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
 
         for (const p of otherParticipants) {
             app.io.to(`user:${p.userId}`).emit('notification:new', {
-                type: 'message',
+                type: NOTIFICATION_TYPES.MESSAGE,
                 content: `New message from ${user.username}`,
                 conversationId: id
             });

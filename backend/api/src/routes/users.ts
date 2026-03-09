@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { getErrorMessage } from '../lib/errors.js';
+import { NOTIFICATION_TYPES } from '../lib/constants.js';
 
 const usersRoutes: FastifyPluginAsync = async (fastify) => {
     // Get current user profile
@@ -349,7 +350,7 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
                 data: {
                     userId: id,
                     actorId: followerId,
-                    type: 'follow',
+                    type: NOTIFICATION_TYPES.FOLLOW,
                     content: 'started following you'
                 }
             });

@@ -2,6 +2,14 @@
  * Type-safe error utilities for catch blocks using `error: unknown`.
  */
 
+/** Application error that carries an HTTP status code. */
+export class AppError extends Error {
+  constructor(message: string, public readonly statusCode: number) {
+    super(message);
+    this.name = 'AppError';
+  }
+}
+
 /** Extract a message string from an unknown thrown value. */
 export function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
@@ -11,11 +19,12 @@ export function getErrorMessage(error: unknown): string {
 
 /** Type guard: Fastify errors with a statusCode property. */
 export function hasFastifyStatusCode(error: unknown): error is { statusCode: number } {
+  if (error instanceof AppError) return true;
   return (
     typeof error === 'object' &&
     error !== null &&
     'statusCode' in error &&
-    typeof (error as any).statusCode === 'number'
+    typeof (error as { statusCode: unknown }).statusCode === 'number'
   );
 }
 

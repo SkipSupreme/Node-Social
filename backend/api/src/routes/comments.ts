@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { updatePostMetrics } from '../lib/metrics.js';
 import { logModAction } from '../lib/moderation.js';
+import { NOTIFICATION_TYPES } from '../lib/constants.js';
 
 const commentRoutes: FastifyPluginAsync = async (fastify) => {
   // Create a new comment
@@ -99,7 +100,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           data: {
             userId: post.authorId,
             actorId: userId,
-            type: 'comment',
+            type: NOTIFICATION_TYPES.COMMENT,
             content: `commented on "${postPreview}..."`,
             postId: post.id,
             commentId: comment.id

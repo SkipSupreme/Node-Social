@@ -891,9 +891,16 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
               orderBy: { createdAt: 'desc' },
               take: 100,
             }),
-            // Get all active vouches for trust network
+            // Get active vouches involving this user for trust network (hop-1)
+            // Scoped to user's direct connections instead of loading all vouches system-wide
             fastify.prisma.vouch.findMany({
-              where: { active: true },
+              where: {
+                active: true,
+                OR: [
+                  { voucherId: userId },
+                  { voucheeId: userId },
+                ],
+              },
               select: { voucherId: true, voucheeId: true, active: true },
             }),
           ])

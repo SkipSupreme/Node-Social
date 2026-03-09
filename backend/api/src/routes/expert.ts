@@ -1,4 +1,5 @@
 import type { FastifyPluginAsync } from 'fastify';
+import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { ExpertService } from '../services/expertService.js';
 
@@ -72,8 +73,8 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
 
         await fastify.prisma.nodeVectorConfig.upsert({
             where: { nodeId },
-            update: { expertConfig: validated as any },
-            create: { nodeId, expertConfig: validated as any },
+            update: { expertConfig: validated as Prisma.InputJsonValue },
+            create: { nodeId, expertConfig: validated as Prisma.InputJsonValue },
         });
 
         return { success: true, config: validated };
@@ -106,11 +107,11 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
         // Validate
         const validated = ExpertService.validateRules(rules);
 
-        const updateData: any = {};
+        const updateData: Record<string, Prisma.InputJsonValue> = {};
         if (type === 'suppression') {
-            updateData.suppressionRules = validated as any;
+            updateData.suppressionRules = validated as Prisma.InputJsonValue;
         } else {
-            updateData.boostRules = validated as any;
+            updateData.boostRules = validated as Prisma.InputJsonValue;
         }
 
         await fastify.prisma.nodeVectorConfig.upsert({

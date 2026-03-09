@@ -378,20 +378,22 @@ const JWT_SECRET = 'test-jwt-secret-that-is-long-enough';
 export function generateTestToken(
   app: FastifyInstance,
   userId: string,
-  email: string = 'test@example.com'
+  email: string = 'test@example.com',
+  emailVerified: boolean = true
 ): string {
-  return app.jwt.sign({ sub: userId, email }, { expiresIn: '15m' });
+  return app.jwt.sign({ sub: userId, email, emailVerified }, { expiresIn: '15m' });
 }
 
 /** Generate an expired JWT access token for testing expiration handling. */
 export function generateExpiredToken(
   app: FastifyInstance,
   userId: string,
-  email: string = 'test@example.com'
+  email: string = 'test@example.com',
+  emailVerified: boolean = true
 ): string {
   // Use '-1s' to create a token that's already 1 second past expiry.
   // '0s' converts to 0ms which fast-jwt interprets as "no expiry" (no exp claim set).
-  return app.jwt.sign({ sub: userId, email }, { expiresIn: '-1s' });
+  return app.jwt.sign({ sub: userId, email, emailVerified }, { expiresIn: '-1s' });
 }
 
 /** A standard test user object matching the User model shape. */
