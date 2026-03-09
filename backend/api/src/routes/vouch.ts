@@ -195,7 +195,7 @@ const vouchRoutes: FastifyPluginAsync = async (fastify) => {
     async (request, reply) => {
       const { userId } = request.params;
 
-      const currentUserId = (request.user as { id?: string } | undefined)?.id;
+      const currentUserId = (request.user as { sub?: string } | undefined)?.sub;
 
       const [vouchesGiven, vouchesReceived, currentUserVouch] = await Promise.all([
         fastify.prisma.vouch.count({

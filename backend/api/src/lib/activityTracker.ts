@@ -57,8 +57,8 @@ export function calculateActivityMultiplier(lastActiveAt: Date): number {
 export function activityTrackerPlugin(fastify: FastifyInstance): void {
   fastify.addHook('onRequest', async (request: FastifyRequest) => {
     // Only track for authenticated users
-    const user = request.user as { id?: string; sub?: string } | undefined;
-    const userId = user?.id || user?.sub;
+    const user = request.user as { sub?: string } | undefined;
+    const userId = user?.sub;
     if (userId) {
       await trackUserActivity(fastify, userId);
     }

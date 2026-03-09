@@ -252,7 +252,7 @@ const appealRoutes: FastifyPluginAsync = async (fastify) => {
       }
 
       // Check if current user is a juror
-      const currentUserId = (request.user as { id?: string } | undefined)?.id;
+      const currentUserId = (request.user as { sub?: string } | undefined)?.sub;
       const isJuror = appeal.jurors.some((j) => j.userId === currentUserId);
       const hasVoted = appeal.votes.some((v) => v.jurorId === currentUserId);
 

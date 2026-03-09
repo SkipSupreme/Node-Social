@@ -3,15 +3,14 @@ import { z } from 'zod';
 import { NOTIFICATION_TYPES } from '../lib/constants.js';
 
 interface UserPayload {
-    id: string;
-    username: string;
+    sub: string;
 }
 
 export default async function messagesRoutes(app: FastifyInstance) {
     // Get all conversations for the current user
     app.get('/conversations', { onRequest: [app.authenticate] }, async (req, reply) => {
         const user = req.user as unknown as UserPayload;
-        const userId = user.id;
+        const userId = user.sub;
 
         const conversations = await app.prisma.conversation.findMany({
             where: {
@@ -47,7 +46,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
     // Get messages for a specific conversation
     app.get('/conversations/:id', { onRequest: [app.authenticate] }, async (req, reply) => {
         const user = req.user as unknown as UserPayload;
-        const userId = user.id;
+        const userId = user.sub;
         const { id } = req.params as { id: string };
 
         // Verify participation
@@ -84,7 +83,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
     // Start a new conversation
     app.post('/conversations', { onRequest: [app.authenticate] }, async (req, reply) => {
         const user = req.user as unknown as UserPayload;
-        const userId = user.id;
+        const userId = user.sub;
         const recipientParsed = z.object({ recipientId: z.string().uuid() }).safeParse(req.body);
         if (!recipientParsed.success) {
             return reply.status(400).send({ error: 'Invalid input' });
@@ -131,7 +130,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
     // Send a message
     app.post('/conversations/:id/messages', { onRequest: [app.authenticate] }, async (req, reply) => {
         const user = req.user as unknown as UserPayload;
-        const userId = user.id;
+        const userId = user.sub;
         const { id } = req.params as { id: string };
         const bodyParsed = z.object({ content: z.string().min(1).max(10000) }).safeParse(req.body);
         if (!bodyParsed.success) {
@@ -186,7 +185,7 @@ export default async function messagesRoutes(app: FastifyInstance) {
         for (const p of otherParticipants) {
             app.io.to(`user:${p.userId}`).emit('notification:new', {
                 type: NOTIFICATION_TYPES.MESSAGE,
-                content: `New message from ${user.username}`,
+                content: `New message from ${(message as any).sender?.username ?? 'someone'}`,
                 conversationId: id
             });
         }
