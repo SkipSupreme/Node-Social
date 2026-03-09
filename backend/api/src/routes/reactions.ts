@@ -18,11 +18,9 @@ import {
 
 const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   // Get all platform Vibe Vectors (for frontend to populate radial wheel)
+  // Public: anonymous users need this to render the reaction UI
   fastify.get(
     '/vectors',
-    {
-      onRequest: [fastify.authenticate],
-    },
     async (request, reply) => {
       try {
         const vectors = await getAllVibeVectors(fastify.prisma);
@@ -203,11 +201,9 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Get reactions for a post
+  // Public: anonymous users can see reaction aggregates
   fastify.get(
     '/posts/:postId',
-    {
-      onRequest: [fastify.authenticate],
-    },
     async (request, reply) => {
       const { postId } = request.params as { postId: string };
 
@@ -235,11 +231,9 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   );
 
   // Get reactions for a comment
+  // Public: anonymous users can see reaction aggregates
   fastify.get(
     '/comments/:commentId',
-    {
-      onRequest: [fastify.authenticate],
-    },
     async (request, reply) => {
       const { commentId } = request.params as { commentId: string };
 
@@ -400,11 +394,11 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.get(
     '/external-posts/:externalPostId',
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const { externalPostId } = request.params as { externalPostId: string };
-      const userId = (request.user as { sub: string }).sub;
+      const userId = (request.user as { sub: string } | undefined)?.sub;
 
       try {
         const result = await getReactionsForExternalPost(fastify.prisma, externalPostId, userId);
@@ -453,7 +447,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   fastify.post(
     '/external-posts/aggregates',
     {
-      onRequest: [fastify.authenticate],
+      onRequest: [fastify.optionalAuthenticate],
     },
     async (request, reply) => {
       const schema = z.object({
@@ -465,7 +459,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid input', details: parsed.error });
       }
 
-      const userId = (request.user as { sub: string }).sub;
+      const userId = (request.user as { sub: string } | undefined)?.sub;
 
       try {
         const result = await batchGetExternalPostAggregates(fastify.prisma, parsed.data.ids, userId);

@@ -4,6 +4,7 @@ import {
   getVelocitySpikes,
   getRisingNodes,
   getNodeRecommendations,
+  getPopularNodes,
   getNodeTrendingHashtags,
 } from '../services/trendingService.js';
 
@@ -54,14 +55,17 @@ const trendingRoutes: FastifyPluginAsync = async (fastify) => {
 
   /**
    * GET /discover/nodes
-   * Get all nodes the user isn't a member of
+   * Authenticated: personalized recommendations (excludes user's nodes)
+   * Anonymous: popular nodes sorted by member count
    */
   fastify.get('/discover/nodes', {
-    preHandler: [fastify.authenticate],
+    preHandler: [fastify.optionalAuthenticate],
   }, async (request, reply) => {
-    const userId = (request.user as { sub: string }).sub;
-    // Get all nodes (limit=50 to show everything)
-    const recommendations = await getNodeRecommendations(fastify.prisma, userId, 50);
+    const userId = (request.user as { sub: string } | undefined)?.sub;
+
+    const recommendations = userId
+      ? await getNodeRecommendations(fastify.prisma, userId, 50)
+      : await getPopularNodes(fastify.prisma, new Set(), 50);
 
     return {
       recommendations,

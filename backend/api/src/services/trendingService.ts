@@ -359,9 +359,10 @@ export async function getNodeRecommendations(
 }
 
 /**
- * Get popular nodes (fallback for users with no reaction history)
+ * Get popular nodes — used as fallback for users with no reaction history,
+ * and as the primary source for anonymous/unauthenticated discovery.
  */
-async function getPopularNodes(
+export async function getPopularNodes(
   prisma: PrismaClient,
   excludeNodeIds: Set<string>,
   limit: number

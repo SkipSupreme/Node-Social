@@ -14,6 +14,7 @@ import {
 } from '../../lib/api';
 import { useAppTheme } from '../../hooks/useTheme';
 import { useAuthStore } from '../../store/auth';
+import { useAuthPrompt } from '../../context/AuthPromptContext';
 
 interface WhatsVibingProps {
   onNodeClick: (nodeId: string) => void;
@@ -23,6 +24,7 @@ export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
   const theme = useAppTheme();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
+  const { requireAuth } = useAuthPrompt();
 
   // Fetch trending data
   const { data: vibesData, isLoading: vibesLoading } = useQuery({
@@ -44,10 +46,10 @@ export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
     queryFn: getDiscoverNodes,
     refetchInterval: 120000, // Refresh every 2 minutes
     staleTime: 60000,
-    enabled: !!user, // Requires authentication
   });
 
   const handleJoinNode = async (nodeId: string) => {
+    if (!requireAuth('Sign in to join communities')) return;
     try {
       await joinNode(nodeId);
       // Refetch discover nodes after joining
@@ -113,7 +115,7 @@ export const WhatsVibing: React.FC<WhatsVibingProps> = ({ onNodeClick }) => {
           <Sparkles size={16} color="#f59e0b" />
           <Text style={[styles.sectionTitle, { color: theme.text }]}>Discover Nodes</Text>
         </View>
-        <Text style={[styles.sectionSubtitle, { color: theme.muted }]}>Based on your vibes</Text>
+        <Text style={[styles.sectionSubtitle, { color: theme.muted }]}>{user ? 'Based on your vibes' : 'Popular communities'}</Text>
 
         {discoverLoading ? (
           <ActivityIndicator size="small" color="#f59e0b" style={styles.loader} />

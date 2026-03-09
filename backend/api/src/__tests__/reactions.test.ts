@@ -338,13 +338,17 @@ describe('GET /reactions/posts/:postId', () => {
     expect(res.statusCode).toBe(404);
   });
 
-  it('should require authentication', async () => {
+  it('should allow anonymous access (public endpoint)', async () => {
+    prisma.post.findUnique.mockResolvedValue({ id: POST_ID, deletedAt: null });
+    prisma.vibeReaction.findMany.mockResolvedValue([]);
+
     const res = await app.inject({
       method: 'GET',
       url: `/reactions/posts/${POST_ID}`,
     });
 
-    expect(res.statusCode).toBe(401);
+    // Read-only aggregates are publicly accessible
+    expect(res.statusCode).not.toBe(401);
   });
 });
 
@@ -412,12 +416,13 @@ describe('GET /reactions/vectors', () => {
     expect(res.json().vectors).toHaveLength(2);
   });
 
-  it('should require authentication', async () => {
+  it('should allow anonymous access (public endpoint)', async () => {
     const res = await app.inject({
       method: 'GET',
       url: '/reactions/vectors',
     });
 
-    expect(res.statusCode).toBe(401);
+    // Vibe vectors are public metadata needed to render the reaction UI
+    expect(res.statusCode).toBe(200);
   });
 });

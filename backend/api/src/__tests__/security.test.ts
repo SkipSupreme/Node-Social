@@ -189,7 +189,6 @@ describe('Authentication Enforcement', () => {
     { method: 'DELETE' as const, url: '/posts/some-id' },
     { method: 'GET' as const, url: '/users/me' },
     { method: 'PUT' as const, url: '/users/me', payload: { bio: 'test' } },
-    { method: 'GET' as const, url: '/reactions/vectors' },
     { method: 'GET' as const, url: '/feed-preferences' },
   ];
 
