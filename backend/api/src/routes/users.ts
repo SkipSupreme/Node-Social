@@ -359,10 +359,8 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         }
     });
 
-    // Get user's cred history
-    fastify.get('/:userId/cred/history', {
-        onRequest: [fastify.authenticate]
-    }, async (request, reply) => {
+    // Get user's cred history (public — reputation transparency)
+    fastify.get('/:userId/cred/history', async (request, reply) => {
         const { userId } = request.params as { userId: string };
 
         // Get cred transactions

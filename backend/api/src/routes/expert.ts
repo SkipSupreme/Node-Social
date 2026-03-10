@@ -15,10 +15,8 @@ const expertRoutes: FastifyPluginAsync = async (fastify) => {
         return { allowed: false as const, reason: 'Only node creator or site admin can modify expert config' };
     }
 
-    // GET /expert/config (authenticated — any member can read)
-    fastify.get('/config', {
-        onRequest: [fastify.authenticate],
-    }, async (request, reply) => {
+    // GET /expert/config (public — algorithmic transparency)
+    fastify.get('/config', async (request, reply) => {
         const schema = z.object({
             nodeId: z.string().uuid(),
         });
