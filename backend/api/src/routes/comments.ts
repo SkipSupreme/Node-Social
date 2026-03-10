@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { updatePostMetrics } from '../lib/metrics.js';
 import { logModAction } from '../lib/moderation.js';
 import { NOTIFICATION_TYPES } from '../lib/constants.js';
+import { commentsResponseSchema } from '../lib/responseSchemas.js';
 
 const commentRoutes: FastifyPluginAsync = async (fastify) => {
   // Create a new comment
@@ -122,6 +123,7 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
     '/posts/:postId/comments',
     {
       onRequest: [fastify.optionalAuthenticate],
+      schema: { response: commentsResponseSchema },
     },
     async (request, reply) => {
       const { postId } = request.params as { postId: string };
@@ -150,9 +152,9 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         where.parentId = parentId || null;
       }
 
-      // If sorting by vibe, we need to fetch more to find the top ones
-      // For MVP, we'll fetch up to 200, sort in memory, and return limit
-      const fetchLimit = sortBy && sortBy !== 'newest' ? 200 : limit;
+      // If sorting by vibe, we need all reactions for in-memory scoring
+      const needsAllReactions = sortBy && sortBy !== 'newest';
+      const fetchLimit = needsAllReactions ? 200 : limit;
 
       let comments = await fastify.prisma.comment.findMany({
         where,
@@ -171,7 +173,13 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
           _count: {
             select: { replies: true },
           },
-          reactions: true, // Include reactions for sorting
+          // Only fetch all reactions when sorting by vibe vector;
+          // otherwise just grab the current user's reaction (or nothing for anon)
+          reactions: needsAllReactions
+            ? true
+            : userId
+              ? { where: { userId }, select: { intensities: true }, take: 1 }
+              : false,
         },
       });
 
@@ -193,34 +201,18 @@ const commentRoutes: FastifyPluginAsync = async (fastify) => {
         }
       }
 
-      // Format response
-      type CommentWithRelations = Prisma.CommentGetPayload<{
-        include: {
-          author: {
-            select: {
-              id: true,
-              username: true,
-              avatar: true,
-              era: true,
-              cred: true,
-            },
-          },
-          _count: {
-            select: { replies: true },
-          },
-          reactions: true,
-        }
-      }>;
-
-      const formattedComments = (comments as CommentWithRelations[]).map((comment) => {
-        // Find current user's reaction for this comment
-        const myReaction = comment.reactions.find(r => r.userId === userId);
+      // Format response — reactions shape depends on whether we fetched all or just user's
+      const formattedComments = (comments as Array<typeof comments[number]>).map((comment) => {
+        const reactions = (comment as Record<string, unknown>).reactions as Array<{ userId?: string; intensities: unknown }> | undefined;
+        const myReaction = needsAllReactions
+          ? reactions?.find(r => r.userId === userId)?.intensities || null
+          : reactions?.[0]?.intensities || null;
 
         return {
           ...comment,
           replyCount: comment._count.replies,
           _count: undefined,
-          myReaction: myReaction?.intensities || null,
+          myReaction,
           reactions: undefined, // Don't send full reactions array to client
         };
       });

@@ -4,6 +4,10 @@ import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
 
+// Prevent libvips cache from growing with unique uploads; limit threads for infrequent image work
+sharp.cache(false);
+sharp.concurrency(2);
+
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const AVATAR_SIZE = 200; // 44px display × ~4.5x DPR ceiling

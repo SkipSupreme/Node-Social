@@ -66,8 +66,13 @@ declare module 'fastify' {
  */
 export async function build(): Promise<FastifyInstance> {
   const isTest = process.env.NODE_ENV === 'test';
-  const app = Fastify({ logger: !isTest }); // Disable logging in tests
   const isProd = process.env.NODE_ENV === 'production';
+  const app = Fastify({
+    logger: isTest ? false : { level: isProd ? 'warn' : 'info' },
+    disableRequestLogging: isProd,    // Skip per-request log pairs in production
+    keepAliveTimeout: 72_000,         // 72s > typical ALB 60s idle timeout
+    requestTimeout: 120_000,          // 2min max per request
+  });
 
   // Fail-fast: require real secrets in production
   if (isProd) {

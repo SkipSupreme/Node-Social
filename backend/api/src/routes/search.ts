@@ -3,6 +3,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { getSyncHealth, isMeiliAvailable, triggerRetryProcessing } from '../lib/searchSync.js';
+import { searchPostsResponseSchema } from '../lib/responseSchemas.js';
 
 const searchRoutes: FastifyPluginAsync = async (fastify) => {
   // Search posts (public endpoint)
@@ -10,6 +11,7 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
     '/search/posts',
     {
       onRequest: [fastify.optionalAuthenticate],
+      schema: { response: searchPostsResponseSchema },
       config: {
         rateLimit: {
           max: 30,
@@ -95,7 +97,7 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
                 cred: true,
               },
             },
-            node: true,
+            node: { select: { id: true, slug: true, name: true, description: true } },
             _count: {
               select: { comments: true },
             },

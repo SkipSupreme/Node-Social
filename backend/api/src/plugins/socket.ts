@@ -16,26 +16,33 @@ export default fp(async (fastify: FastifyInstance) => {
             methods: ['GET', 'POST'],
             credentials: true,
         },
+        transports: ['websocket'],          // Skip HTTP long-polling; connect via WebSocket directly
+        pingInterval: 25_000,
+        pingTimeout: 20_000,
+        connectionStateRecovery: {
+            maxDisconnectionDuration: 2 * 60 * 1000,   // Re-deliver missed events within 2 min
+            skipMiddlewares: true,
+        },
     });
 
     // Initialize SocketService
     initSocketService(io);
 
     io.on('connection', (socket: Socket) => {
-        fastify.log.info(`Socket connected: ${socket.id}`);
+        fastify.log.debug(`Socket connected: ${socket.id}`);
 
         socket.on('join_room', (room: string) => {
             socket.join(room);
-            fastify.log.info(`Socket ${socket.id} joined room ${room}`);
+            fastify.log.debug(`Socket ${socket.id} joined room ${room}`);
         });
 
         socket.on('leave_room', (room: string) => {
             socket.leave(room);
-            fastify.log.info(`Socket ${socket.id} left room ${room}`);
+            fastify.log.debug(`Socket ${socket.id} left room ${room}`);
         });
 
         socket.on('disconnect', () => {
-            fastify.log.info(`Socket disconnected: ${socket.id}`);
+            fastify.log.debug(`Socket disconnected: ${socket.id}`);
         });
     });
 

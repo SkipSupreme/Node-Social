@@ -7,13 +7,18 @@ import {
   getPopularNodes,
   getNodeTrendingHashtags,
 } from '../services/trendingService.js';
+import {
+  trendingVibesResponseSchema,
+  trendingNodesResponseSchema,
+  discoverNodesResponseSchema,
+} from '../lib/responseSchemas.js';
 
 const trendingRoutes: FastifyPluginAsync = async (fastify) => {
   /**
    * GET /trending/vibes
    * Get velocity spikes - which vibes are accelerating fastest across nodes
    */
-  fastify.get('/trending/vibes', async (request, reply) => {
+  fastify.get('/trending/vibes', { schema: { response: trendingVibesResponseSchema } }, async (request, reply) => {
     const spikes = await getVelocitySpikes(fastify.prisma, 5);
 
     // Enrich with hashtags for top 3 spikes
@@ -44,7 +49,7 @@ const trendingRoutes: FastifyPluginAsync = async (fastify) => {
    * GET /trending/nodes
    * Get fastest growing nodes by member count
    */
-  fastify.get('/trending/nodes', async (request, reply) => {
+  fastify.get('/trending/nodes', { schema: { response: trendingNodesResponseSchema } }, async (request, reply) => {
     const nodes = await getRisingNodes(fastify.prisma, 5);
 
     return {
@@ -60,6 +65,7 @@ const trendingRoutes: FastifyPluginAsync = async (fastify) => {
    */
   fastify.get('/discover/nodes', {
     preHandler: [fastify.optionalAuthenticate],
+    schema: { response: discoverNodesResponseSchema },
   }, async (request, reply) => {
     const userId = (request.user as { sub: string } | undefined)?.sub;
 

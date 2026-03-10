@@ -15,12 +15,14 @@ import {
   validateIntensities,
   type VibeIntensities,
 } from '../services/vibeService.js';
+import { vectorsResponseSchema, postReactionsResponseSchema } from '../lib/responseSchemas.js';
 
 const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   // Get all platform Vibe Vectors (for frontend to populate radial wheel)
   // Public: anonymous users need this to render the reaction UI
   fastify.get(
     '/vectors',
+    { schema: { response: vectorsResponseSchema } },
     async (request, reply) => {
       try {
         const vectors = await getAllVibeVectors(fastify.prisma);
@@ -204,6 +206,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   // Public: anonymous users can see reaction aggregates
   fastify.get(
     '/posts/:postId',
+    { schema: { response: postReactionsResponseSchema } },
     async (request, reply) => {
       const { postId } = request.params as { postId: string };
 
@@ -234,6 +237,7 @@ const reactionRoutes: FastifyPluginAsync = async (fastify) => {
   // Public: anonymous users can see reaction aggregates
   fastify.get(
     '/comments/:commentId',
+    { schema: { response: postReactionsResponseSchema } },
     async (request, reply) => {
       const { commentId } = request.params as { commentId: string };
 

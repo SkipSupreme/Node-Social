@@ -5,6 +5,10 @@ import path from 'path';
 import fs from 'fs/promises';
 import sharp from 'sharp';
 
+// Process-global sharp tuning (idempotent if also set in uploads.ts)
+sharp.cache(false);
+sharp.concurrency(2);
+
 const UPLOADS_DIR = path.join(process.cwd(), 'uploads');
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const NODE_AVATAR_SIZE = 200; // Node avatar size

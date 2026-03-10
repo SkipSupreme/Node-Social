@@ -31,6 +31,7 @@ import { logModAction } from '../lib/moderation.js';
 import { ExpertService, type ExpertRule } from '../services/expertService.js';
 import { analyzePost } from '../lib/contentIntelligence.js';
 import { ssrfSafeFetch } from '../lib/ssrf.js';
+import { feedResponseSchema } from '../lib/responseSchemas.js';
 
 // Helper to extract plain text from TipTap JSON for search indexing and content intelligence
 interface TipTapNode {
@@ -311,6 +312,7 @@ const postRoutes: FastifyPluginAsync = async (fastify) => {
     '/',
     {
       onRequest: [fastify.optionalAuthenticate],
+      schema: { response: feedResponseSchema },
     },
     async (request, reply) => {
       const schema = z.object({
