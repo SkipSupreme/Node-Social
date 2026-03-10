@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
-import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, FlatList, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, TextStyle, StyleProp, ViewStyle, GestureResponderEvent, ViewProps } from 'react-native';
+import { View, Text, Image, TouchableOpacity, ScrollView, StyleSheet, Dimensions, Platform, Modal, TextInput, Share, Linking, ActivityIndicator, StatusBar, RefreshControl, NativeSyntheticEvent, NativeScrollEvent, TextStyle, StyleProp, ViewStyle, GestureResponderEvent, ViewProps } from 'react-native';
+import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { MessageSquare, Share2, Zap, Bookmark, CornerDownRight, Minus, MoreHorizontal, Shield, ChevronDown, Hexagon, X, Ban, BellOff, Edit2, Trash2, Flag, Link2, RefreshCw } from './Icons';
 import { Play } from 'lucide-react-native';
 import { ERAS, SCOPE_COLORS } from '../../constants/theme';
@@ -1792,7 +1793,7 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         refreshingText: { color: theme.muted },
     }), [theme]);
 
-    const flatListRef = useRef<FlatList<FeedItem>>(null);
+    const flatListRef = useRef<FlashListRef<FeedItem>>(null);
 
     // Web pull-to-refresh state
     const [webPullDistance, setWebPullDistance] = useState(0);
@@ -2044,12 +2045,11 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
         <View style={feedStyles.feedContainer} {...webTouchProps}>
             {WebPullIndicator}
             <View style={pullTransformStyle}>
-                <FlatList
+                <FlashList
                     ref={flatListRef}
                     data={feedData}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
-                    style={[feedStyles.flatList, ts.flatList]}
                     contentContainerStyle={contentContainerStyle}
                     onScroll={handleScrollWithTracking}
                     scrollEventThrottle={Platform.OS === 'web' ? 32 : 16}
@@ -2069,11 +2069,6 @@ export const Feed = ({ posts, externalPosts = [], currentUser, onPostAction, onV
                             />
                         ) : undefined
                     }
-                    // Virtualization optimizations
-                    windowSize={5}
-                    maxToRenderPerBatch={Platform.OS === 'web' ? 4 : 8}
-                    initialNumToRender={6}
-                    removeClippedSubviews={Platform.OS !== 'web'}
                 />
             </View>
         </View>

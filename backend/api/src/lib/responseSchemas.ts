@@ -325,6 +325,7 @@ export const searchPostsResponseSchema = {
     properties: {
       posts: { type: 'array' as const, items: postItemSchema },
       total: { type: 'integer' as const },
+      nextCursor: { type: 'string' as const },
       hasMore: { type: 'boolean' as const },
     },
   },

@@ -25,12 +25,12 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
     // Post results
     const [postResults, setPostResults] = useState<Post[]>([]);
     const [trending, setTrending] = useState<Post[]>([]);
-    const [postOffset, setPostOffset] = useState(0);
+    const [postCursor, setPostCursor] = useState<string | undefined>(undefined);
     const [postHasMore, setPostHasMore] = useState(true);
 
     // User results
     const [userResults, setUserResults] = useState<SearchUser[]>([]);
-    const [userOffset, setUserOffset] = useState(0);
+    const [userCursor, setUserCursor] = useState<string | undefined>(undefined);
     const [userHasMore, setUserHasMore] = useState(true);
 
     const [loading, setLoading] = useState(false);
@@ -49,21 +49,21 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
             (async () => {
                 setLoading(true);
                 setSearched(true);
-                setPostOffset(0);
-                setUserOffset(0);
+                setPostCursor(undefined);
+                setUserCursor(undefined);
                 setPostHasMore(true);
                 setUserHasMore(true);
                 try {
                     const [postsData, usersData] = await Promise.all([
-                        searchPosts(initialQuery.trim(), PAGE_SIZE, 0),
-                        searchUsers(initialQuery.trim(), PAGE_SIZE, 0),
+                        searchPosts(initialQuery.trim(), PAGE_SIZE),
+                        searchUsers(initialQuery.trim(), PAGE_SIZE),
                     ]);
                     setPostResults(postsData.posts || []);
                     setPostHasMore(postsData.hasMore ?? (postsData.posts?.length === PAGE_SIZE));
-                    setPostOffset(PAGE_SIZE);
+                    setPostCursor(postsData.nextCursor);
                     setUserResults(usersData.users || []);
                     setUserHasMore(usersData.hasMore ?? (usersData.users?.length === PAGE_SIZE));
-                    setUserOffset(PAGE_SIZE);
+                    setUserCursor(usersData.nextCursor);
                 } catch (error) {
                     console.error('Initial search failed:', error);
                     setPostResults([]);
@@ -97,25 +97,25 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
 
         setLoading(true);
         setSearched(true);
-        setPostOffset(0);
-        setUserOffset(0);
+        setPostCursor(undefined);
+        setUserCursor(undefined);
         setPostHasMore(true);
         setUserHasMore(true);
 
         try {
             // Search both posts and users in parallel
             const [postsData, usersData] = await Promise.all([
-                searchPosts(query.trim(), PAGE_SIZE, 0),
-                searchUsers(query.trim(), PAGE_SIZE, 0),
+                searchPosts(query.trim(), PAGE_SIZE),
+                searchUsers(query.trim(), PAGE_SIZE),
             ]);
 
             setPostResults(postsData.posts || []);
             setPostHasMore(postsData.hasMore ?? (postsData.posts?.length === PAGE_SIZE));
-            setPostOffset(PAGE_SIZE);
+            setPostCursor(postsData.nextCursor);
 
             setUserResults(usersData.users || []);
             setUserHasMore(usersData.hasMore ?? (usersData.users?.length === PAGE_SIZE));
-            setUserOffset(PAGE_SIZE);
+            setUserCursor(usersData.nextCursor);
         } catch (error) {
             console.error('Search failed:', error);
             setPostResults([]);
@@ -128,16 +128,16 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
     };
 
     const loadMorePosts = useCallback(async () => {
-        if (!searched || loadingMore || !postHasMore || !query.trim()) return;
+        if (!searched || loadingMore || !postHasMore || !query.trim() || !postCursor) return;
 
         setLoadingMore(true);
         try {
-            const data = await searchPosts(query.trim(), PAGE_SIZE, postOffset);
+            const data = await searchPosts(query.trim(), PAGE_SIZE, postCursor);
             const newPosts = data.posts || [];
 
             if (newPosts.length > 0) {
                 setPostResults(prev => [...prev, ...newPosts]);
-                setPostOffset(prev => prev + PAGE_SIZE);
+                setPostCursor(data.nextCursor);
                 setPostHasMore(data.hasMore ?? (newPosts.length === PAGE_SIZE));
             } else {
                 setPostHasMore(false);
@@ -147,19 +147,19 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
         } finally {
             setLoadingMore(false);
         }
-    }, [searched, loadingMore, postHasMore, query, postOffset]);
+    }, [searched, loadingMore, postHasMore, query, postCursor]);
 
     const loadMoreUsers = useCallback(async () => {
-        if (!searched || loadingMore || !userHasMore || !query.trim()) return;
+        if (!searched || loadingMore || !userHasMore || !query.trim() || !userCursor) return;
 
         setLoadingMore(true);
         try {
-            const data = await searchUsers(query.trim(), PAGE_SIZE, userOffset);
+            const data = await searchUsers(query.trim(), PAGE_SIZE, userCursor);
             const newUsers = data.users || [];
 
             if (newUsers.length > 0) {
                 setUserResults(prev => [...prev, ...newUsers]);
-                setUserOffset(prev => prev + PAGE_SIZE);
+                setUserCursor(data.nextCursor);
                 setUserHasMore(data.hasMore ?? (newUsers.length === PAGE_SIZE));
             } else {
                 setUserHasMore(false);
@@ -169,15 +169,15 @@ export const DiscoveryScreen = ({ onBack, onPostClick, onUserClick, initialQuery
         } finally {
             setLoadingMore(false);
         }
-    }, [searched, loadingMore, userHasMore, query, userOffset]);
+    }, [searched, loadingMore, userHasMore, query, userCursor]);
 
     const clearSearch = () => {
         setQuery('');
         setPostResults([]);
         setUserResults([]);
         setSearched(false);
-        setPostOffset(0);
-        setUserOffset(0);
+        setPostCursor(undefined);
+        setUserCursor(undefined);
         setPostHasMore(true);
         setUserHasMore(true);
     };

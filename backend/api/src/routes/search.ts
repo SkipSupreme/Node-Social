@@ -23,7 +23,8 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
       const schema = z.object({
         q: z.string().min(1).max(200),
         limit: z.coerce.number().min(1).max(50).default(20),
-        offset: z.coerce.number().min(0).default(0),
+        cursor: z.string().optional(),
+        offset: z.coerce.number().min(0).optional(), // deprecated — use cursor
         nodeId: z.string().uuid().optional(),
         authorId: z.string().uuid().optional(),
       });
@@ -33,7 +34,9 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { q, limit, offset, nodeId, authorId } = parsed.data;
+      const { q, limit, cursor, offset: legacyOffset, nodeId, authorId } = parsed.data;
+      // cursor encodes the MeiliSearch offset; fall back to legacy offset param
+      const offset = cursor ? parseInt(cursor, 10) || 0 : (legacyOffset ?? 0);
 
       try {
         const index = fastify.meilisearch.index('posts');
@@ -143,10 +146,14 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
           _count: undefined,
         }));
 
+        const nextOffset = offset + formattedPosts.length;
+        const hasMore = nextOffset < searchResults.estimatedTotalHits;
+
         return reply.send({
           posts: formattedPosts,
           total: searchResults.estimatedTotalHits,
-          hasMore: offset + limit < searchResults.estimatedTotalHits,
+          nextCursor: hasMore ? String(nextOffset) : undefined,
+          hasMore,
         });
       } catch (error) {
         fastify.log.error({ err: error }, 'MeiliSearch query failed');
@@ -171,7 +178,8 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
       const schema = z.object({
         q: z.string().min(1).max(50),
         limit: z.coerce.number().min(1).max(50).default(20),
-        offset: z.coerce.number().min(0).default(0),
+        cursor: z.string().uuid().optional(),
+        offset: z.coerce.number().min(0).optional(), // deprecated — use cursor
       });
 
       const parsed = schema.safeParse(request.query);
@@ -179,7 +187,7 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.status(400).send({ error: 'Invalid query parameters' });
       }
 
-      const { q, limit, offset } = parsed.data;
+      const { q, limit, cursor, offset: legacyOffset } = parsed.data;
 
       try {
         // Search users by username (case-insensitive prefix/contains match)
@@ -215,7 +223,11 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
             { username: 'asc' },
           ],
           take: limit + 1, // Fetch one extra to check if there's more
-          skip: offset,
+          ...(cursor
+            ? { cursor: { id: cursor }, skip: 1 }
+            : legacyOffset
+              ? { skip: legacyOffset }
+              : {}),
         });
 
         const hasMore = users.length > limit;
@@ -238,8 +250,11 @@ const searchRoutes: FastifyPluginAsync = async (fastify) => {
           followingCount: user._count.following,
         }));
 
+        const lastUser = resultUsers[resultUsers.length - 1];
+
         return reply.send({
           users: formattedUsers,
+          nextCursor: hasMore && lastUser ? lastUser.id : undefined,
           hasMore,
         });
       } catch (error: unknown) {

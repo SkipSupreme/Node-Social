@@ -355,14 +355,13 @@ export const FeedColumn: React.FC<FeedColumnProps> = ({
 
       // Handle search column
       if (column.type === 'search' && column.searchQuery) {
-        const offset = cursor ? parseInt(cursor) : 0;
-        const data = await searchPosts(column.searchQuery, 20, offset);
+        const data = await searchPosts(column.searchQuery, 20, cursor || undefined);
         if (cursor) {
           setPosts(prev => [...prev, ...mapPosts(data.posts)]);
         } else {
           setPosts(mapPosts(data.posts));
         }
-        setNextCursor(data.hasMore ? String(offset + 20) : undefined);
+        setNextCursor(data.nextCursor);
         setHasMore(data.hasMore);
         setLoading(false);
         setRefreshing(false);

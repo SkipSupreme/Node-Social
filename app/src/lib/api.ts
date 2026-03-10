@@ -1616,13 +1616,13 @@ export function deleteExternalPostReaction(externalPostId: string, nodeId?: stri
 }
 
 // Search
-export const searchPosts = async (query: string, limit = 20, offset = 0) => {
+export const searchPosts = async (query: string, limit = 20, cursor?: string) => {
   const params = new URLSearchParams({
     q: query,
     limit: limit.toString(),
-    offset: offset.toString()
   });
-  return request<{ posts: Post[], total: number, hasMore: boolean }>(`/search/posts?${params.toString()}`, {
+  if (cursor) params.append('cursor', cursor);
+  return request<{ posts: Post[], total: number, nextCursor?: string, hasMore: boolean }>(`/search/posts?${params.toString()}`, {
     method: 'GET'
   });
 };
@@ -1643,13 +1643,13 @@ export type SearchUser = {
   followingCount: number;
 };
 
-export const searchUsers = async (query: string, limit = 20, offset = 0) => {
+export const searchUsers = async (query: string, limit = 20, cursor?: string) => {
   const params = new URLSearchParams({
     q: query,
     limit: limit.toString(),
-    offset: offset.toString()
   });
-  return request<{ users: SearchUser[], hasMore: boolean }>(`/search/users?${params.toString()}`, {
+  if (cursor) params.append('cursor', cursor);
+  return request<{ users: SearchUser[], nextCursor?: string, hasMore: boolean }>(`/search/users?${params.toString()}`, {
     method: 'GET'
   });
 };

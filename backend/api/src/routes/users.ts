@@ -191,15 +191,28 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         return { ...user, isFollowing, isVouched };
     });
 
-    // Get Cred History
+    // Get Cred History (own — cursor paginated)
     fastify.get('/cred/history', { onRequest: [fastify.authenticate] }, async (request, reply) => {
         const userId = (request.user as { sub: string }).sub;
+        const { cursor, limit: limitStr } = request.query as { cursor?: string; limit?: string };
+        const limit = Math.min(Math.max(parseInt(limitStr || '50') || 50, 1), 100);
+
         const transactions = await fastify.prisma.credTransaction.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
-            take: 50
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         });
-        return { transactions };
+
+        const hasMore = transactions.length > limit;
+        const result = hasMore ? transactions.slice(0, limit) : transactions;
+        const last = result[result.length - 1];
+
+        return {
+            transactions: result,
+            nextCursor: hasMore && last ? last.id : undefined,
+            hasMore,
+        };
     });
 
     // Toggle Mute User
@@ -359,19 +372,25 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         }
     });
 
-    // Get user's cred history (public — reputation transparency)
+    // Get user's cred history (public — reputation transparency, cursor paginated)
     fastify.get('/:userId/cred/history', async (request, reply) => {
         const { userId } = request.params as { userId: string };
+        const { cursor, limit: limitStr } = request.query as { cursor?: string; limit?: string };
+        const limit = Math.min(Math.max(parseInt(limitStr || '50') || 50, 1), 100);
 
         // Get cred transactions
         const transactions = await fastify.prisma.credTransaction.findMany({
             where: { userId },
             orderBy: { createdAt: 'desc' },
-            take: 100,
+            take: limit + 1,
+            ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
         });
 
+        const hasMore = transactions.length > limit;
+        const result = hasMore ? transactions.slice(0, limit) : transactions;
+
         // For transactions from posts, get the node info
-        const postIds = transactions
+        const postIds = result
             .filter(t => t.sourceType === 'post' && t.sourceId)
             .map(t => t.sourceId as string);
 
@@ -385,12 +404,18 @@ const usersRoutes: FastifyPluginAsync = async (fastify) => {
         const postNodeMap = new Map(posts.map(p => [p.id, p.node]));
 
         // Enrich transactions with node info
-        const enrichedTransactions = transactions.map(t => ({
+        const enrichedTransactions = result.map(t => ({
             ...t,
             node: t.sourceType === 'post' && t.sourceId ? postNodeMap.get(t.sourceId) || null : null
         }));
 
-        return { transactions: enrichedTransactions };
+        const last = result[result.length - 1];
+
+        return {
+            transactions: enrichedTransactions,
+            nextCursor: hasMore && last ? last.id : undefined,
+            hasMore,
+        };
     });
 
     // Get user's posts
