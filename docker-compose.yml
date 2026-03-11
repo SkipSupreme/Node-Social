@@ -3,6 +3,7 @@ services:
     image: postgres:16
     container_name: nodesocial_postgres
     restart: unless-stopped
+    command: postgres -c random_page_cost=1.1
     environment:
       POSTGRES_USER: nodesocial
       POSTGRES_PASSWORD: nodesocialpwd

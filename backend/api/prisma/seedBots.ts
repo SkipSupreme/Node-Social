@@ -6,107 +6,16 @@ const prisma = new PrismaClient();
 // Bot definitions with their target nodes
 const BOTS = [
   {
-    username: 'TechDigest',
-    displayName: 'Tech Digest',
-    nodeSlug: 'technology',
-    bio: 'Curating the best in tech. AI-powered, human-approved.',
-  },
-  {
-    username: 'ScienceDaily',
-    displayName: 'Science Daily',
-    nodeSlug: 'science',
-    bio: 'Your daily dose of scientific discovery.',
-  },
-  {
     username: 'CodeCurator',
     displayName: 'Code Curator',
     nodeSlug: 'programming',
     bio: 'Quality code content, zero fluff.',
   },
-  {
-    username: 'CosmicNews',
-    displayName: 'Cosmic News',
-    nodeSlug: 'astronomy',
-    bio: 'Eyes on the universe.',
-  },
-  {
-    username: 'MathMind',
-    displayName: 'Math Mind',
-    nodeSlug: 'math',
-    bio: 'Beautiful mathematics, elegantly explained.',
-  },
-  {
-    username: 'AIInsider',
-    displayName: 'AI Insider',
-    nodeSlug: 'ai',
-    bio: 'Tracking the AI revolution.',
-  },
-  {
-    username: 'GodotGuru',
-    displayName: 'Godot Guru',
-    nodeSlug: 'godot',
-    bio: 'Game dev with Godot, tutorials and news.',
-  },
-  {
-    username: 'DesignDaily',
-    displayName: 'Design Daily',
-    nodeSlug: 'graphic-design',
-    bio: 'Inspiration for visual creators.',
-  },
-  {
-    username: 'UXCurator',
-    displayName: 'UX Curator',
-    nodeSlug: 'ui-ux',
-    bio: 'Better interfaces, better experiences.',
-  },
-  {
-    username: 'ArtStream',
-    displayName: 'Art Stream',
-    nodeSlug: 'art',
-    bio: 'Digital and traditional art that inspires.',
-  },
-  {
-    username: 'MTGDigest',
-    displayName: 'MTG Digest',
-    nodeSlug: 'mtg',
-    bio: 'Magic: The Gathering news and strategy.',
-  },
-  {
-    username: 'BlenderBot',
-    displayName: 'Blender Bot',
-    nodeSlug: 'blender',
-    bio: '3D art and Blender tutorials.',
-  },
-  {
-    username: 'SoulSeeker',
-    displayName: 'Soul Seeker',
-    nodeSlug: 'spirituality',
-    bio: 'Mindfulness, meditation, and meaning.',
-  },
-  {
-    username: 'TubeWatch',
-    displayName: 'Tube Watch',
-    nodeSlug: 'youtube',
-    bio: 'The best of YouTube, curated.',
-  },
 ];
 
 // Node definitions to create
 const NODES = [
-  { slug: 'technology', name: 'Technology', description: 'Tech news, gadgets, and innovation', color: '#3B82F6' },
-  { slug: 'science', name: 'Science', description: 'Scientific discoveries and research', color: '#10B981' },
   { slug: 'programming', name: 'Programming', description: 'Code, tutorials, and developer news', color: '#8B5CF6' },
-  { slug: 'astronomy', name: 'Astronomy', description: 'Space, stars, and the cosmos', color: '#1E3A5F' },
-  { slug: 'math', name: 'Mathematics', description: 'Beautiful proofs and mathematical insights', color: '#F59E0B' },
-  { slug: 'ai', name: 'Artificial Intelligence', description: 'AI, ML, and the future of intelligence', color: '#EC4899' },
-  { slug: 'godot', name: 'Godot', description: 'Godot game engine tutorials and news', color: '#478CBF' },
-  { slug: 'graphic-design', name: 'Graphic Design', description: 'Visual design inspiration and techniques', color: '#F97316' },
-  { slug: 'ui-ux', name: 'UI/UX Design', description: 'User experience and interface design', color: '#06B6D4' },
-  { slug: 'art', name: 'Art', description: 'Digital and traditional art', color: '#EF4444' },
-  { slug: 'mtg', name: 'Magic: The Gathering', description: 'MTG news, strategy, and community', color: '#854D0E' },
-  { slug: 'blender', name: 'Blender', description: '3D modeling and animation with Blender', color: '#EA7600' },
-  { slug: 'spirituality', name: 'Spirituality', description: 'Mindfulness, meditation, and meaning', color: '#7C3AED' },
-  { slug: 'youtube', name: 'YouTube', description: 'The best of YouTube, curated', color: '#FF0000' },
 ];
 
 async function main() {

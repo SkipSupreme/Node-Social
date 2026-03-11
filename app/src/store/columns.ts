@@ -73,11 +73,12 @@ const generateId = (): string => {
   return `col_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 };
 
-// Default columns for new users - 3 columns to fill typical desktop
+// Default columns for new users - 4 columns to fill typical desktop
 const getDefaultColumns = (): FeedColumn[] => [
   { id: generateId(), type: 'global', title: 'Global' },
-  { id: generateId(), type: 'discovery', title: 'Discovery' },
-  { id: generateId(), type: 'trending', title: 'Trending' },
+  { id: generateId(), type: 'bluesky', title: 'Bluesky', externalConfig: { platform: 'bluesky', blueskyFeed: 'discover' } },
+  { id: generateId(), type: 'mastodon', title: 'Mastodon', externalConfig: { platform: 'mastodon', mastodonTimeline: 'trending' } },
+  { id: generateId(), type: 'trending', title: "What's Vibing" },
 ];
 
 // Max columns based on screen width
